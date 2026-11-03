@@ -1,8 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 4: Catatan Singkat & Google Docs)
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 5: Laporan Google Sheets & CSV)
  * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (termasuk kartu
- * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, Dokumen, dan Catatan, pemantau kedaluwarsa
- * token Google Drive, konfirmasi keluar, dan Service Worker.
+ * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, Dokumen, Catatan, dan Laporan, pemantau
+ * kedaluwarsa token Google Drive, konfirmasi keluar, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -12,7 +12,7 @@ import {
   logoutUser,
   isDriveTokenExpired,
   consumeLastAuthError,
-  formatPesanGalatAuth
+  formatPesanGalatAuth,
 } from "./auth.js";
 import { initTema } from "./tema.js";
 import {
@@ -20,7 +20,7 @@ import {
   perbaruiInfoAkunSidebar,
   tutupDrawerMobile,
   pindahKeBagian,
-  escapeHtml
+  escapeHtml,
 } from "./sidebar.js";
 import { hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import {
@@ -35,7 +35,7 @@ import {
   bukaModalFormKegiatan,
   terapkanFilterStatusKegiatan,
   kelasBadgeStatus,
-  daftarkanPembukaDetailKegiatan
+  daftarkanPembukaDetailKegiatan,
 } from "./kegiatan.js";
 import {
   initHalamanJadwal,
@@ -45,7 +45,7 @@ import {
   resetHalamanJadwalSaatKeluar,
   formatTanggalLengkapIndonesia,
   formatTanggalRingkasIndonesia,
-  urutkanKegiatanKronologis
+  urutkanKegiatanKronologis,
 } from "./jadwal.js";
 import {
   manajerKategoriDokumen,
@@ -58,21 +58,45 @@ import {
   bukaModalUnggahDokumen,
   formatTanggalDokumenLokal,
   formatUkuranBerkas,
-  infoJenisBerkasMime
+  infoJenisBerkasMime,
 } from "./dokumen.js";
 import {
   initHalamanCatatan,
   subscribeCatatan,
   unsubscribeCatatan,
   perbaruiStatusJaringanCatatan,
-  daftarkanPembukaDetailKegiatanCatatan
+  daftarkanPembukaDetailKegiatanCatatan,
 } from "./catatan.js";
+import {
+  initHalamanLaporan,
+  subscribeLaporan,
+  unsubscribeLaporan,
+  perbaruiStatusJaringanLaporan,
+} from "./laporan.js";
 import { resetCacheDrive } from "./drive.js";
 
-const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const NAMA_HARI = [
+  "Minggu",
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+];
 const NAMA_BULAN = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 const svgIkon = (isi, uk = 18, tebal = 2) =>
@@ -88,12 +112,15 @@ export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
   unsubscribeDokumen();
   unsubscribeCatatan();
+  unsubscribeLaporan();
   resetCacheDrive();
   resetHalamanJadwalSaatKeluar();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
-      try { unsub(); } catch (_err) {}
+      try {
+        unsub();
+      } catch (_err) {}
     }
   }
 }
@@ -214,9 +241,13 @@ function pastikanKerangkaDashboard() {
 function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
   const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
   const labelWaktu = item.waktuMulai
-    ? item.waktuSelesai ? `${item.waktuMulai}–${item.waktuSelesai}` : item.waktuMulai
+    ? item.waktuSelesai
+      ? `${item.waktuMulai}–${item.waktuSelesai}`
+      : item.waktuMulai
     : "Sepanjang hari";
-  const infoSub = tampilkanTanggal ? `${formatTanggalRingkasIndonesia(item.tanggal)} • ${labelWaktu}` : labelWaktu;
+  const infoSub = tampilkanTanggal
+    ? `${formatTanggalRingkasIndonesia(item.tanggal)} • ${labelWaktu}`
+    : labelWaktu;
 
   return `<li class="dash-activity-item${item.status === "Selesai" ? " is-completed" : ""}">
     <div class="dash-activity-main">
@@ -252,8 +283,8 @@ function renderKartuDokumenDashboard() {
   const limaTerbaru = [...semuaDokumen]
     .sort((a, b) =>
       String(b.tanggalUnggah || b.createdAt || "").localeCompare(
-        String(a.tanggalUnggah || a.createdAt || "")
-      )
+        String(a.tanggalUnggah || a.createdAt || ""),
+      ),
     )
     .slice(0, 5);
 
@@ -262,7 +293,9 @@ function renderKartuDokumenDashboard() {
       const infoKat = manajerKategoriDokumen.cariInfoKategori(dok.kategoriId);
       const jenis = infoJenisBerkasMime(dok.mimeType, dok.namaFile);
       const nama = dok.namaTampilan || dok.namaFile || "Dokumen";
-      const tanggalLokalStr = formatTanggalDokumenLokal(dok.tanggalUnggah || dok.createdAt);
+      const tanggalLokalStr = formatTanggalDokumenLokal(
+        dok.tanggalUnggah || dok.createdAt,
+      );
       const ukuranStr = formatUkuranBerkas(dok.ukuran);
       const tautanAman =
         dok.tautan && /^https?:\/\//i.test(dok.tautan)
@@ -292,7 +325,9 @@ function renderKartuDokumenDashboard() {
 
   const sisa = semuaDokumen.length - limaTerbaru.length;
   bodyDokumen.innerHTML = `<ul class="dash-doc-list">${htmlItem}</ul>${
-    sisa > 0 ? `<p class="dash-more-note">+${sisa} dokumen lainnya di Arsip Dokumen</p>` : ""
+    sisa > 0
+      ? `<p class="dash-more-note">+${sisa} dokumen lainnya di Arsip Dokumen</p>`
+      : ""
   }`;
 }
 
@@ -310,8 +345,10 @@ function renderDashboard() {
 
   const metaHariIniEl = document.getElementById("dash-meta-hari-ini");
   const meta7HariEl = document.getElementById("dash-meta-7hari");
-  if (metaHariIniEl) metaHariIniEl.textContent = formatTanggalRingkasIndonesia(strHariIni);
-  if (meta7HariEl) meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
+  if (metaHariIniEl)
+    metaHariIniEl.textContent = formatTanggalRingkasIndonesia(strHariIni);
+  if (meta7HariEl)
+    meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
 
   renderKartuDokumenDashboard();
 
@@ -335,20 +372,28 @@ function renderDashboard() {
 
   // 1. Kegiatan hari ini: tanggal == hariIni() (semua status tetap dihitung)
   const kegiatanHariIni = urutkanKegiatanKronologis(
-    semuaKegiatan.filter((item) => Boolean(parseTanggal(item.tanggal)) && item.tanggal === strHariIni)
+    semuaKegiatan.filter(
+      (item) =>
+        Boolean(parseTanggal(item.tanggal)) && item.tanggal === strHariIni,
+    ),
   );
 
   // 2. 7 hari ke depan: hariIni() sampai tambahHari(7), tidak termasuk hari ini (semua status tetap dihitung)
   const kegiatan7Hari = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
-      (item) => Boolean(parseTanggal(item.tanggal)) && item.tanggal > strHariIni && item.tanggal <= strTujuhHari
-    )
+      (item) =>
+        Boolean(parseTanggal(item.tanggal)) &&
+        item.tanggal > strHariIni &&
+        item.tanggal <= strTujuhHari,
+    ),
   );
 
   // 3. Ringkasan status: jumlah per status
   const hitunganStatus = { Rencana: 0, Berjalan: 0, Selesai: 0 };
   semuaKegiatan.forEach((item) => {
-    const st = DAFTAR_STATUS_KEGIATAN.includes(item.status) ? item.status : "Rencana";
+    const st = DAFTAR_STATUS_KEGIATAN.includes(item.status)
+      ? item.status
+      : "Rencana";
     hitunganStatus[st] += 1;
   });
 
@@ -361,7 +406,12 @@ function renderDashboard() {
   } else {
     const maks = 5;
     const sisa = kegiatanHariIni.length - maks;
-    bodyHariIni.innerHTML = `<ul class="dash-activity-list">${kegiatanHariIni.slice(0, maks).map((item) => renderBarisKegiatanDashboard(item, false)).join("")}</ul>${sisa > 0 ? `<p class="dash-more-note">+${sisa} kegiatan lainnya hari ini</p>` : ""}`;
+    bodyHariIni.innerHTML = `<ul class="dash-activity-list">${kegiatanHariIni
+      .slice(0, maks)
+      .map((item) => renderBarisKegiatanDashboard(item, false))
+      .join(
+        "",
+      )}</ul>${sisa > 0 ? `<p class="dash-more-note">+${sisa} kegiatan lainnya hari ini</p>` : ""}`;
   }
 
   if (kegiatan7Hari.length === 0) {
@@ -369,20 +419,28 @@ function renderDashboard() {
   } else {
     const maks7 = 5;
     const sisa7 = kegiatan7Hari.length - maks7;
-    body7Hari.innerHTML = `<ul class="dash-activity-list">${kegiatan7Hari.slice(0, maks7).map((item) => renderBarisKegiatanDashboard(item, true)).join("")}</ul>${sisa7 > 0 ? `<p class="dash-more-note">+${sisa7} kegiatan lainnya dalam 7 hari ke depan</p>` : ""}`;
+    body7Hari.innerHTML = `<ul class="dash-activity-list">${kegiatan7Hari
+      .slice(0, maks7)
+      .map((item) => renderBarisKegiatanDashboard(item, true))
+      .join(
+        "",
+      )}</ul>${sisa7 > 0 ? `<p class="dash-more-note">+${sisa7} kegiatan lainnya dalam 7 hari ke depan</p>` : ""}`;
   }
 
   const totalSemua = semuaKegiatan.length;
-  bodyStatus.innerHTML = `<ul class="dash-status-list">${DAFTAR_STATUS_KEGIATAN.map((st) => {
-    const jumlah = hitunganStatus[st] || 0;
-    const persen = totalSemua > 0 ? Math.round((jumlah / totalSemua) * 100) : 0;
-    return `<li class="dash-status-row">
+  bodyStatus.innerHTML = `<ul class="dash-status-list">${DAFTAR_STATUS_KEGIATAN.map(
+    (st) => {
+      const jumlah = hitunganStatus[st] || 0;
+      const persen =
+        totalSemua > 0 ? Math.round((jumlah / totalSemua) * 100) : 0;
+      return `<li class="dash-status-row">
       <button type="button" class="dash-status-btn" data-dash-action="filter-status" data-status="${escapeHtml(st)}" title="Lihat kegiatan berstatus ${escapeHtml(st)}">
         <span class="${kelasBadgeStatus(st)}">${escapeHtml(st)}</span>
         <span class="dash-status-numbers"><strong class="dash-status-count">${jumlah}</strong><span class="dash-status-pct">(${persen}%)</span></span>
       </button>
     </li>`;
-  }).join("")}</ul>`;
+    },
+  ).join("")}</ul>`;
 }
 
 function initHalamanDashboard() {
@@ -396,8 +454,14 @@ function initHalamanDashboard() {
       const targetEl = e.target instanceof Element ? e.target : null;
       if (!targetEl) return;
 
-      if (targetEl.closest("#btn-dashboard-buka-jadwal")) { pindahKeBagian("jadwal"); return; }
-      if (targetEl.closest("#btn-dashboard-tambah-kegiatan")) { bukaModalFormKegiatan(null, hariIni()); return; }
+      if (targetEl.closest("#btn-dashboard-buka-jadwal")) {
+        pindahKeBagian("jadwal");
+        return;
+      }
+      if (targetEl.closest("#btn-dashboard-tambah-kegiatan")) {
+        bukaModalFormKegiatan(null, hariIni());
+        return;
+      }
 
       const btnAksi = targetEl.closest("button[data-dash-action]");
       if (!btnAksi) return;
@@ -407,7 +471,10 @@ function initHalamanDashboard() {
       else if (aksi === "jadwal-hari-ini") bukaJadwalPadaTanggal(hariIni());
       else if (aksi === "buka-jadwal") pindahKeBagian("jadwal");
       else if (aksi === "semua-kegiatan") terapkanFilterStatusKegiatan("ALL");
-      else if (aksi === "filter-status") terapkanFilterStatusKegiatan(btnAksi.getAttribute("data-status") || "ALL");
+      else if (aksi === "filter-status")
+        terapkanFilterStatusKegiatan(
+          btnAksi.getAttribute("data-status") || "ALL",
+        );
       else if (aksi === "detail-kegiatan") {
         const id = btnAksi.getAttribute("data-id") || "";
         if (id) bukaDialogDetailKegiatan(id);
@@ -449,6 +516,7 @@ function perbaruiIndikatorJaringan() {
   const offlineBanner = document.getElementById("offline-banner");
   if (offlineBanner) offlineBanner.hidden = navigator.onLine;
   perbaruiStatusJaringanCatatan();
+  perbaruiStatusJaringanLaporan();
 }
 
 function bukaDialogKeluar() {
@@ -456,7 +524,10 @@ function bukaDialogKeluar() {
   const btnBatal = document.getElementById("logout-cancel-btn");
   if (!modal) return;
 
-  focusBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  focusBeforeModal =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
   logoutDialogOpen = true;
   modal.hidden = false;
   requestAnimationFrame(() => {
@@ -470,7 +541,11 @@ function tutupDialogKeluar(kembalikanFokus = true) {
 
   logoutDialogOpen = false;
   modal.hidden = true;
-  if (kembalikanFokus && focusBeforeModal && document.contains(focusBeforeModal)) {
+  if (
+    kembalikanFokus &&
+    focusBeforeModal &&
+    document.contains(focusBeforeModal)
+  ) {
     focusBeforeModal.focus();
   }
   focusBeforeModal = null;
@@ -512,7 +587,8 @@ function pasangEventListenerAntarmuka() {
         periksaStatusTokenDrive();
       } catch (err) {
         const bannerText = document.getElementById("token-expired-text");
-        if (bannerText) bannerText.textContent = `Gagal memperbarui sesi Drive: ${escapeHtml(formatPesanGalatAuth(err))}`;
+        if (bannerText)
+          bannerText.textContent = `Gagal memperbarui sesi Drive: ${escapeHtml(formatPesanGalatAuth(err))}`;
       } finally {
         btnRelogin.disabled = false;
         btnRelogin.textContent = teksAwal;
@@ -524,8 +600,12 @@ function pasangEventListenerAntarmuka() {
   const btnBatalLogout = document.getElementById("logout-cancel-btn");
   const btnKonfirmasiLogout = document.getElementById("logout-confirm-btn");
 
-  if (btnBatalLogout) btnBatalLogout.addEventListener("click", () => tutupDialogKeluar(true));
-  if (modalLogout) modalLogout.addEventListener("click", (e) => { if (e.target === modalLogout) tutupDialogKeluar(true); });
+  if (btnBatalLogout)
+    btnBatalLogout.addEventListener("click", () => tutupDialogKeluar(true));
+  if (modalLogout)
+    modalLogout.addEventListener("click", (e) => {
+      if (e.target === modalLogout) tutupDialogKeluar(true);
+    });
 
   if (btnKonfirmasiLogout) {
     btnKonfirmasiLogout.addEventListener("click", async () => {
@@ -551,7 +631,9 @@ function pasangEventListenerAntarmuka() {
       return;
     }
     if (e.key === "Tab" && modalLogout) {
-      const tombol = Array.from(modalLogout.querySelectorAll("button:not([disabled])"));
+      const tombol = Array.from(
+        modalLogout.querySelectorAll("button:not([disabled])"),
+      );
       if (tombol.length === 0) return;
       const pertama = tombol[0];
       const terakhir = tombol[tombol.length - 1];
@@ -568,7 +650,10 @@ function pasangEventListenerAntarmuka() {
   window.addEventListener("online", perbaruiIndikatorJaringan);
   window.addEventListener("offline", perbaruiIndikatorJaringan);
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !document.getElementById("app-shell")?.hidden) {
+    if (
+      document.visibilityState === "visible" &&
+      !document.getElementById("app-shell")?.hidden
+    ) {
       periksaStatusTokenDrive();
       perbaruiTanggalHeader();
       renderDashboard();
@@ -586,14 +671,17 @@ function initPwaInstallPrompt() {
   if (!btnInstall) return;
 
   const sedangStandalone =
-    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    (window.matchMedia &&
+      window.matchMedia("(display-mode: standalone)").matches) ||
     window.navigator.standalone === true;
   if (sedangStandalone) {
     btnInstall.hidden = true;
     return;
   }
 
-  const perangkatIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  const perangkatIos = /iphone|ipad|ipod/.test(
+    window.navigator.userAgent.toLowerCase(),
+  );
   if (perangkatIos) btnInstall.hidden = false;
 
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -620,9 +708,15 @@ function initPwaInstallPrompt() {
   });
 
   if (btnTutupIos && iosModal) {
-    btnTutupIos.addEventListener("click", () => { iosModal.hidden = true; btnInstall.focus(); });
+    btnTutupIos.addEventListener("click", () => {
+      iosModal.hidden = true;
+      btnInstall.focus();
+    });
     iosModal.addEventListener("click", (e) => {
-      if (e.target === iosModal) { iosModal.hidden = true; btnInstall.focus(); }
+      if (e.target === iosModal) {
+        iosModal.hidden = true;
+        btnInstall.focus();
+      }
     });
   }
 }
@@ -655,7 +749,7 @@ function mulaiAplikasi() {
 
   initSidebar({
     initialSection: "dashboard",
-    onLogoutRequest: () => bukaDialogKeluar()
+    onLogoutRequest: () => bukaDialogKeluar(),
   });
 
   daftarkanPembukaDetailKegiatan(bukaDialogDetailKegiatan);
@@ -665,6 +759,7 @@ function mulaiAplikasi() {
   initHalamanJadwal();
   initHalamanDokumen();
   initHalamanCatatan();
+  initHalamanLaporan();
   initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
@@ -692,7 +787,13 @@ function mulaiAplikasi() {
       const unsubKegiatan = subscribeKegiatan();
       const unsubDokumen = subscribeDokumen();
       const unsubCatatan = subscribeCatatan();
-      dataUnsubscribers.push(unsubKegiatan, unsubDokumen, unsubCatatan);
+      const unsubLaporan = subscribeLaporan();
+      dataUnsubscribers.push(
+        unsubKegiatan,
+        unsubDokumen,
+        unsubCatatan,
+        unsubLaporan,
+      );
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

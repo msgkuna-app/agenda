@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.7.0";
+const VERSION = "agenda-arsip-v1.8.0";
 
 const APP_SHELL = [
   "/",
@@ -18,6 +18,7 @@ const APP_SHELL = [
   "/js/dokumen.js",
   "/js/templat-dokumen.js",
   "/js/catatan.js",
+  "/js/laporan.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",

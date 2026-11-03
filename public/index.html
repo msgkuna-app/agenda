@@ -2,19 +2,33 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Agenda &amp; Arsip</title>
-    <meta name="description" content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan." />
+    <meta
+      name="description"
+      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan."
+    />
     <meta name="theme-color" content="#1e40af" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Agenda" />
     <meta property="og:title" content="Agenda &amp; Arsip" />
-    <meta property="og:description" content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan." />
+    <meta
+      property="og:description"
+      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/icons/icon-192.png"
+    />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
     <!-- Skrip sinkron awal sebelum stylesheet untuk mencegah kilasan warna tema & ukuran sidebar -->
@@ -27,15 +41,23 @@
           if (t === "light" || t === "dark" || t === "system") prefTema = t;
         } catch (_e) {}
 
-        var gelapSistem = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var efektif = prefTema === "system" ? (gelapSistem ? "dark" : "light") : prefTema;
+        var gelapSistem =
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var efektif =
+          prefTema === "system" ? (gelapSistem ? "dark" : "light") : prefTema;
 
-        if (prefTema === "light" || prefTema === "dark") root.setAttribute("data-theme", prefTema);
+        if (prefTema === "light" || prefTema === "dark")
+          root.setAttribute("data-theme", prefTema);
         else root.removeAttribute("data-theme");
         root.style.colorScheme = efektif;
 
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
+        if (meta)
+          meta.setAttribute(
+            "content",
+            efektif === "dark" ? "#0f172a" : "#1e40af",
+          );
 
         var statusSidebar = null;
         try {
@@ -44,7 +66,11 @@
         } catch (_e2) {}
 
         if (!statusSidebar) {
-          statusSidebar = window.matchMedia && window.matchMedia("(min-width: 1024.02px)").matches ? "expanded" : "collapsed";
+          statusSidebar =
+            window.matchMedia &&
+            window.matchMedia("(min-width: 1024.02px)").matches
+              ? "expanded"
+              : "collapsed";
         }
         root.setAttribute("data-sidebar", statusSidebar);
       })();
@@ -68,24 +94,56 @@
       <section class="config-error-card" aria-labelledby="config-error-heading">
         <div class="config-error-header">
           <div class="config-error-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
           <div>
-            <h1 id="config-error-heading" class="config-error-title">Konfigurasi Firebase Belum Diisi</h1>
+            <h1 id="config-error-heading" class="config-error-title">
+              Konfigurasi Firebase Belum Diisi
+            </h1>
           </div>
         </div>
         <p class="config-error-desc">
-          Berkas <code class="inline-code">public/js/firebase-config.js</code> masih berisi nilai penanda
-          <code class="inline-code">ISI_DARI_FIREBASE_CONSOLE</code>. Aplikasi ini tidak menggunakan mode demo atau data palsu.
+          Berkas
+          <code class="inline-code">public/js/firebase-config.js</code> masih
+          berisi nilai penanda
+          <code class="inline-code">ISI_DARI_FIREBASE_CONSOLE</code>. Aplikasi
+          ini tidak menggunakan mode demo atau data palsu.
         </p>
         <ol class="config-steps">
-          <li>Buka <strong>Firebase Console</strong> pada proyek Anda, lalu masuk ke <strong>Project settings &rarr; General</strong>.</li>
-          <li>Pada bagian <strong>Your apps</strong>, salin objek <code>firebaseConfig</code> dari aplikasi Web Anda.</li>
-          <li>Buka berkas <code>public/js/firebase-config.js</code> dan ganti seluruh nilai <code>"ISI_DARI_FIREBASE_CONSOLE"</code> dengan nilai asli proyek Anda.</li>
-          <li>Pastikan penyedia masuk <strong>Google</strong> sudah aktif di menu <strong>Authentication &rarr; Sign-in method</strong> untuk akun pemilik <code id="authorized-owner-email">msgkuna.app@gmail.com</code>.</li>
+          <li>
+            Buka <strong>Firebase Console</strong> pada proyek Anda, lalu masuk
+            ke <strong>Project settings &rarr; General</strong>.
+          </li>
+          <li>
+            Pada bagian <strong>Your apps</strong>, salin objek
+            <code>firebaseConfig</code> dari aplikasi Web Anda.
+          </li>
+          <li>
+            Buka berkas <code>public/js/firebase-config.js</code> dan ganti
+            seluruh nilai <code>"ISI_DARI_FIREBASE_CONSOLE"</code> dengan nilai
+            asli proyek Anda.
+          </li>
+          <li>
+            Pastikan penyedia masuk <strong>Google</strong> sudah aktif di menu
+            <strong>Authentication &rarr; Sign-in method</strong> untuk akun
+            pemilik
+            <code id="authorized-owner-email">msgkuna.app@gmail.com</code>.
+          </li>
           <li>Muat ulang halaman ini setelah menyimpan perubahan.</li>
         </ol>
       </section>
@@ -95,20 +153,48 @@
     <main id="screen-login" class="centered-screen" hidden>
       <section class="auth-card" aria-labelledby="login-heading">
         <div class="brand-emblem" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="17" rx="2.5" /><line x1="8" y1="2.5" x2="8" y2="6" /><line x1="16" y1="2.5" x2="16" y2="6" />
-            <line x1="3" y1="9.5" x2="21" y2="9.5" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17.5" x2="13" y2="17.5" />
+          <svg
+            viewBox="0 0 24 24"
+            width="28"
+            height="28"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="4" width="18" height="17" rx="2.5" />
+            <line x1="8" y1="2.5" x2="8" y2="6" />
+            <line x1="16" y1="2.5" x2="16" y2="6" />
+            <line x1="3" y1="9.5" x2="21" y2="9.5" />
+            <line x1="8" y1="14" x2="16" y2="14" />
+            <line x1="8" y1="17.5" x2="13" y2="17.5" />
           </svg>
         </div>
 
         <div class="auth-header-group">
           <h1 id="login-heading" class="auth-title">Agenda &amp; Arsip</h1>
-          <p class="auth-subtitle">Ruang kerja pribadi untuk mengelola kegiatan, jadwal, catatan, dan arsip dokumen Google Drive.</p>
+          <p class="auth-subtitle">
+            Ruang kerja pribadi untuk mengelola kegiatan, jadwal, catatan, dan
+            arsip dokumen Google Drive.
+          </p>
         </div>
 
         <div id="login-error-box" class="alert-box" role="alert" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span id="login-error-text"></span>
         </div>
@@ -116,10 +202,22 @@
         <button type="button" id="google-login-btn" class="btn-google">
           <span class="google-icon-wrap" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="16" height="16">
-              <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.86c2.26-2.09 3.56-5.17 3.56-8.8z"/>
-              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-2.98c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/>
-              <path fill="#FBBC05" d="M5.27 14.31c-.24-.72-.38-1.49-.38-2.31s.14-1.59.38-2.31V6.6H1.29C.47 8.23 0 10.06 0 12s.47 3.77 1.29 5.4l3.98-3.09z"/>
-              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.6l3.98 3.09c.95-2.85 3.6-4.94 6.73-4.94z"/>
+              <path
+                fill="#4285F4"
+                d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.86c2.26-2.09 3.56-5.17 3.56-8.8z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-2.98c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.27 14.31c-.24-.72-.38-1.49-.38-2.31s.14-1.59.38-2.31V6.6H1.29C.47 8.23 0 10.06 0 12s.47 3.77 1.29 5.4l3.98-3.09z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.6l3.98 3.09c.95-2.85 3.6-4.94 6.73-4.94z"
+              />
             </svg>
           </span>
           <span class="btn-google-label">Masuk dengan Google</span>
@@ -127,20 +225,80 @@
 
         <div class="auth-theme-footer">
           <span class="auth-theme-label">Tema tampilan</span>
-          <div class="theme-switcher" role="group" aria-label="Pemilih tema tampilan">
-            <button type="button" class="theme-choice-btn" data-theme-choice="light" aria-label="Tema Terang" title="Tema Terang" aria-pressed="false">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          <div
+            class="theme-switcher"
+            role="group"
+            aria-label="Pemilih tema tampilan"
+          >
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="light"
+              aria-label="Tema Terang"
+              title="Tema Terang"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                />
               </svg>
             </button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="dark" aria-label="Tema Gelap" title="Tema Gelap" aria-pressed="false">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="dark"
+              aria-label="Tema Gelap"
+              title="Tema Gelap"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             </button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="system" aria-label="Ikuti Sistem" title="Ikuti Sistem" aria-pressed="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="system"
+              aria-label="Ikuti Sistem"
+              title="Ikuti Sistem"
+              aria-pressed="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             </button>
           </div>
@@ -156,22 +314,68 @@
         <div class="sidebar-top">
           <div class="sidebar-brand">
             <span class="sidebar-brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="17" rx="2.5" /><line x1="8" y1="2.5" x2="8" y2="6" /><line x1="16" y1="2.5" x2="16" y2="6" /><line x1="3" y1="9.5" x2="21" y2="9.5" />
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="17" rx="2.5" />
+                <line x1="8" y1="2.5" x2="8" y2="6" />
+                <line x1="16" y1="2.5" x2="16" y2="6" />
+                <line x1="3" y1="9.5" x2="21" y2="9.5" />
               </svg>
             </span>
             <span class="sidebar-brand-title">Agenda &amp; Arsip</span>
           </div>
 
-          <button type="button" id="sidebar-collapse-btn" class="icon-btn sidebar-collapse-btn" aria-expanded="true" aria-label="Ciutkan bilah sisi" title="Ciutkan bilah sisi">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button
+            type="button"
+            id="sidebar-collapse-btn"
+            class="icon-btn sidebar-collapse-btn"
+            aria-expanded="true"
+            aria-label="Ciutkan bilah sisi"
+            title="Ciutkan bilah sisi"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
 
-          <button type="button" id="sidebar-mobile-close-btn" class="icon-btn sidebar-mobile-close-btn" aria-label="Tutup menu navigasi" title="Tutup menu navigasi">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          <button
+            type="button"
+            id="sidebar-mobile-close-btn"
+            class="icon-btn sidebar-mobile-close-btn"
+            aria-label="Tutup menu navigasi"
+            title="Tutup menu navigasi"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -182,19 +386,78 @@
 
         <div class="sidebar-bottom">
           <div class="theme-switcher" role="group" aria-label="Pemilih tema">
-            <button type="button" class="theme-choice-btn" data-theme-choice="light" data-tooltip="Tema Terang" aria-label="Tema Terang" title="Tema Terang" aria-pressed="false">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="light"
+              data-tooltip="Tema Terang"
+              aria-label="Tema Terang"
+              title="Tema Terang"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+                />
               </svg>
             </button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="dark" data-tooltip="Tema Gelap" aria-label="Tema Gelap" title="Tema Gelap" aria-pressed="false">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="dark"
+              data-tooltip="Tema Gelap"
+              aria-label="Tema Gelap"
+              title="Tema Gelap"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             </button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="system" data-tooltip="Ikuti Sistem" aria-label="Ikuti Sistem" title="Ikuti Sistem" aria-pressed="true">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="system"
+              data-tooltip="Ikuti Sistem"
+              aria-label="Ikuti Sistem"
+              title="Ikuti Sistem"
+              aria-pressed="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             </button>
           </div>
@@ -202,32 +465,82 @@
           <div class="account-row">
             <div class="account-profile">
               <span class="account-avatar" aria-hidden="true">
-                <img id="sidebar-user-photo" alt="" referrerpolicy="no-referrer" hidden />
+                <img
+                  id="sidebar-user-photo"
+                  alt=""
+                  referrerpolicy="no-referrer"
+                  hidden
+                />
                 <span id="sidebar-user-initials">AA</span>
               </span>
               <div class="account-meta">
-                <span id="sidebar-user-name" class="account-name">Pengguna</span>
+                <span id="sidebar-user-name" class="account-name"
+                  >Pengguna</span
+                >
                 <span id="sidebar-user-email" class="account-email"></span>
               </div>
             </div>
 
-            <button type="button" id="sidebar-logout-btn" class="icon-btn logout-btn" data-tooltip="Keluar" aria-label="Keluar" title="Keluar">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><line x1="12" y1="2" x2="12" y2="12" />
+            <button
+              type="button"
+              id="sidebar-logout-btn"
+              class="icon-btn logout-btn"
+              data-tooltip="Keluar"
+              aria-label="Keluar"
+              title="Keluar"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                <line x1="12" y1="2" x2="12" y2="12" />
               </svg>
             </button>
           </div>
         </div>
       </aside>
 
-      <div id="sidebar-tooltip" class="sidebar-tooltip" role="tooltip" hidden></div>
+      <div
+        id="sidebar-tooltip"
+        class="sidebar-tooltip"
+        role="tooltip"
+        hidden
+      ></div>
 
       <div class="app-workspace">
         <header class="app-header">
           <div class="header-left">
-            <button type="button" id="mobile-menu-btn" class="icon-btn mobile-menu-btn" aria-controls="app-sidebar" aria-expanded="false" aria-label="Buka menu navigasi" title="Buka menu navigasi">
-              <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+            <button
+              type="button"
+              id="mobile-menu-btn"
+              class="icon-btn mobile-menu-btn"
+              aria-controls="app-sidebar"
+              aria-expanded="false"
+              aria-label="Buka menu navigasi"
+              title="Buka menu navigasi"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="21"
+                height="21"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
             <h1 id="header-page-title" class="header-page-title">Dashboard</h1>
@@ -235,9 +548,26 @@
 
           <div class="header-right">
             <span id="header-date-text" class="header-date"></span>
-            <button type="button" id="pwa-install-btn" class="btn-install-pwa" hidden>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            <button
+              type="button"
+              id="pwa-install-btn"
+              class="btn-install-pwa"
+              hidden
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               <span>Pasang Aplikasi</span>
             </button>
@@ -245,12 +575,29 @@
         </header>
 
         <div id="offline-banner" class="status-banner" role="status" hidden>
-          <span>Tidak ada koneksi internet. Menampilkan data tersimpan di perangkat.</span>
+          <span
+            >Tidak ada koneksi internet. Menampilkan data tersimpan di
+            perangkat.</span
+          >
         </div>
 
-        <div id="token-expired-banner" class="status-banner" role="status" hidden>
-          <span id="token-expired-text">Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Masuk ulang diperlukan sebelum mengakses berkas Drive.</span>
-          <button type="button" id="relogin-drive-btn" class="btn-banner-action">Masuk ulang</button>
+        <div
+          id="token-expired-banner"
+          class="status-banner"
+          role="status"
+          hidden
+        >
+          <span id="token-expired-text"
+            >Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Masuk
+            ulang diperlukan sebelum mengakses berkas Drive.</span
+          >
+          <button
+            type="button"
+            id="relogin-drive-btn"
+            class="btn-banner-action"
+          >
+            Masuk ulang
+          </button>
         </div>
 
         <main id="main-content" class="app-main" tabindex="-1">
@@ -260,45 +607,120 @@
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Kelola Kategori (Fase 1 & dipakai ulang Fase 3) -->
-    <div id="kategori-manage-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kategori-manage-title" hidden>
+    <div
+      id="kategori-manage-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kategori-manage-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="kategori-manage-title" class="modal-title">Kelola Kategori Kegiatan</h2>
-          <button type="button" id="kategori-manage-close-btn" class="icon-btn" aria-label="Tutup kelola kategori" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="kategori-manage-title" class="modal-title">
+            Kelola Kategori Kegiatan
+          </h2>
+          <button
+            type="button"
+            id="kategori-manage-close-btn"
+            class="icon-btn"
+            aria-label="Tutup kelola kategori"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
         <div class="modal-scroll-body">
           <div id="kategori-alert-box" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="kategori-alert-text"></span>
           </div>
 
           <form id="kategori-form" class="kategori-editor-box" novalidate>
             <div class="kategori-editor-header">
-              <h3 id="kategori-form-heading" class="sub-card-title">Tambah Kategori Baru</h3>
-              <span id="kategori-nama-counter" class="char-counter" aria-live="polite">0/40</span>
+              <h3 id="kategori-form-heading" class="sub-card-title">
+                Tambah Kategori Baru
+              </h3>
+              <span
+                id="kategori-nama-counter"
+                class="char-counter"
+                aria-live="polite"
+                >0/40</span
+              >
             </div>
             <input type="hidden" id="kategori-edit-id" value="" />
 
             <div class="form-field">
-              <label for="kategori-nama-input" class="form-label">Nama Kategori <span class="required-mark">*</span></label>
-              <input type="text" id="kategori-nama-input" class="form-input" maxlength="40" placeholder="Mis. Proyek Prioritas" required autocomplete="off" />
+              <label for="kategori-nama-input" class="form-label"
+                >Nama Kategori <span class="required-mark">*</span></label
+              >
+              <input
+                type="text"
+                id="kategori-nama-input"
+                class="form-input"
+                maxlength="40"
+                placeholder="Mis. Proyek Prioritas"
+                required
+                autocomplete="off"
+              />
             </div>
 
             <div class="form-field">
-              <span class="form-label" id="kategori-warna-label">Warna Lencana</span>
-              <div id="kategori-warna-picker" class="color-swatch-grid" role="radiogroup" aria-labelledby="kategori-warna-label"></div>
+              <span class="form-label" id="kategori-warna-label"
+                >Warna Lencana</span
+              >
+              <div
+                id="kategori-warna-picker"
+                class="color-swatch-grid"
+                role="radiogroup"
+                aria-labelledby="kategori-warna-label"
+              ></div>
             </div>
 
             <div class="kategori-editor-actions">
-              <button type="button" id="kategori-cancel-edit-btn" class="btn-secondary" hidden>Batal Ubah</button>
-              <button type="submit" id="kategori-submit-btn" class="btn-primary">Tambah Kategori</button>
+              <button
+                type="button"
+                id="kategori-cancel-edit-btn"
+                class="btn-secondary"
+                hidden
+              >
+                Batal Ubah
+              </button>
+              <button
+                type="submit"
+                id="kategori-submit-btn"
+                class="btn-primary"
+              >
+                Tambah Kategori
+              </button>
             </div>
           </form>
 
@@ -311,39 +733,98 @@
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Form Tambah / Ubah Kegiatan (Fase 1) -->
-    <div id="kegiatan-form-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kegiatan-form-title" hidden>
+    <div
+      id="kegiatan-form-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kegiatan-form-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
           <h2 id="kegiatan-form-title" class="modal-title">Tambah Kegiatan</h2>
-          <button type="button" id="kegiatan-form-close-btn" class="icon-btn" aria-label="Tutup formulir kegiatan" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <button
+            type="button"
+            id="kegiatan-form-close-btn"
+            class="icon-btn"
+            aria-label="Tutup formulir kegiatan"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <form id="kegiatan-form" class="modal-scroll-body form-stack" novalidate>
+        <form
+          id="kegiatan-form"
+          class="modal-scroll-body form-stack"
+          novalidate
+        >
           <input type="hidden" id="kegiatan-edit-id" value="" />
 
           <div id="kegiatan-form-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="kegiatan-form-alert-text"></span>
           </div>
 
           <div class="form-field">
-            <label for="kegiatan-judul-input" class="form-label">Judul Kegiatan <span class="required-mark">*</span></label>
-            <input type="text" id="kegiatan-judul-input" class="form-input" maxlength="160" placeholder="Contoh: Rapat evaluasi triwulan" required autocomplete="off" />
+            <label for="kegiatan-judul-input" class="form-label"
+              >Judul Kegiatan <span class="required-mark">*</span></label
+            >
+            <input
+              type="text"
+              id="kegiatan-judul-input"
+              class="form-input"
+              maxlength="160"
+              placeholder="Contoh: Rapat evaluasi triwulan"
+              required
+              autocomplete="off"
+            />
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="kegiatan-tanggal-input" class="form-label">Tanggal <span class="required-mark">*</span></label>
-              <input type="date" id="kegiatan-tanggal-input" class="form-input" required />
+              <label for="kegiatan-tanggal-input" class="form-label"
+                >Tanggal <span class="required-mark">*</span></label
+              >
+              <input
+                type="date"
+                id="kegiatan-tanggal-input"
+                class="form-input"
+                required
+              />
             </div>
             <div class="form-field">
-              <label for="kegiatan-status-select" class="form-label">Status</label>
+              <label for="kegiatan-status-select" class="form-label"
+                >Status</label
+              >
               <select id="kegiatan-status-select" class="form-select">
                 <option value="Rencana">Rencana</option>
                 <option value="Berjalan">Berjalan</option>
@@ -354,82 +835,201 @@
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="kegiatan-mulai-input" class="form-label">Waktu Mulai</label>
+              <label for="kegiatan-mulai-input" class="form-label"
+                >Waktu Mulai</label
+              >
               <input type="time" id="kegiatan-mulai-input" class="form-input" />
             </div>
             <div class="form-field">
-              <label for="kegiatan-selesai-input" class="form-label">Waktu Selesai</label>
-              <input type="time" id="kegiatan-selesai-input" class="form-input" />
+              <label for="kegiatan-selesai-input" class="form-label"
+                >Waktu Selesai</label
+              >
+              <input
+                type="time"
+                id="kegiatan-selesai-input"
+                class="form-input"
+              />
             </div>
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="kegiatan-kategori-select" class="form-label">Kategori</label>
+              <label for="kegiatan-kategori-select" class="form-label"
+                >Kategori</label
+              >
               <select id="kegiatan-kategori-select" class="form-select">
                 <option value="">Tanpa Kategori</option>
               </select>
             </div>
             <div class="form-field">
-              <label for="kegiatan-lokasi-input" class="form-label">Lokasi</label>
-              <input type="text" id="kegiatan-lokasi-input" class="form-input" maxlength="140" placeholder="Opsional, mis. Ruang Rapat Lt. 2 / Daring" autocomplete="off" />
+              <label for="kegiatan-lokasi-input" class="form-label"
+                >Lokasi</label
+              >
+              <input
+                type="text"
+                id="kegiatan-lokasi-input"
+                class="form-input"
+                maxlength="140"
+                placeholder="Opsional, mis. Ruang Rapat Lt. 2 / Daring"
+                autocomplete="off"
+              />
             </div>
           </div>
 
           <div class="form-field">
-            <label for="kegiatan-catatan-input" class="form-label">Catatan</label>
-            <textarea id="kegiatan-catatan-input" class="form-textarea" rows="3" placeholder="Rincian agenda, tautan pendukung, atau hal yang perlu disiapkan..."></textarea>
+            <label for="kegiatan-catatan-input" class="form-label"
+              >Catatan</label
+            >
+            <textarea
+              id="kegiatan-catatan-input"
+              class="form-textarea"
+              rows="3"
+              placeholder="Rincian agenda, tautan pendukung, atau hal yang perlu disiapkan..."
+            ></textarea>
           </div>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="kegiatan-form-cancel-btn" class="btn-secondary">Batal</button>
-            <button type="submit" id="kegiatan-form-submit-btn" class="btn-primary">Simpan Kegiatan</button>
+            <button
+              type="button"
+              id="kegiatan-form-cancel-btn"
+              class="btn-secondary"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="kegiatan-form-submit-btn"
+              class="btn-primary"
+            >
+              Simpan Kegiatan
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Dialog Konfirmasi Hapus Kegiatan (Fase 1) -->
-    <div id="kegiatan-delete-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="kegiatan-delete-title" aria-describedby="kegiatan-delete-desc" hidden>
+    <div
+      id="kegiatan-delete-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kegiatan-delete-title"
+      aria-describedby="kegiatan-delete-desc"
+      hidden
+    >
       <div class="modal-dialog">
-        <h2 id="kegiatan-delete-title" class="modal-title">Hapus kegiatan ini?</h2>
+        <h2 id="kegiatan-delete-title" class="modal-title">
+          Hapus kegiatan ini?
+        </h2>
         <p id="kegiatan-delete-desc" class="modal-desc"></p>
         <div class="modal-actions">
-          <button type="button" id="kegiatan-delete-cancel-btn" class="btn-secondary">Batal</button>
-          <button type="button" id="kegiatan-delete-confirm-btn" class="btn-danger">Hapus</button>
+          <button
+            type="button"
+            id="kegiatan-delete-cancel-btn"
+            class="btn-secondary"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            id="kegiatan-delete-confirm-btn"
+            class="btn-danger"
+          >
+            Hapus
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Rincian Kegiatan Cepat dari Jadwal & Dashboard (Fase 2) -->
-    <div id="kegiatan-detail-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kegiatan-detail-title" hidden>
+    <div
+      id="kegiatan-detail-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kegiatan-detail-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="kegiatan-detail-title" class="modal-title">Rincian Kegiatan</h2>
-          <button type="button" id="kegiatan-detail-close-btn" class="icon-btn" aria-label="Tutup rincian kegiatan" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="kegiatan-detail-title" class="modal-title">
+            Rincian Kegiatan
+          </h2>
+          <button
+            type="button"
+            id="kegiatan-detail-close-btn"
+            class="icon-btn"
+            aria-label="Tutup rincian kegiatan"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
         <div class="modal-scroll-body">
           <div id="kegiatan-detail-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="kegiatan-detail-alert-text"></span>
           </div>
 
           <div id="kegiatan-detail-body" class="form-stack"></div>
 
-          <div id="kegiatan-detail-catatan-section" class="detail-catatan-section"></div>
+          <div
+            id="kegiatan-detail-catatan-section"
+            class="detail-catatan-section"
+          ></div>
 
           <div class="modal-actions modal-actions-sticky modal-actions-split">
-            <button type="button" id="kegiatan-detail-delete-btn" class="btn-danger-outline">Hapus</button>
+            <button
+              type="button"
+              id="kegiatan-detail-delete-btn"
+              class="btn-danger-outline"
+            >
+              Hapus
+            </button>
             <div class="modal-actions-group">
-              <button type="button" id="kegiatan-detail-dismiss-btn" class="btn-secondary">Tutup</button>
-              <button type="button" id="kegiatan-detail-edit-btn" class="btn-primary">Ubah Kegiatan</button>
+              <button
+                type="button"
+                id="kegiatan-detail-dismiss-btn"
+                class="btn-secondary"
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                id="kegiatan-detail-edit-btn"
+                class="btn-primary"
+              >
+                Ubah Kegiatan
+              </button>
             </div>
           </div>
         </div>
@@ -437,92 +1037,231 @@
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Unggah Dokumen Baru ke Google Drive (Fase 3) -->
-    <div id="dokumen-upload-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-upload-title" hidden>
+    <div
+      id="dokumen-upload-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dokumen-upload-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="dokumen-upload-title" class="modal-title">Unggah Dokumen ke Google Drive</h2>
-          <button type="button" id="dokumen-upload-close-btn" class="icon-btn" aria-label="Tutup unggah dokumen" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="dokumen-upload-title" class="modal-title">
+            Unggah Dokumen ke Google Drive
+          </h2>
+          <button
+            type="button"
+            id="dokumen-upload-close-btn"
+            class="icon-btn"
+            aria-label="Tutup unggah dokumen"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <form id="dokumen-upload-form" class="modal-scroll-body form-stack" novalidate>
+        <form
+          id="dokumen-upload-form"
+          class="modal-scroll-body form-stack"
+          novalidate
+        >
           <div id="dokumen-upload-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="dokumen-upload-alert-text"></span>
           </div>
 
           <div class="form-field">
-            <label for="dokumen-upload-file" class="form-label">Berkas Dokumen <span class="required-mark">*</span></label>
-            <input type="file" id="dokumen-upload-file" class="form-input form-file-input" required />
-            <span id="dokumen-upload-file-info" class="field-hint-text">Pilih berkas dari perangkat Anda.</span>
+            <label for="dokumen-upload-file" class="form-label"
+              >Berkas Dokumen <span class="required-mark">*</span></label
+            >
+            <input
+              type="file"
+              id="dokumen-upload-file"
+              class="form-input form-file-input"
+              required
+            />
+            <span id="dokumen-upload-file-info" class="field-hint-text"
+              >Pilih berkas dari perangkat Anda.</span
+            >
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="dokumen-upload-kategori" class="form-label">Kategori Dokumen</label>
+              <label for="dokumen-upload-kategori" class="form-label"
+                >Kategori Dokumen</label
+              >
               <select id="dokumen-upload-kategori" class="form-select">
                 <option value="">Tanpa Kategori</option>
               </select>
             </div>
             <div class="form-field">
-              <label for="dokumen-upload-nama" class="form-label">Nama Tampilan (Opsional)</label>
-              <input type="text" id="dokumen-upload-nama" class="form-input" maxlength="160" placeholder="Kosongkan untuk memakai nama asli berkas" autocomplete="off" />
+              <label for="dokumen-upload-nama" class="form-label"
+                >Nama Tampilan (Opsional)</label
+              >
+              <input
+                type="text"
+                id="dokumen-upload-nama"
+                class="form-input"
+                maxlength="160"
+                placeholder="Kosongkan untuk memakai nama asli berkas"
+                autocomplete="off"
+              />
             </div>
           </div>
 
           <div class="form-field">
-            <label for="dokumen-upload-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+            <label for="dokumen-upload-kegiatan" class="form-label"
+              >Kegiatan Terkait (Opsional)</label
+            >
             <select id="dokumen-upload-kegiatan" class="form-select">
               <option value="">— Tidak dikaitkan ke kegiatan —</option>
             </select>
           </div>
 
           <div class="form-field">
-            <label for="dokumen-upload-catatan" class="form-label">Catatan (Opsional)</label>
-            <textarea id="dokumen-upload-catatan" class="form-textarea" rows="3" placeholder="Keterangan singkat isi dokumen, nomor referensi, atau konteks..."></textarea>
+            <label for="dokumen-upload-catatan" class="form-label"
+              >Catatan (Opsional)</label
+            >
+            <textarea
+              id="dokumen-upload-catatan"
+              class="form-textarea"
+              rows="3"
+              placeholder="Keterangan singkat isi dokumen, nomor referensi, atau konteks..."
+            ></textarea>
           </div>
 
-          <div id="dokumen-upload-progress-wrap" class="upload-progress-card" aria-live="polite" hidden>
+          <div
+            id="dokumen-upload-progress-wrap"
+            class="upload-progress-card"
+            aria-live="polite"
+            hidden
+          >
             <div class="upload-progress-top">
-              <span id="dokumen-upload-progress-label" class="upload-progress-label">Mengunggah ke Google Drive...</span>
-              <span id="dokumen-upload-progress-pct" class="upload-progress-pct">0%</span>
+              <span
+                id="dokumen-upload-progress-label"
+                class="upload-progress-label"
+                >Mengunggah ke Google Drive...</span
+              >
+              <span id="dokumen-upload-progress-pct" class="upload-progress-pct"
+                >0%</span
+              >
             </div>
             <div class="progress-track">
-              <div id="dokumen-upload-progress-fill" class="progress-fill"></div>
+              <div
+                id="dokumen-upload-progress-fill"
+                class="progress-fill"
+              ></div>
             </div>
           </div>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="dokumen-upload-cancel-btn" class="btn-secondary">Batal</button>
-            <button type="submit" id="dokumen-upload-submit-btn" class="btn-primary">Unggah ke Drive</button>
+            <button
+              type="button"
+              id="dokumen-upload-cancel-btn"
+              class="btn-secondary"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="dokumen-upload-submit-btn"
+              class="btn-primary"
+            >
+              Unggah ke Drive
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Ubah Metadata Dokumen (Fase 3) -->
-    <div id="dokumen-edit-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-edit-title" hidden>
+    <div
+      id="dokumen-edit-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dokumen-edit-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="dokumen-edit-title" class="modal-title">Ubah Metadata Dokumen</h2>
-          <button type="button" id="dokumen-edit-close-btn" class="icon-btn" aria-label="Tutup ubah metadata" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="dokumen-edit-title" class="modal-title">
+            Ubah Metadata Dokumen
+          </h2>
+          <button
+            type="button"
+            id="dokumen-edit-close-btn"
+            class="icon-btn"
+            aria-label="Tutup ubah metadata"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <form id="dokumen-edit-form" class="modal-scroll-body form-stack" novalidate>
+        <form
+          id="dokumen-edit-form"
+          class="modal-scroll-body form-stack"
+          novalidate
+        >
           <input type="hidden" id="dokumen-edit-id" value="" />
 
           <div id="dokumen-edit-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="dokumen-edit-alert-text"></span>
           </div>
@@ -533,83 +1272,202 @@
           </div>
 
           <div class="form-field">
-            <label for="dokumen-edit-nama" class="form-label">Nama Tampilan <span class="required-mark">*</span></label>
-            <input type="text" id="dokumen-edit-nama" class="form-input" maxlength="160" required autocomplete="off" />
+            <label for="dokumen-edit-nama" class="form-label"
+              >Nama Tampilan <span class="required-mark">*</span></label
+            >
+            <input
+              type="text"
+              id="dokumen-edit-nama"
+              class="form-input"
+              maxlength="160"
+              required
+              autocomplete="off"
+            />
           </div>
 
           <div class="form-field">
-            <label for="dokumen-edit-kategori" class="form-label">Kategori Dokumen</label>
+            <label for="dokumen-edit-kategori" class="form-label"
+              >Kategori Dokumen</label
+            >
             <select id="dokumen-edit-kategori" class="form-select">
               <option value="">Tanpa Kategori</option>
             </select>
-            <span class="field-hint-text">Mengubah kategori akan ikut memindahkan berkas ke subfolder kategori tujuan di Google Drive.</span>
+            <span class="field-hint-text"
+              >Mengubah kategori akan ikut memindahkan berkas ke subfolder
+              kategori tujuan di Google Drive.</span
+            >
           </div>
 
           <div class="form-field">
-            <label for="dokumen-edit-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+            <label for="dokumen-edit-kegiatan" class="form-label"
+              >Kegiatan Terkait (Opsional)</label
+            >
             <select id="dokumen-edit-kegiatan" class="form-select">
               <option value="">— Tidak dikaitkan ke kegiatan —</option>
             </select>
           </div>
 
           <div class="form-field">
-            <label for="dokumen-edit-catatan" class="form-label">Catatan (Opsional)</label>
-            <textarea id="dokumen-edit-catatan" class="form-textarea" rows="3" placeholder="Catatan tambahan mengenai dokumen ini..."></textarea>
+            <label for="dokumen-edit-catatan" class="form-label"
+              >Catatan (Opsional)</label
+            >
+            <textarea
+              id="dokumen-edit-catatan"
+              class="form-textarea"
+              rows="3"
+              placeholder="Catatan tambahan mengenai dokumen ini..."
+            ></textarea>
           </div>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="dokumen-edit-cancel-btn" class="btn-secondary">Batal</button>
-            <button type="submit" id="dokumen-edit-submit-btn" class="btn-primary">Simpan Perubahan</button>
+            <button
+              type="button"
+              id="dokumen-edit-cancel-btn"
+              class="btn-secondary"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="dokumen-edit-submit-btn"
+              class="btn-primary"
+            >
+              Simpan Perubahan
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Dialog Konfirmasi Hapus Dokumen (Fase 3) -->
-    <div id="dokumen-delete-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dokumen-delete-title" aria-describedby="dokumen-delete-desc" hidden>
+    <div
+      id="dokumen-delete-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dokumen-delete-title"
+      aria-describedby="dokumen-delete-desc"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-medium">
         <h2 id="dokumen-delete-title" class="modal-title">Hapus Dokumen?</h2>
         <p id="dokumen-delete-desc" class="modal-desc"></p>
 
         <div id="dokumen-delete-alert" class="alert-box" role="alert" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span id="dokumen-delete-alert-text"></span>
         </div>
 
-        <div class="delete-choice-group" role="radiogroup" aria-label="Pilihan penghapusan dokumen">
+        <div
+          class="delete-choice-group"
+          role="radiogroup"
+          aria-label="Pilihan penghapusan dokumen"
+        >
           <label class="delete-choice-card">
-            <input type="radio" name="dokumen-delete-mode" id="dokumen-delete-mode-app" value="app-only" checked />
+            <input
+              type="radio"
+              name="dokumen-delete-mode"
+              id="dokumen-delete-mode-app"
+              value="app-only"
+              checked
+            />
             <div class="delete-choice-content">
-              <span class="delete-choice-title">Hapus dari daftar aplikasi saja</span>
-              <span class="delete-choice-desc">Catatan di aplikasi dihapus, tetapi berkas asli tetap tersimpan utuh di Google Drive Anda.</span>
+              <span class="delete-choice-title"
+                >Hapus dari daftar aplikasi saja</span
+              >
+              <span class="delete-choice-desc"
+                >Catatan di aplikasi dihapus, tetapi berkas asli tetap tersimpan
+                utuh di Google Drive Anda.</span
+              >
             </div>
           </label>
           <label class="delete-choice-card">
-            <input type="radio" name="dokumen-delete-mode" id="dokumen-delete-mode-drive" value="with-drive-trash" />
+            <input
+              type="radio"
+              name="dokumen-delete-mode"
+              id="dokumen-delete-mode-drive"
+              value="with-drive-trash"
+            />
             <div class="delete-choice-content">
-              <span class="delete-choice-title">Hapus dari aplikasi &amp; pindahkan berkas ke Sampah Drive</span>
-              <span class="delete-choice-desc">Catatan dihapus dan berkas di Google Drive dipindahkan ke Sampah (trashed).</span>
+              <span class="delete-choice-title"
+                >Hapus dari aplikasi &amp; pindahkan berkas ke Sampah
+                Drive</span
+              >
+              <span class="delete-choice-desc"
+                >Catatan dihapus dan berkas di Google Drive dipindahkan ke
+                Sampah (trashed).</span
+              >
             </div>
           </label>
         </div>
 
         <div class="modal-actions">
-          <button type="button" id="dokumen-delete-cancel-btn" class="btn-secondary">Batal</button>
-          <button type="button" id="dokumen-delete-confirm-btn" class="btn-danger">Hapus Dokumen</button>
+          <button
+            type="button"
+            id="dokumen-delete-cancel-btn"
+            class="btn-secondary"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            id="dokumen-delete-confirm-btn"
+            class="btn-danger"
+          >
+            Hapus Dokumen
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Dialog Rapikan Dokumen ke Folder Kategori Drive (Fase 3) -->
-    <div id="dokumen-organize-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-organize-title" hidden>
+    <div
+      id="dokumen-organize-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dokumen-organize-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="dokumen-organize-title" class="modal-title">Rapikan Dokumen ke Folder Kategori</h2>
-          <button type="button" id="dokumen-organize-close-btn" class="icon-btn" aria-label="Tutup dialog rapikan dokumen" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="dokumen-organize-title" class="modal-title">
+            Rapikan Dokumen ke Folder Kategori
+          </h2>
+          <button
+            type="button"
+            id="dokumen-organize-close-btn"
+            class="icon-btn"
+            aria-label="Tutup dialog rapikan dokumen"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -617,96 +1475,235 @@
         <div class="modal-scroll-body">
           <div class="organize-notice-box">
             <p class="modal-desc">
-              Fitur ini memeriksa setiap dokumen yang tercatat di aplikasi lalu memindahkannya ke subfolder kategorinya masing-masing di dalam folder induk <strong>Agenda-Arsip</strong> di Google Drive. Operasi ini aman dijalankan berulang (berkas yang sudah berada di folder yang tepat akan dilewati).
+              Fitur ini memeriksa setiap dokumen yang tercatat di aplikasi lalu
+              memindahkannya ke subfolder kategorinya masing-masing di dalam
+              folder induk <strong>Agenda-Arsip</strong> di Google Drive.
+              Operasi ini aman dijalankan berulang (berkas yang sudah berada di
+              folder yang tepat akan dilewati).
             </p>
             <p class="organize-scope-note">
-              <strong>Catatan izin Google Drive:</strong> Sesuai cakupan keamanan <code>drive.file</code>, aplikasi ini hanya dapat memindahkan berkas yang diunggah atau dibuat melalui aplikasi ini.
+              <strong>Catatan izin Google Drive:</strong> Sesuai cakupan
+              keamanan <code>drive.file</code>, aplikasi ini hanya dapat
+              memindahkan berkas yang diunggah atau dibuat melalui aplikasi ini.
             </p>
           </div>
 
           <p id="dokumen-organize-total-info" class="result-summary-text"></p>
 
-          <div id="dokumen-organize-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <div
+            id="dokumen-organize-alert"
+            class="alert-box"
+            role="alert"
+            hidden
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="dokumen-organize-alert-text"></span>
           </div>
 
-          <div id="dokumen-organize-progress-box" class="upload-progress-card" aria-live="polite" hidden>
+          <div
+            id="dokumen-organize-progress-box"
+            class="upload-progress-card"
+            aria-live="polite"
+            hidden
+          >
             <div class="upload-progress-top">
-              <span class="upload-progress-label">Memeriksa &amp; memindahkan berkas...</span>
-              <span id="dokumen-organize-progress-text" class="upload-progress-pct">0 dari 0</span>
+              <span class="upload-progress-label"
+                >Memeriksa &amp; memindahkan berkas...</span
+              >
+              <span
+                id="dokumen-organize-progress-text"
+                class="upload-progress-pct"
+                >0 dari 0</span
+              >
             </div>
             <div class="progress-track">
-              <div id="dokumen-organize-progress-fill" class="progress-fill"></div>
+              <div
+                id="dokumen-organize-progress-fill"
+                class="progress-fill"
+              ></div>
             </div>
           </div>
 
           <div id="dokumen-organize-summary-box" hidden></div>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="dokumen-organize-cancel-btn" class="btn-secondary">Tutup</button>
-            <button type="button" id="dokumen-organize-start-btn" class="btn-primary">Mulai Rapikan</button>
+            <button
+              type="button"
+              id="dokumen-organize-cancel-btn"
+              class="btn-secondary"
+            >
+              Tutup
+            </button>
+            <button
+              type="button"
+              id="dokumen-organize-start-btn"
+              class="btn-primary"
+            >
+              Mulai Rapikan
+            </button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Form Catatan Singkat & Ubah Info Catatan (Fase 4) -->
-    <div id="catatan-singkat-modal" class="modal-overlay modal-sheet-mobile modal-overlay-stacked" role="dialog" aria-modal="true" aria-labelledby="catatan-singkat-title" hidden>
+    <div
+      id="catatan-singkat-modal"
+      class="modal-overlay modal-sheet-mobile modal-overlay-stacked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="catatan-singkat-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="catatan-singkat-title" class="modal-title">Tambah Catatan Singkat</h2>
-          <button type="button" id="catatan-singkat-close-btn" class="icon-btn" aria-label="Tutup formulir catatan" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="catatan-singkat-title" class="modal-title">
+            Tambah Catatan Singkat
+          </h2>
+          <button
+            type="button"
+            id="catatan-singkat-close-btn"
+            class="icon-btn"
+            aria-label="Tutup formulir catatan"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <form id="catatan-singkat-form" class="modal-scroll-body form-stack" novalidate>
+        <form
+          id="catatan-singkat-form"
+          class="modal-scroll-body form-stack"
+          novalidate
+        >
           <input type="hidden" id="catatan-singkat-edit-id" value="" />
-          <input type="hidden" id="catatan-singkat-edit-jenis" value="singkat" />
+          <input
+            type="hidden"
+            id="catatan-singkat-edit-jenis"
+            value="singkat"
+          />
 
           <div id="catatan-singkat-alert" class="alert-box" role="alert" hidden>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="catatan-singkat-alert-text"></span>
           </div>
 
           <div class="form-field">
-            <label for="catatan-singkat-judul" class="form-label">Judul Catatan <span class="required-mark">*</span></label>
-            <input type="text" id="catatan-singkat-judul" class="form-input" maxlength="160" placeholder="Contoh: Poin tindak lanjut anggaran" required autocomplete="off" />
+            <label for="catatan-singkat-judul" class="form-label"
+              >Judul Catatan <span class="required-mark">*</span></label
+            >
+            <input
+              type="text"
+              id="catatan-singkat-judul"
+              class="form-input"
+              maxlength="160"
+              placeholder="Contoh: Poin tindak lanjut anggaran"
+              required
+              autocomplete="off"
+            />
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="catatan-singkat-tanggal" class="form-label">Tanggal <span class="required-mark">*</span></label>
-              <input type="date" id="catatan-singkat-tanggal" class="form-input" required />
+              <label for="catatan-singkat-tanggal" class="form-label"
+                >Tanggal <span class="required-mark">*</span></label
+              >
+              <input
+                type="date"
+                id="catatan-singkat-tanggal"
+                class="form-input"
+                required
+              />
             </div>
             <div class="form-field">
-              <label for="catatan-singkat-kategori" class="form-label">Kategori (Opsional)</label>
-              <input type="text" id="catatan-singkat-kategori" class="form-input" maxlength="40" placeholder="Teks bebas pendek, mis. Ide / Rapat" autocomplete="off" />
+              <label for="catatan-singkat-kategori" class="form-label"
+                >Kategori (Opsional)</label
+              >
+              <input
+                type="text"
+                id="catatan-singkat-kategori"
+                class="form-input"
+                maxlength="40"
+                placeholder="Teks bebas pendek, mis. Ide / Rapat"
+                autocomplete="off"
+              />
             </div>
           </div>
 
           <div id="catatan-singkat-isi-field" class="form-field">
-            <label for="catatan-singkat-isi" class="form-label">Isi Catatan <span class="required-mark">*</span></label>
-            <textarea id="catatan-singkat-isi" class="form-textarea" rows="5" placeholder="Tulis rincian catatan singkat di sini..."></textarea>
+            <label for="catatan-singkat-isi" class="form-label"
+              >Isi Catatan <span class="required-mark">*</span></label
+            >
+            <textarea
+              id="catatan-singkat-isi"
+              class="form-textarea"
+              rows="5"
+              placeholder="Tulis rincian catatan singkat di sini..."
+            ></textarea>
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="catatan-singkat-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+              <label for="catatan-singkat-kegiatan" class="form-label"
+                >Kegiatan Terkait (Opsional)</label
+              >
               <select id="catatan-singkat-kegiatan" class="form-select">
                 <option value="">— Tidak dikaitkan ke kegiatan —</option>
               </select>
             </div>
             <div class="form-field">
-              <label for="catatan-singkat-tag" class="form-label">Tag (Opsional)</label>
-              <input type="text" id="catatan-singkat-tag" class="form-input" maxlength="180" placeholder="Pisahkan dengan koma, mis. penting, rapat" autocomplete="off" />
+              <label for="catatan-singkat-tag" class="form-label"
+                >Tag (Opsional)</label
+              >
+              <input
+                type="text"
+                id="catatan-singkat-tag"
+                class="form-input"
+                maxlength="180"
+                placeholder="Pisahkan dengan koma, mis. penting, rapat"
+                autocomplete="off"
+              />
             </div>
           </div>
 
@@ -716,40 +1713,108 @@
           </label>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="catatan-singkat-cancel-btn" class="btn-secondary">Batal</button>
-            <button type="submit" id="catatan-singkat-submit-btn" class="btn-primary">Simpan Catatan</button>
+            <button
+              type="button"
+              id="catatan-singkat-cancel-btn"
+              class="btn-secondary"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="catatan-singkat-submit-btn"
+              class="btn-primary"
+            >
+              Simpan Catatan
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Buat Catatan Google Docs (Fase 4) -->
-    <div id="catatan-gdoc-modal" class="modal-overlay modal-sheet-mobile modal-overlay-stacked" role="dialog" aria-modal="true" aria-labelledby="catatan-gdoc-title" hidden>
+    <div
+      id="catatan-gdoc-modal"
+      class="modal-overlay modal-sheet-mobile modal-overlay-stacked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="catatan-gdoc-title"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
-          <h2 id="catatan-gdoc-title" class="modal-title">Buat Catatan Google Docs</h2>
-          <button type="button" id="catatan-gdoc-close-btn" class="icon-btn" aria-label="Tutup dialog Google Docs" title="Tutup">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <h2 id="catatan-gdoc-title" class="modal-title">
+            Buat Catatan Google Docs
+          </h2>
+          <button
+            type="button"
+            id="catatan-gdoc-close-btn"
+            class="icon-btn"
+            aria-label="Tutup dialog Google Docs"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <form id="catatan-gdoc-form" class="modal-scroll-body form-stack" novalidate>
-          <div id="catatan-gdoc-alert" class="alert-box alert-box-stacked" role="alert" hidden>
+        <form
+          id="catatan-gdoc-form"
+          class="modal-scroll-body form-stack"
+          novalidate
+        >
+          <div
+            id="catatan-gdoc-alert"
+            class="alert-box alert-box-stacked"
+            role="alert"
+            hidden
+          >
             <div class="alert-box-row">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              <svg
+                viewBox="0 0 24 24"
+                width="18"
+                height="18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               <span id="catatan-gdoc-alert-text"></span>
             </div>
             <div class="alert-box-actions">
-              <button type="button" id="catatan-gdoc-relogin-btn" class="btn-primary btn-sm-touch" hidden>Masuk ulang</button>
+              <button
+                type="button"
+                id="catatan-gdoc-relogin-btn"
+                class="btn-primary btn-sm-touch"
+                hidden
+              >
+                Masuk ulang
+              </button>
             </div>
           </div>
 
           <div class="form-field">
-            <label for="catatan-gdoc-templat" class="form-label">Pilih Templat Dokumen <span class="required-mark">*</span></label>
+            <label for="catatan-gdoc-templat" class="form-label"
+              >Pilih Templat Dokumen <span class="required-mark">*</span></label
+            >
             <select id="catatan-gdoc-templat" class="form-select">
               <option value="notulensi">Notulensi Rapat</option>
               <option value="kosong">Catatan Kosong</option>
@@ -759,32 +1824,72 @@
           </div>
 
           <div class="form-field">
-            <label for="catatan-gdoc-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+            <label for="catatan-gdoc-kegiatan" class="form-label"
+              >Kegiatan Terkait (Opsional)</label
+            >
             <select id="catatan-gdoc-kegiatan" class="form-select">
               <option value="">— Tidak dikaitkan ke kegiatan —</option>
             </select>
-            <span class="field-hint-text">Jika dipilih, judul kegiatan terkait dan tanggal otomatis dimuat ke dalam isi templat Google Docs.</span>
+            <span class="field-hint-text"
+              >Jika dipilih, judul kegiatan terkait dan tanggal otomatis dimuat
+              ke dalam isi templat Google Docs.</span
+            >
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="catatan-gdoc-judul" class="form-label">Judul Dokumen <span class="required-mark">*</span></label>
-              <input type="text" id="catatan-gdoc-judul" class="form-input" maxlength="160" placeholder="Contoh: Notulensi Evaluasi Triwulan" required autocomplete="off" />
+              <label for="catatan-gdoc-judul" class="form-label"
+                >Judul Dokumen <span class="required-mark">*</span></label
+              >
+              <input
+                type="text"
+                id="catatan-gdoc-judul"
+                class="form-input"
+                maxlength="160"
+                placeholder="Contoh: Notulensi Evaluasi Triwulan"
+                required
+                autocomplete="off"
+              />
             </div>
             <div class="form-field">
-              <label for="catatan-gdoc-tanggal" class="form-label">Tanggal <span class="required-mark">*</span></label>
-              <input type="date" id="catatan-gdoc-tanggal" class="form-input" required />
+              <label for="catatan-gdoc-tanggal" class="form-label"
+                >Tanggal <span class="required-mark">*</span></label
+              >
+              <input
+                type="date"
+                id="catatan-gdoc-tanggal"
+                class="form-input"
+                required
+              />
             </div>
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
-              <label for="catatan-gdoc-kategori" class="form-label">Kategori (Opsional)</label>
-              <input type="text" id="catatan-gdoc-kategori" class="form-input" maxlength="40" placeholder="Mis. Notulensi / Jurnal" autocomplete="off" />
+              <label for="catatan-gdoc-kategori" class="form-label"
+                >Kategori (Opsional)</label
+              >
+              <input
+                type="text"
+                id="catatan-gdoc-kategori"
+                class="form-input"
+                maxlength="40"
+                placeholder="Mis. Notulensi / Jurnal"
+                autocomplete="off"
+              />
             </div>
             <div class="form-field">
-              <label for="catatan-gdoc-tag" class="form-label">Tag (Opsional)</label>
-              <input type="text" id="catatan-gdoc-tag" class="form-input" maxlength="180" placeholder="Pisahkan dengan koma" autocomplete="off" />
+              <label for="catatan-gdoc-tag" class="form-label"
+                >Tag (Opsional)</label
+              >
+              <input
+                type="text"
+                id="catatan-gdoc-tag"
+                class="form-input"
+                maxlength="180"
+                placeholder="Pisahkan dengan koma"
+                autocomplete="off"
+              />
             </div>
           </div>
 
@@ -793,97 +1898,298 @@
             <span>Sematkan catatan Google Docs ini di bagian atas daftar</span>
           </label>
 
-          <div id="catatan-gdoc-progress-wrap" class="upload-progress-card" aria-live="polite" hidden>
+          <div
+            id="catatan-gdoc-progress-wrap"
+            class="upload-progress-card"
+            aria-live="polite"
+            hidden
+          >
             <div class="upload-progress-top">
-              <span class="upload-progress-label">Membuat dokumen Google Docs di folder Agenda-Arsip...</span>
+              <span class="upload-progress-label"
+                >Membuat dokumen Google Docs di folder Agenda-Arsip...</span
+              >
             </div>
           </div>
 
           <div class="modal-actions modal-actions-sticky">
-            <button type="button" id="catatan-gdoc-cancel-btn" class="btn-secondary">Batal</button>
-            <button type="submit" id="catatan-gdoc-submit-btn" class="btn-primary">Buat di Google Docs</button>
+            <button
+              type="button"
+              id="catatan-gdoc-cancel-btn"
+              class="btn-secondary"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              id="catatan-gdoc-submit-btn"
+              class="btn-primary"
+            >
+              Buat di Google Docs
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Dialog Konfirmasi Hapus Catatan Singkat (Fase 4) -->
-    <div id="catatan-singkat-delete-modal" class="modal-overlay modal-overlay-stacked" role="dialog" aria-modal="true" aria-labelledby="catatan-singkat-delete-title" aria-describedby="catatan-singkat-delete-desc" hidden>
+    <div
+      id="catatan-singkat-delete-modal"
+      class="modal-overlay modal-overlay-stacked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="catatan-singkat-delete-title"
+      aria-describedby="catatan-singkat-delete-desc"
+      hidden
+    >
       <div class="modal-dialog">
-        <h2 id="catatan-singkat-delete-title" class="modal-title">Hapus catatan singkat ini?</h2>
+        <h2 id="catatan-singkat-delete-title" class="modal-title">
+          Hapus catatan singkat ini?
+        </h2>
         <p id="catatan-singkat-delete-desc" class="modal-desc"></p>
         <div class="modal-actions">
-          <button type="button" id="catatan-singkat-delete-cancel-btn" class="btn-secondary">Batal</button>
-          <button type="button" id="catatan-singkat-delete-confirm-btn" class="btn-danger">Hapus</button>
+          <button
+            type="button"
+            id="catatan-singkat-delete-cancel-btn"
+            class="btn-secondary"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            id="catatan-singkat-delete-confirm-btn"
+            class="btn-danger"
+          >
+            Hapus
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Dialog Konfirmasi Hapus Catatan Google Docs (Fase 4) -->
-    <div id="catatan-gdoc-delete-modal" class="modal-overlay modal-overlay-stacked" role="dialog" aria-modal="true" aria-labelledby="catatan-gdoc-delete-title" aria-describedby="catatan-gdoc-delete-desc" hidden>
+    <div
+      id="catatan-gdoc-delete-modal"
+      class="modal-overlay modal-overlay-stacked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="catatan-gdoc-delete-title"
+      aria-describedby="catatan-gdoc-delete-desc"
+      hidden
+    >
       <div class="modal-dialog modal-dialog-medium">
-        <h2 id="catatan-gdoc-delete-title" class="modal-title">Hapus Catatan Google Docs?</h2>
+        <h2 id="catatan-gdoc-delete-title" class="modal-title">
+          Hapus Catatan Google Docs?
+        </h2>
         <p id="catatan-gdoc-delete-desc" class="modal-desc"></p>
 
-        <div id="catatan-gdoc-delete-alert" class="alert-box alert-box-stacked" role="alert" hidden>
+        <div
+          id="catatan-gdoc-delete-alert"
+          class="alert-box alert-box-stacked"
+          role="alert"
+          hidden
+        >
           <div class="alert-box-row">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span id="catatan-gdoc-delete-alert-text"></span>
           </div>
           <div class="alert-box-actions">
-            <button type="button" id="catatan-gdoc-delete-relogin-btn" class="btn-primary btn-sm-touch" hidden>Masuk ulang</button>
+            <button
+              type="button"
+              id="catatan-gdoc-delete-relogin-btn"
+              class="btn-primary btn-sm-touch"
+              hidden
+            >
+              Masuk ulang
+            </button>
           </div>
         </div>
 
-        <div class="delete-choice-group" role="radiogroup" aria-label="Pilihan penghapusan catatan Google Docs">
+        <div
+          class="delete-choice-group"
+          role="radiogroup"
+          aria-label="Pilihan penghapusan catatan Google Docs"
+        >
           <label class="delete-choice-card">
-            <input type="radio" name="catatan-gdoc-delete-mode" id="catatan-gdoc-delete-mode-app" value="app-only" checked />
+            <input
+              type="radio"
+              name="catatan-gdoc-delete-mode"
+              id="catatan-gdoc-delete-mode-app"
+              value="app-only"
+              checked
+            />
             <div class="delete-choice-content">
               <span class="delete-choice-title">Hapus dari aplikasi saja</span>
-              <span class="delete-choice-desc">Catatan di aplikasi dihapus, sedangkan dokumen Google Docs tetap tersimpan utuh di Google Drive Anda.</span>
+              <span class="delete-choice-desc"
+                >Catatan di aplikasi dihapus, sedangkan dokumen Google Docs
+                tetap tersimpan utuh di Google Drive Anda.</span
+              >
             </div>
           </label>
           <label class="delete-choice-card">
-            <input type="radio" name="catatan-gdoc-delete-mode" id="catatan-gdoc-delete-mode-drive" value="with-drive-trash" />
+            <input
+              type="radio"
+              name="catatan-gdoc-delete-mode"
+              id="catatan-gdoc-delete-mode-drive"
+              value="with-drive-trash"
+            />
             <div class="delete-choice-content">
-              <span class="delete-choice-title">Hapus juga dokumen di Drive</span>
-              <span class="delete-choice-desc">Catatan dihapus dari aplikasi dan dokumen Google Docs dipindahkan ke Sampah Google Drive (trashed, bukan hapus permanen).</span>
+              <span class="delete-choice-title"
+                >Hapus juga dokumen di Drive</span
+              >
+              <span class="delete-choice-desc"
+                >Catatan dihapus dari aplikasi dan dokumen Google Docs
+                dipindahkan ke Sampah Google Drive (trashed, bukan hapus
+                permanen).</span
+              >
             </div>
           </label>
         </div>
 
         <div class="modal-actions">
-          <button type="button" id="catatan-gdoc-delete-cancel-btn" class="btn-secondary">Batal</button>
-          <button type="button" id="catatan-gdoc-delete-confirm-btn" class="btn-danger">Hapus Catatan</button>
+          <button
+            type="button"
+            id="catatan-gdoc-delete-cancel-btn"
+            class="btn-secondary"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            id="catatan-gdoc-delete-confirm-btn"
+            class="btn-danger"
+          >
+            Hapus Catatan
+          </button>
         </div>
       </div>
     </div>
 
+    <!-- Dialog Konfirmasi Hapus Riwayat Laporan (Fase 5) -->
+    <div
+      id="laporan-delete-modal"
+      class="modal-overlay modal-overlay-stacked"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="laporan-delete-title"
+      aria-describedby="laporan-delete-desc"
+      hidden
+    >
+      <div class="modal-dialog modal-dialog-medium">
+        <h2 id="laporan-delete-title" class="modal-title">
+          Hapus dari Riwayat Laporan?
+        </h2>
+        <p id="laporan-delete-desc" class="modal-desc"></p>
+
+        <div id="laporan-delete-alert" class="alert-box" role="alert" hidden>
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span id="laporan-delete-alert-text"></span>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            type="button"
+            id="laporan-delete-cancel-btn"
+            class="btn-secondary"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            id="laporan-delete-confirm-btn"
+            class="btn-danger"
+          >
+            Hapus dari Riwayat
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Dialog Panduan Pasang PWA di iOS Safari -->
-    <div id="ios-install-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" hidden>
+    <div
+      id="ios-install-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ios-install-title"
+      hidden
+    >
       <div class="modal-dialog">
-        <h2 id="ios-install-title" class="modal-title">Pasang di iPhone / iPad</h2>
+        <h2 id="ios-install-title" class="modal-title">
+          Pasang di iPhone / iPad
+        </h2>
         <ol class="ios-guide-steps">
-          <li>Ketuk tombol <strong>Bagikan (Share)</strong> pada bilah Safari.</li>
-          <li>Gulir ke bawah lalu pilih <strong>Tambahkan ke Layar Utama (Add to Home Screen)</strong>.</li>
+          <li>
+            Ketuk tombol <strong>Bagikan (Share)</strong> pada bilah Safari.
+          </li>
+          <li>
+            Gulir ke bawah lalu pilih
+            <strong>Tambahkan ke Layar Utama (Add to Home Screen)</strong>.
+          </li>
         </ol>
         <div class="modal-actions">
-          <button type="button" id="ios-install-close-btn" class="btn-secondary">Tutup</button>
+          <button
+            type="button"
+            id="ios-install-close-btn"
+            class="btn-secondary"
+          >
+            Tutup
+          </button>
         </div>
       </div>
     </div>
 
     <!-- Dialog Konfirmasi Keluar -->
-    <div id="logout-confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title" aria-describedby="logout-modal-desc" hidden>
+    <div
+      id="logout-confirm-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-modal-title"
+      aria-describedby="logout-modal-desc"
+      hidden
+    >
       <div class="modal-dialog">
-        <h2 id="logout-modal-title" class="modal-title">Keluar dari aplikasi?</h2>
-        <p id="logout-modal-desc" class="modal-desc">Sesi masuk dan akses sementara Google Drive di peramban ini akan diakhiri.</p>
+        <h2 id="logout-modal-title" class="modal-title">
+          Keluar dari aplikasi?
+        </h2>
+        <p id="logout-modal-desc" class="modal-desc">
+          Sesi masuk dan akses sementara Google Drive di peramban ini akan
+          diakhiri.
+        </p>
         <div class="modal-actions">
-          <button type="button" id="logout-cancel-btn" class="btn-secondary">Batal</button>
-          <button type="button" id="logout-confirm-btn" class="btn-danger">Keluar</button>
+          <button type="button" id="logout-cancel-btn" class="btn-secondary">
+            Batal
+          </button>
+          <button type="button" id="logout-confirm-btn" class="btn-danger">
+            Keluar
+          </button>
         </div>
       </div>
     </div>
