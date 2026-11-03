@@ -1365,7 +1365,7 @@ html[data-drawer="open"] .app-sidebar {
   padding-left: var(--space-10);
 }
 
-/* Bilah alat ringkas satu baris: Pencarian fleksibel + Tombol Filter + Pengurutan */
+/* Bilah alat ringkas satu baris: hanya Pencarian fleksibel + Tombol Filter */
 .compact-toolbar-row {
   display: flex;
   align-items: center;
@@ -1386,11 +1386,13 @@ html[data-drawer="open"] .app-sidebar {
 }
 .compact-search-wrap .input-with-icon {
   padding-left: 2.25rem;
-  padding-right: var(--space-2);
+  padding-right: var(--space-3);
 }
 
 .btn-filter-toggle {
   flex: 0 0 auto;
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
   padding: var(--space-2) var(--space-3);
   gap: var(--space-2);
 }
@@ -1416,263 +1418,103 @@ html[data-drawer="open"] .app-sidebar {
   line-height: 1;
 }
 
-.compact-sort-wrap {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-.compact-sort-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex: 0 1 auto;
-  min-width: 0;
-}
-@media (min-width: 600px) {
-  .compact-sort-group {
-    gap: var(--space-2);
-  }
-}
-.compact-sort-select,
-.compact-sort-dir-select {
-  width: auto;
-  max-width: 100%;
-  padding-left: var(--space-2);
-  padding-right: var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-/* Responsif layar ekstra sempit HP: jaga satu baris tetap muat tanpa scroll horizontal */
 @media (max-width: 479.98px) {
   .filter-toolbar-shell {
     padding: var(--space-3);
   }
   .btn-filter-toggle {
-    padding: var(--space-2);
-    gap: var(--space-1);
-  }
-  .btn-filter-label {
-    font-size: var(--text-xs);
-  }
-  .compact-sort-select {
-    max-width: 6.75rem;
-  }
-  .compact-sort-group .compact-sort-select {
-    max-width: 5.5rem;
-  }
-  .compact-sort-dir-select {
-    max-width: 4.5rem;
-  }
-}
-@media (max-width: 359.98px) {
-  .btn-filter-label {
-    display: none;
-  }
-}
-
-/* Panel Filter: Melipat halus di Desktop/Tablet (>=600px), Lembar Bawah di HP (<600px) */
-.filter-sheet-scrim {
-  display: none;
-}
-.filter-sheet-header,
-.filter-sheet-actions-mobile {
-  display: none;
-}
-
-@media (min-width: 600px) {
-  .filter-collapsible {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    pointer-events: none;
-    transition:
-      grid-template-rows var(--duration-normal) var(--ease-standard),
-      opacity var(--duration-fast) var(--ease-standard);
-  }
-  .filter-collapsible.is-open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .filter-collapsible-inner {
-    overflow: hidden;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-  .filter-collapsible.is-open .filter-collapsible-inner {
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border);
-  }
-  .filter-panel-actions-desktop {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
+    padding: var(--space-2) var(--space-3);
     gap: var(--space-2);
   }
 }
 
-@media (max-width: 599.98px) {
-  .filter-sheet-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 135;
-    background: var(--color-bg-scrim);
-  }
-  .filter-collapsible {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 140;
-    max-height: 85dvh;
-    overflow-y: auto;
-    background: var(--color-bg-surface);
-    border-top: 1px solid var(--color-border-strong);
-    border-top-left-radius: var(--radius-xl);
-    border-top-right-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg);
-    padding: var(--space-4) var(--space-4)
-      calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
-    transform: translateY(105%);
-    visibility: hidden;
-    pointer-events: none;
-    transition:
-      transform var(--duration-normal) var(--ease-standard),
-      visibility var(--duration-normal) var(--ease-standard);
-  }
-  .filter-collapsible.is-open {
-    transform: translateY(0);
-    visibility: visible;
-    pointer-events: auto;
-  }
-  .filter-collapsible-inner {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-  .filter-sheet-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    padding-bottom: var(--space-2);
-    border-bottom: 1px solid var(--color-border);
-  }
-  .filter-sheet-title {
-    margin: 0;
-    font-size: var(--text-base);
-    font-weight: 700;
-    color: var(--color-text-primary);
-  }
-  .filter-panel-actions-desktop {
-    display: none;
-  }
-  .filter-sheet-actions-mobile {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--color-border);
-  }
-}
-
-.filter-controls-grid {
+/* Panel Filter: Melipat halus tepat di bawah bilah alat pada semua ukuran layar (<= 200ms) */
+.filter-collapsible {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard),
+    visibility 0ms linear var(--duration-normal);
+}
+.filter-collapsible.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    grid-template-rows var(--duration-normal) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard),
+    visibility 0ms linear 0ms;
+}
+.filter-collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.filter-panel-content {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-1) var(--space-1);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
-@media (min-width: 680px) {
+
+/* Grid kontrol filter responsif: 1 kolom HP, 2 kolom tablet, 3-4 kolom desktop */
+.filter-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+@media (max-width: 599.98px) {
   .filter-controls-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
-  .filter-controls-grid.filter-controls-2col {
+}
+@media (min-width: 600px) and (max-width: 1023.98px) {
+  .filter-controls-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .filter-controls-grid.filter-controls-1col-wide {
-    grid-template-columns: minmax(0, 22rem);
   }
 }
 .filter-control-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
 }
 .filter-label {
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--color-text-muted);
 }
-
-/* Baris Chip Filter Aktif di bawah bilah alat (terbungkus tanpa scroll horizontal) */
-.active-chips-row {
-  margin-top: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.filter-chips-list {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.active-filter-chip {
-  min-height: var(--touch-min);
+.filter-collapsible .compact-sort-select,
+.filter-collapsible .compact-sort-dir-select {
+  width: 100%;
   max-width: 100%;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-  background: var(--color-bg-active);
-  border: 1px solid var(--cat-biru-border);
-  color: var(--color-accent-text);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  display: inline-flex;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.filter-panel-actions {
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
-  min-width: 0;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard);
-}
-.active-filter-chip:hover:not(:disabled) {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent);
-}
-.active-filter-chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.active-filter-chip-x {
-  font-size: var(--text-base);
-  line-height: 1;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
-.active-filter-bar {
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
+/* Baris ringkasan jumlah hasil kecil di luar bilah alat, tepat di atas daftar item */
+.result-summary-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-.filter-toolbar-shell .active-filter-bar {
-  margin-top: var(--space-2);
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: calc(var(--space-2) * -1);
+  padding: 0 var(--space-1);
 }
 .result-summary-text {
   margin: 0;

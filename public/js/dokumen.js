@@ -39,6 +39,7 @@ import {
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import { initFilterPanel } from "./filter-panel.js";
 
 const UKURAN_HALAMAN_DOKUMEN = 40;
 const JEDA_RAPIKAN_MS = 280;
@@ -51,8 +52,7 @@ const NAMA_BULAN_PENDEK = [
 const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
   `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
-const IKON_FILTER = svgIkon('<line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>', 17);
-const IKON_TUTUP = svgIkon('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>', 18);
+const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 
 export const manajerKategoriDokumen = buatManajerKategori({
   namaKoleksiKategori: "kategoriDokumen",
@@ -74,7 +74,7 @@ let filterKategoriId = "ALL";
 let urutBerdasarkan = "tanggal"; // "tanggal" | "nama" | "ukuran"
 let arahUrutan = "desc"; // "asc" | "desc"
 let batasTampil = UKURAN_HALAMAN_DOKUMEN;
-let panelFilterTerbuka = false;
+let pengendaliFilterDokumen = null;
 
 let idMenuTitikTigaTerbuka = null;
 
@@ -601,166 +601,54 @@ function pastikanKerangkaHalamanDokumen() {
           type="button"
           id="dokumen-filter-toggle-btn"
           class="btn-secondary btn-filter-toggle"
+          data-filter-toggle
           aria-expanded="false"
           aria-controls="dokumen-filter-panel"
         >
           ${IKON_FILTER}
           <span class="btn-filter-label">Filter</span>
-          <span id="dokumen-filter-count-badge" class="filter-count-badge" hidden>0</span>
+          <span id="dokumen-filter-count-badge" class="filter-count-badge" data-filter-badge hidden>0</span>
         </button>
-        <div class="compact-sort-group">
-          <label for="dokumen-sort-field" class="sr-only">Urut Berdasarkan</label>
-          <select id="dokumen-sort-field" class="form-select compact-sort-select" aria-label="Urutkan dokumen berdasarkan" title="Urut berdasarkan">
-            <option value="tanggal">Tanggal Unggah</option>
-            <option value="nama">Nama Dokumen</option>
-            <option value="ukuran">Ukuran Berkas</option>
-          </select>
-          <label for="dokumen-sort-dir" class="sr-only">Arah Urutan</label>
-          <select id="dokumen-sort-dir" class="form-select compact-sort-dir-select" aria-label="Arah urutan dokumen" title="Arah urutan">
-            <option value="desc">Menurun (&darr;)</option>
-            <option value="asc">Menaik (&uarr;)</option>
-          </select>
-        </div>
       </div>
 
-      <div id="dokumen-filter-scrim" class="filter-sheet-scrim" hidden></div>
-
-      <div id="dokumen-filter-panel" class="filter-collapsible" role="region" aria-label="Filter dokumen">
+      <div id="dokumen-filter-panel" class="filter-collapsible" data-filter-panel role="region" aria-label="Filter dokumen" aria-hidden="true" inert>
         <div class="filter-collapsible-inner">
-          <div class="filter-sheet-header">
-            <h3 class="filter-sheet-title">Filter Dokumen</h3>
-            <button type="button" id="dokumen-filter-sheet-close-btn" class="icon-btn" aria-label="Tutup panel filter" title="Tutup">
-              ${IKON_TUTUP}
-            </button>
-          </div>
-          <div class="filter-controls-grid filter-controls-1col-wide">
-            <div class="filter-control-item">
-              <label for="dokumen-filter-kategori" class="filter-label">Kategori Dokumen</label>
-              <select id="dokumen-filter-kategori" class="form-select"><option value="ALL">Semua Kategori</option></select>
+          <div class="filter-panel-content">
+            <div class="filter-controls-grid">
+              <div class="filter-control-item">
+                <label for="dokumen-filter-kategori" class="filter-label">Kategori Dokumen</label>
+                <select id="dokumen-filter-kategori" class="form-select" data-default="ALL"><option value="ALL">Semua Kategori</option></select>
+              </div>
+              <div class="filter-control-item">
+                <label for="dokumen-sort-field" class="filter-label">Urut Berdasarkan</label>
+                <select id="dokumen-sort-field" class="form-select compact-sort-select" data-default="tanggal" aria-label="Urutkan dokumen berdasarkan" title="Urut berdasarkan">
+                  <option value="tanggal">Tanggal Unggah</option>
+                  <option value="nama">Nama Dokumen</option>
+                  <option value="ukuran">Ukuran Berkas</option>
+                </select>
+              </div>
+              <div class="filter-control-item">
+                <label for="dokumen-sort-dir" class="filter-label">Arah Urutan</label>
+                <select id="dokumen-sort-dir" class="form-select compact-sort-dir-select" data-default="desc" aria-label="Arah urutan dokumen" title="Arah urutan">
+                  <option value="desc">Menurun (&darr;)</option>
+                  <option value="asc">Menaik (&uarr;)</option>
+                </select>
+              </div>
+            </div>
+            <div class="filter-panel-actions">
+              <button type="button" id="dokumen-filter-reset-desktop-btn" class="btn-secondary btn-sm-touch" data-filter-reset>Atur ulang</button>
             </div>
           </div>
-          <div class="filter-panel-actions-desktop">
-            <button type="button" id="dokumen-filter-reset-desktop-btn" class="btn-link-filter">Atur ulang</button>
-            <button type="button" id="dokumen-filter-done-btn" class="btn-secondary btn-sm-touch">Selesai</button>
-          </div>
-          <div class="filter-sheet-actions-mobile">
-            <button type="button" id="dokumen-filter-reset-sheet-btn" class="btn-secondary">Atur ulang</button>
-            <button type="button" id="dokumen-filter-apply-sheet-btn" class="btn-primary">Terapkan</button>
-          </div>
         </div>
       </div>
+    </div>
 
-      <div id="dokumen-filter-chips-row" class="active-chips-row" hidden>
-        <div id="dokumen-filter-chips-list" class="filter-chips-list"></div>
-        <button type="button" id="btn-reset-filter-dokumen" class="btn-link-filter">Hapus semua</button>
-      </div>
-
-      <div id="dokumen-active-filter-bar" class="active-filter-bar" hidden>
-        <span id="dokumen-result-summary" class="result-summary-text"></span>
-      </div>
+    <div id="dokumen-active-filter-bar" class="result-summary-bar" hidden>
+      <span id="dokumen-result-summary" class="result-summary-text"></span>
     </div>
 
     <div id="dokumen-list-region" aria-live="polite"></div>
   </div>`;
-
-  sinkronkanPanelFilterDokumen(false);
-}
-
-function sinkronkanPanelFilterDokumen(kembalikanFokusKeTombol = false) {
-  const btnToggle = document.getElementById("dokumen-filter-toggle-btn");
-  const panel = document.getElementById("dokumen-filter-panel");
-  const scrim = document.getElementById("dokumen-filter-scrim");
-  if (!btnToggle || !panel) return;
-
-  btnToggle.setAttribute("aria-expanded", panelFilterTerbuka ? "true" : "false");
-  btnToggle.classList.toggle("is-open", panelFilterTerbuka);
-  panel.classList.toggle("is-open", panelFilterTerbuka);
-  panel.setAttribute("aria-hidden", panelFilterTerbuka ? "false" : "true");
-  if ("inert" in panel) {
-    panel.inert = !panelFilterTerbuka;
-  }
-  if (scrim) {
-    scrim.hidden = !panelFilterTerbuka;
-  }
-
-  if (!panelFilterTerbuka && kembalikanFokusKeTombol) {
-    btnToggle.focus();
-  }
-}
-
-function aturBukaPanelFilterDokumen(buka, kembalikanFokus = false) {
-  panelFilterTerbuka = Boolean(buka);
-  sinkronkanPanelFilterDokumen(kembalikanFokus);
-}
-
-function aturUlangSemuaFilterDokumen() {
-  kataKunciCari = "";
-  filterKategoriId = "ALL";
-  batasTampil = UKURAN_HALAMAN_DOKUMEN;
-  const searchInput = document.getElementById("dokumen-search-input");
-  const filterKatSelect = document.getElementById("dokumen-filter-kategori");
-  if (searchInput instanceof HTMLInputElement) searchInput.value = "";
-  if (filterKatSelect instanceof HTMLSelectElement) filterKatSelect.value = "ALL";
-  renderDaftarDokumen();
-}
-
-function cariNamaKategoriFilterDokumen(katId) {
-  if (katId === "__TANPA_KATEGORI__") return TANPA_KATEGORI_INFO.nama;
-  const info = manajerKategoriDokumen.cariInfoKategori(katId);
-  return info ? info.nama : "Kategori";
-}
-
-function perbaruiLencanaDanChipFilterDokumen() {
-  const badge = document.getElementById("dokumen-filter-count-badge");
-  const btnToggle = document.getElementById("dokumen-filter-toggle-btn");
-  const chipsRow = document.getElementById("dokumen-filter-chips-row");
-  const chipsList = document.getElementById("dokumen-filter-chips-list");
-  const btnResetDesktop = document.getElementById("dokumen-filter-reset-desktop-btn");
-
-  let jumlahFilterPanel = 0;
-  const daftarChip = [];
-
-  if (filterKategoriId !== "ALL") {
-    jumlahFilterPanel += 1;
-    daftarChip.push({
-      key: "kategori",
-      label: `Kategori: ${cariNamaKategoriFilterDokumen(filterKategoriId)}`
-    });
-  }
-  if (kataKunciCari.trim() !== "") {
-    daftarChip.push({
-      key: "cari",
-      label: `Cari: "${kataKunciCari.trim()}"`
-    });
-  }
-
-  if (badge) {
-    badge.textContent = String(jumlahFilterPanel);
-    badge.hidden = jumlahFilterPanel === 0;
-  }
-  if (btnToggle) {
-    btnToggle.classList.toggle("has-active-filter", jumlahFilterPanel > 0);
-  }
-  if (btnResetDesktop) {
-    btnResetDesktop.hidden = jumlahFilterPanel === 0 && kataKunciCari.trim() === "";
-  }
-
-  if (chipsRow && chipsList) {
-    if (daftarChip.length > 0) {
-      chipsList.innerHTML = daftarChip
-        .map(
-          (chip) => `<button type="button" class="active-filter-chip" data-remove-dokumen-filter="${escapeHtml(chip.key)}" aria-label="Hapus filter ${escapeHtml(chip.label)}" title="Hapus filter ${escapeHtml(chip.label)}">
-            <span class="active-filter-chip-text">${escapeHtml(chip.label)}</span>
-            <span class="active-filter-chip-x" aria-hidden="true">&times;</span>
-          </button>`
-        )
-        .join("");
-      chipsRow.hidden = false;
-    } else {
-      chipsList.innerHTML = "";
-      chipsRow.hidden = true;
-    }
-  }
 }
 
 function perbaruiDropdownKategoriDokumen() {
@@ -883,7 +771,7 @@ function renderDaftarDokumen() {
   const region = document.getElementById("dokumen-list-region");
   const barFilter = document.getElementById("dokumen-active-filter-bar");
   const summaryEl = document.getElementById("dokumen-result-summary");
-  perbaruiLencanaDanChipFilterDokumen();
+  pengendaliFilterDokumen?.perbaruiLencana();
   if (!region) return;
 
   idMenuTitikTigaTerbuka = null;
@@ -1063,7 +951,7 @@ export function terapkanFilterKategoriDokumen(targetKategoriId) {
   kataKunciCari = "";
   filterKategoriId = targetKategoriId || "ALL";
   batasTampil = UKURAN_HALAMAN_DOKUMEN;
-  aturBukaPanelFilterDokumen(false, false);
+  pengendaliFilterDokumen?.tutup(false);
 
   const searchInput = document.getElementById("dokumen-search-input");
   const katSelect = document.getElementById("dokumen-filter-kategori");
@@ -1469,6 +1357,7 @@ async function jalankanRapikanDokumenKeFolder() {
 
 export function initHalamanDokumen() {
   pastikanKerangkaHalamanDokumen();
+  pengendaliFilterDokumen = initFilterPanel(document.getElementById("dokumen-toolbar"));
   perbaruiStatusJaringanDokumen();
   if (antarmukaSudahDiikat) return;
   antarmukaSudahDiikat = true;
@@ -1537,49 +1426,6 @@ export function initHalamanDokumen() {
       renderDaftarDokumen();
     });
   }
-
-  // Tombol buka/tutup panel filter & aksi lembar bawah HP
-  document.getElementById("dokumen-filter-toggle-btn")?.addEventListener("click", () => {
-    aturBukaPanelFilterDokumen(!panelFilterTerbuka, false);
-  });
-  document.getElementById("dokumen-filter-done-btn")?.addEventListener("click", () => {
-    aturBukaPanelFilterDokumen(false, true);
-  });
-  document.getElementById("dokumen-filter-apply-sheet-btn")?.addEventListener("click", () => {
-    aturBukaPanelFilterDokumen(false, true);
-  });
-  document.getElementById("dokumen-filter-sheet-close-btn")?.addEventListener("click", () => {
-    aturBukaPanelFilterDokumen(false, true);
-  });
-  document.getElementById("dokumen-filter-scrim")?.addEventListener("click", () => {
-    aturBukaPanelFilterDokumen(false, true);
-  });
-  document.getElementById("dokumen-filter-reset-desktop-btn")?.addEventListener("click", () => {
-    aturUlangSemuaFilterDokumen();
-  });
-  document.getElementById("dokumen-filter-reset-sheet-btn")?.addEventListener("click", () => {
-    aturUlangSemuaFilterDokumen();
-  });
-  document.getElementById("btn-reset-filter-dokumen")?.addEventListener("click", () => {
-    aturUlangSemuaFilterDokumen();
-  });
-
-  // Hapus chip filter satu per satu
-  document.getElementById("dokumen-filter-chips-list")?.addEventListener("click", (e) => {
-    const chipBtn = e.target instanceof Element ? e.target.closest("button[data-remove-dokumen-filter]") : null;
-    if (!chipBtn) return;
-    const kunci = chipBtn.getAttribute("data-remove-dokumen-filter");
-    if (kunci === "kategori") {
-      filterKategoriId = "ALL";
-      batasTampil = UKURAN_HALAMAN_DOKUMEN;
-      if (filterKatSelect instanceof HTMLSelectElement) filterKatSelect.value = "ALL";
-    } else if (kunci === "cari") {
-      kataKunciCari = "";
-      batasTampil = UKURAN_HALAMAN_DOKUMEN;
-      if (searchInput instanceof HTMLInputElement) searchInput.value = "";
-    }
-    renderDaftarDokumen();
-  });
 
   // Delegasi klik pada daftar dokumen (muat bertahap, menu titik tiga, ubah, hapus)
   const listRegion = document.getElementById("dokumen-list-region");
@@ -1909,12 +1755,6 @@ export function initHalamanDokumen() {
     } else if (rapikanModalTerbuka && !sedangMerapikan) {
       e.preventDefault();
       tutupModalRapikanDokumen(true);
-    } else if (panelFilterTerbuka && !document.getElementById("section-dokumen")?.hidden) {
-      const adaDialogTerbuka = document.querySelector(".modal-overlay:not([hidden])");
-      if (!adaDialogTerbuka && document.documentElement.getAttribute("data-drawer") !== "open") {
-        e.preventDefault();
-        aturBukaPanelFilterDokumen(false, true);
-      }
     }
   });
 
@@ -1997,7 +1837,7 @@ export function unsubscribeDokumen() {
   daftarDokumen = [];
   sudahDimuatPertamaKali = false;
 
-  aturBukaPanelFilterDokumen(false, false);
+  pengendaliFilterDokumen?.tutup(false);
   tutupMenuTitikTigaDokumen();
   tutupModalUnggahDokumen(false);
   tutupModalEditDokumen(false);
