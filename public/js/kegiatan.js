@@ -283,7 +283,7 @@ function renderDaftarKegiatan() {
   if (!region) return;
 
   if (!sudahDimuatPertamaKali) {
-    region.innerHTML = `<div class="empty-stage-card"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat daftar kegiatan...</p></div>`;
+    region.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat daftar kegiatan"><div class="skeleton-card"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-60"></div></div><div class="skeleton-card"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-70"></div><div class="skeleton-line skeleton-w-50"></div></div></div>`;
     return;
   }
 
@@ -351,7 +351,7 @@ function renderDaftarKegiatan() {
       ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
       <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
         <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
-        <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet"' : ""}>Buat notulensi</button>
+        <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
         <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan" data-id="${escapeHtml(item.id)}">Ubah</button>
         <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-kegiatan" data-id="${escapeHtml(item.id)}">Hapus</button>
       </div>

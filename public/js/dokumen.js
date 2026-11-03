@@ -1,5 +1,5 @@
 /**
- * Modul Halaman Dokumen, Unggah & Pindah Folder Google Drive, serta Rapikan Dokumen (Fase 3)
+ * Modul Halaman Dokumen, Unggah & Pindah Folder Google Drive, serta Rapikan Dokumen (Fase 3 + Ketahanan Offline Fase 6)
  * Mematuhi Aturan #5, #6, #7, #8, #9, #10, #12, #13, #14:
  * - Koleksi Firestore: "dokumen" dan "kategoriDokumen"
  * - Semua tampilan tanggal dokumen memakai tanggal lokal lewat util-tanggal.js
@@ -114,6 +114,90 @@ function beritahuPerubahanDokumen() {
       // Abaikan
     }
   });
+}
+
+/**
+ * Fase 6 Bagian D: Memperbarui status online/offline pada halaman Dokumen & tombol unggah/rapikan.
+ */
+export function perbaruiStatusJaringanDokumen() {
+  const online = navigator.onLine;
+  const btnUnggah = document.getElementById("btn-unggah-dokumen");
+  if (btnUnggah instanceof HTMLButtonElement) {
+    btnUnggah.disabled = !online;
+    btnUnggah.title = online
+      ? "Unggah berkas baru ke Google Drive"
+      : "Tidak ada koneksi internet. Pengunggahan ke Google Drive memerlukan sambungan aktif.";
+  }
+
+  const btnRapikan = document.getElementById("btn-rapikan-dokumen-drive");
+  if (btnRapikan instanceof HTMLButtonElement) {
+    btnRapikan.disabled = !online;
+    btnRapikan.title = online
+      ? "Rapikan berkas ke subfolder kategori di Google Drive"
+      : "Tidak ada koneksi internet. Merapikan folder memerlukan sambungan aktif.";
+  }
+
+  const noteOffline = document.getElementById("dokumen-offline-note");
+  if (noteOffline) {
+    noteOffline.hidden = online;
+  }
+
+  const btnSubmitUnggah = document.getElementById("dokumen-upload-submit-btn");
+  if (btnSubmitUnggah instanceof HTMLButtonElement && !pengendaliUnggahAktif) {
+    btnSubmitUnggah.disabled = !online;
+  }
+
+  const radioTrashDrive = document.getElementById("dokumen-delete-mode-drive");
+  if (radioTrashDrive instanceof HTMLInputElement) {
+    radioTrashDrive.disabled = !online;
+    if (!online && radioTrashDrive.checked) {
+      const radioApp = document.getElementById("dokumen-delete-mode-app");
+      if (radioApp instanceof HTMLInputElement) radioApp.checked = true;
+    }
+  }
+}
+
+/**
+ * Fase 6 Bagian B3: Menyinkronkan satu folder kategori dokumen dari halaman Pengaturan.
+ * @param {string} kategoriId
+ * @returns {Promise<{ nama: string, pesan: string }>}
+ */
+export async function sinkronkanSatuFolderKategoriDokumen(kategoriId) {
+  const kat = manajerKategoriDokumen.ambilKategoriById(kategoriId);
+  if (!kat) {
+    throw new Error("Kategori dokumen tidak ditemukan.");
+  }
+
+  if (!kat.folderId) {
+    const dibuat = await buatSubfolderKategoriDrive(kat.nama);
+    await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
+      folderId: dibuat.folderId,
+      folderSinkron: true
+    });
+    return { nama: kat.nama, pesan: "Subfolder baru dibuat dan disinkronkan" };
+  }
+
+  try {
+    await gantiNamaFolderDrive(kat.folderId, kat.nama);
+    await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
+      folderId: kat.folderId,
+      folderSinkron: true
+    });
+    return { nama: kat.nama, pesan: "Nama folder disinkronkan" };
+  } catch (err) {
+    if (err && err.isNotFound) {
+      const dibuatUlang = await buatSubfolderKategoriDrive(kat.nama);
+      await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
+        folderId: dibuatUlang.folderId,
+        folderSinkron: true
+      });
+      return { nama: kat.nama, pesan: "Folder lama tidak ditemukan (404), dibuat ulang" };
+    }
+    await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
+      folderSinkron: false
+    });
+    throw new Error(formatPesanGalatDrive(err));
+  }
 }
 
 /**
@@ -491,6 +575,11 @@ function pastikanKerangkaHalamanDokumen() {
       </div>
     </div>
 
+    <div id="dokumen-offline-note" class="alert-box alert-box-warning" role="status" hidden>
+      ${svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18)}
+      <span>Tidak ada koneksi internet. Pengunggahan berkas baru dan perapian folder Google Drive dinonaktifkan sementara, tetapi daftar arsip tersimpan tetap dapat ditelusuri.</span>
+    </div>
+
     <div id="dokumen-page-alert" class="alert-box" role="alert" hidden>
       ${svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18)}
       <span id="dokumen-page-alert-text"></span>
@@ -660,7 +749,7 @@ function renderDaftarDokumen() {
   idMenuTitikTigaTerbuka = null;
 
   if (!sudahDimuatPertamaKali) {
-    region.innerHTML = `<div class="empty-stage-card"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat arsip dokumen...</p></div>`;
+    region.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat arsip dokumen"><div class="skeleton-card"><div class="skeleton-line skeleton-w-60"></div><div class="skeleton-line skeleton-w-40"></div></div><div class="skeleton-card"><div class="skeleton-line skeleton-w-70"></div><div class="skeleton-line skeleton-w-50"></div></div></div>`;
     return;
   }
 
@@ -871,11 +960,19 @@ function perbaruiTampilanProgresUnggah(sedangBerjalan, persen = 0, labelStatus =
   if (barFill instanceof HTMLElement) barFill.style.width = `${Math.max(0, Math.min(100, persen))}%`;
   if (pctEl) pctEl.textContent = `${Math.max(0, Math.min(100, persen))}%`;
   if (textEl) textEl.textContent = labelStatus || "Mengunggah ke Google Drive...";
-  if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = sedangBerjalan;
+  if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = sedangBerjalan || !navigator.onLine;
   if (fileInput instanceof HTMLInputElement) fileInput.disabled = sedangBerjalan;
 }
 
 export function bukaModalUnggahDokumen() {
+  if (!navigator.onLine) {
+    tampilkanGalatHalamanDokumen(
+      "Tidak ada koneksi internet. Pengunggahan dokumen ke Google Drive memerlukan sambungan internet aktif.",
+      "warning"
+    );
+    return;
+  }
+
   const modal = document.getElementById("dokumen-upload-modal");
   const form = document.getElementById("dokumen-upload-form");
   const katSelect = document.getElementById("dokumen-upload-kategori");
@@ -1006,6 +1103,7 @@ function bukaDialogHapusDokumen(item) {
   const modal = document.getElementById("dokumen-delete-modal");
   const desc = document.getElementById("dokumen-delete-desc");
   const radioAppOnly = document.getElementById("dokumen-delete-mode-app");
+  const radioDrive = document.getElementById("dokumen-delete-mode-drive");
   const cancelBtn = document.getElementById("dokumen-delete-cancel-btn");
   if (!modal || !item) return;
 
@@ -1019,6 +1117,9 @@ function bukaDialogHapusDokumen(item) {
   }
   if (radioAppOnly instanceof HTMLInputElement) {
     radioAppOnly.checked = true;
+  }
+  if (radioDrive instanceof HTMLInputElement) {
+    radioDrive.disabled = !navigator.onLine;
   }
 
   hapusModalTerbuka = true;
@@ -1214,7 +1315,7 @@ async function jalankanRapikanDokumenKeFolder() {
     sedangMerapikan = false;
     batalkanRapikan = false;
     if (startBtn instanceof HTMLButtonElement) {
-      startBtn.disabled = false;
+      startBtn.disabled = !navigator.onLine;
       startBtn.textContent = "Jalankan Lagi";
     }
     if (cancelBtn instanceof HTMLButtonElement) {
@@ -1229,6 +1330,7 @@ async function jalankanRapikanDokumenKeFolder() {
 
 export function initHalamanDokumen() {
   pastikanKerangkaHalamanDokumen();
+  perbaruiStatusJaringanDokumen();
   if (antarmukaSudahDiikat) return;
   antarmukaSudahDiikat = true;
 
@@ -1396,6 +1498,11 @@ export function initHalamanDokumen() {
     e.preventDefault();
     setPesanGalatModalUnggah("");
 
+    if (!navigator.onLine) {
+      setPesanGalatModalUnggah("Tidak ada koneksi internet. Pengunggahan ke Google Drive memerlukan sambungan aktif.");
+      return;
+    }
+
     const file = uploadFileInput instanceof HTMLInputElement && uploadFileInput.files ? uploadFileInput.files[0] : null;
     if (!file) {
       setPesanGalatModalUnggah("Pilih berkas dokumen yang akan diunggah terlebih dahulu.");
@@ -1504,6 +1611,13 @@ export function initHalamanDokumen() {
     const idEfektifBaru = infoKatBaru.tetap ? "" : infoKatBaru.id;
     const pindahKategori = idEfektifLama !== idEfektifBaru;
 
+    if (pindahKategori && !navigator.onLine) {
+      setPesanGalatModalEdit(
+        "Tidak dapat memindahkan kategori dokumen saat luring karena berkas di Google Drive harus ikut dipindahkan ke folder kategori tujuan."
+      );
+      return;
+    }
+
     if (editSubmitBtn instanceof HTMLButtonElement) {
       editSubmitBtn.disabled = true;
       editSubmitBtn.textContent = pindahKategori ? "Memindahkan di Drive..." : "Menyimpan...";
@@ -1562,6 +1676,9 @@ export function initHalamanDokumen() {
 
     try {
       if (buangKeSampahDrive && target.driveFileId) {
+        if (!navigator.onLine) {
+          throw new Error("Tidak ada koneksi internet untuk memindahkan berkas ke Sampah Drive. Pilih \"Hapus dari daftar aplikasi saja\".");
+        }
         try {
           await pindahkanItemKeSampahDrive(target.driveFileId);
         } catch (errDrive) {
@@ -1621,6 +1738,9 @@ export function initHalamanDokumen() {
       tutupModalRapikanDokumen(true);
     }
   });
+
+  window.addEventListener("online", perbaruiStatusJaringanDokumen);
+  window.addEventListener("offline", perbaruiStatusJaringanDokumen);
 }
 
 export function subscribeDokumen() {

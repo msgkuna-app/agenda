@@ -315,7 +315,7 @@ function renderDaftarCatatan() {
   if (!region) return;
 
   if (!sudahDimuatPertamaKali) {
-    region.innerHTML = `<div class="empty-stage-card"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat daftar catatan...</p></div>`;
+    region.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat daftar catatan"><div class="skeleton-card"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-60"></div></div></div>`;
     return;
   }
 
@@ -614,12 +614,14 @@ function bukaDialogHapusGdoc(item) {
   const modal = document.getElementById("catatan-gdoc-delete-modal");
   const desc = document.getElementById("catatan-gdoc-delete-desc");
   const radioApp = document.getElementById("catatan-gdoc-delete-mode-app");
+  const radioDrive = document.getElementById("catatan-gdoc-delete-mode-drive");
   const cancelBtn = document.getElementById("catatan-gdoc-delete-cancel-btn");
   if (!modal || !item) return;
   fokusSebelumModalCatatan = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   itemCatatanGdocHapus = item;
   setGalatHapusGdoc("", false);
   if (radioApp instanceof HTMLInputElement) radioApp.checked = true;
+  if (radioDrive instanceof HTMLInputElement) radioDrive.disabled = !navigator.onLine;
   if (desc) desc.textContent = `Konfirmasi penghapusan catatan Google Docs "${item.judul}" (${formatTanggalCatatan(item.tanggal)}):`;
   hapusGdocModalTerbuka = true;
   modal.hidden = false;
@@ -749,7 +751,6 @@ export function initHalamanCatatan() {
     }
   });
 
-  // Form Catatan Singkat
   const singkatModal = document.getElementById("catatan-singkat-modal");
   document.getElementById("catatan-singkat-close-btn")?.addEventListener("click", () => tutupModalCatatanSingkat(true));
   document.getElementById("catatan-singkat-cancel-btn")?.addEventListener("click", () => tutupModalCatatanSingkat(true));
@@ -803,7 +804,6 @@ export function initHalamanCatatan() {
     }
   });
 
-  // Form Buat Google Docs
   const gdocModal = document.getElementById("catatan-gdoc-modal");
   document.getElementById("catatan-gdoc-close-btn")?.addEventListener("click", () => tutupModalBuatCatatanGdoc(true));
   document.getElementById("catatan-gdoc-cancel-btn")?.addEventListener("click", () => tutupModalBuatCatatanGdoc(true));
@@ -893,7 +893,6 @@ export function initHalamanCatatan() {
     }
   });
 
-  // Hapus Catatan Singkat
   const delSingkatModal = document.getElementById("catatan-singkat-delete-modal");
   document.getElementById("catatan-singkat-delete-cancel-btn")?.addEventListener("click", () => tutupDialogHapusSingkat(true));
   delSingkatModal?.addEventListener("click", (e) => { if (e.target === delSingkatModal) tutupDialogHapusSingkat(true); });
@@ -912,7 +911,6 @@ export function initHalamanCatatan() {
     }
   });
 
-  // Hapus Catatan Google Docs
   const delGdocModal = document.getElementById("catatan-gdoc-delete-modal");
   document.getElementById("catatan-gdoc-delete-cancel-btn")?.addEventListener("click", () => tutupDialogHapusGdoc(true));
   delGdocModal?.addEventListener("click", (e) => { if (e.target === delGdocModal) tutupDialogHapusGdoc(true); });

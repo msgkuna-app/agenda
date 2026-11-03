@@ -9,7 +9,7 @@
     <title>Agenda &amp; Arsip</title>
     <meta
       name="description"
-      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan."
+      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, laporan, dan pengaturan cadangan."
     />
     <meta name="theme-color" content="#1e40af" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -18,7 +18,7 @@
     <meta property="og:title" content="Agenda &amp; Arsip" />
     <meta
       property="og:description"
-      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan."
+      content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, laporan, dan pengaturan cadangan."
     />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -306,14 +306,43 @@
       </section>
     </main>
 
-    <!-- 4. Pembungkus Utama Aplikasi -->
+    <!-- 4. Pembungkus Utama Aplikasi (Pola App Shell: 100dvh, overflow: hidden) -->
     <div id="app-shell" class="app-shell" hidden>
       <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
 
       <aside id="app-sidebar" class="app-sidebar" aria-label="Navigasi utama">
-        <div class="sidebar-top">
-          <div class="sidebar-brand">
-            <span class="sidebar-brand-mark" aria-hidden="true">
+        <!-- Bagian atas sidebar (logo & menu navigasi): flex: 1 1 auto; min-height: 0; overflow-y: auto -->
+        <div class="sidebar-upper">
+          <div class="sidebar-top">
+            <div class="sidebar-brand">
+              <span class="sidebar-brand-mark" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="17" rx="2.5" />
+                  <line x1="8" y1="2.5" x2="8" y2="6" />
+                  <line x1="16" y1="2.5" x2="16" y2="6" />
+                  <line x1="3" y1="9.5" x2="21" y2="9.5" />
+                </svg>
+              </span>
+              <span class="sidebar-brand-title">Agenda &amp; Arsip</span>
+            </div>
+
+            <button
+              type="button"
+              id="sidebar-collapse-btn"
+              class="icon-btn sidebar-collapse-btn"
+              aria-expanded="true"
+              aria-label="Ciutkan bilah sisi"
+              title="Ciutkan bilah sisi"
+            >
               <svg
                 viewBox="0 0 24 24"
                 width="18"
@@ -323,68 +352,57 @@
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
+                aria-hidden="true"
               >
-                <rect x="3" y="4" width="18" height="17" rx="2.5" />
-                <line x1="8" y1="2.5" x2="8" y2="6" />
-                <line x1="16" y1="2.5" x2="16" y2="6" />
-                <line x1="3" y1="9.5" x2="21" y2="9.5" />
+                <polyline points="15 18 9 12 15 6" />
               </svg>
-            </span>
-            <span class="sidebar-brand-title">Agenda &amp; Arsip</span>
+            </button>
+
+            <button
+              type="button"
+              id="sidebar-mobile-close-btn"
+              class="icon-btn sidebar-mobile-close-btn"
+              aria-label="Tutup menu navigasi"
+              title="Tutup menu navigasi"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
 
-          <button
-            type="button"
-            id="sidebar-collapse-btn"
-            class="icon-btn sidebar-collapse-btn"
-            aria-expanded="true"
-            aria-label="Ciutkan bilah sisi"
-            title="Ciutkan bilah sisi"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-
-          <button
-            type="button"
-            id="sidebar-mobile-close-btn"
-            class="icon-btn sidebar-mobile-close-btn"
-            aria-label="Tutup menu navigasi"
-            title="Tutup menu navigasi"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          <nav class="sidebar-nav" aria-label="Menu bagian aplikasi">
+            <ul id="sidebar-nav-list" class="nav-list"></ul>
+          </nav>
         </div>
 
-        <nav class="sidebar-nav" aria-label="Menu bagian aplikasi">
-          <ul id="sidebar-nav-list" class="nav-list"></ul>
-        </nav>
-
+        <!-- Bagian bawah sidebar: flex-shrink: 0, selalu diam di dasar sidebar -->
         <div class="sidebar-bottom">
+          <div
+            id="sidebar-network-indicator"
+            class="sidebar-network-pill is-online"
+            role="status"
+            data-tooltip="Perangkat terhubung ke internet"
+            title="Perangkat terhubung ke internet"
+            aria-label="Perangkat terhubung ke internet"
+          >
+            <span class="network-dot" aria-hidden="true"></span>
+            <span id="sidebar-network-label" class="network-label"
+              >Terhubung (Online)</span
+            >
+          </div>
+
           <div class="theme-switcher" role="group" aria-label="Pemilih tema">
             <button
               type="button"
@@ -515,7 +533,8 @@
         hidden
       ></div>
 
-      <div class="app-workspace">
+      <!-- Area konten utama satu-satunya elemen penggulung: flex: 1; min-width: 0; height: 100%; overflow-y: auto -->
+      <div id="workspace-scroll" class="app-workspace">
         <header class="app-header">
           <div class="header-left">
             <button
@@ -1840,7 +1859,7 @@
             <div class="form-field">
               <label for="catatan-gdoc-judul" class="form-label"
                 >Judul Dokumen <span class="required-mark">*</span></label
-              >
+            >
               <input
                 type="text"
                 id="catatan-gdoc-judul"
@@ -2193,6 +2212,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Wadah Toast Mengambang Global (position: fixed + safe-area-inset-bottom) -->
+    <div
+      id="toast-region"
+      class="toast-region"
+      aria-live="polite"
+      aria-atomic="false"
+    ></div>
 
     <script type="module" src="/js/app.js"></script>
   </body>

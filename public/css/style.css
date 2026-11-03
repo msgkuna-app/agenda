@@ -1,6 +1,5 @@
 /* ==========================================================================
-   Agenda & Arsip — Sistem Desain Fondasi (Fase 0) + Kegiatan & Kategori (Fase 1)
-   + Jadwal & Dashboard (Fase 2) + Dokumen & Folder Google Drive (Fase 3)
+   Agenda & Arsip — Sistem Desain Fondasi (Fase 0) s.d. Fase 6 (Pengaturan & App Shell)
    Seluruh komponen memakai CSS Custom Properties tanpa warna hardcoded langsung.
    Skala jarak kelipatan 4px, satu aksen biru, font sistem, WCAG AA, <= 200ms.
    ========================================================================== */
@@ -296,14 +295,14 @@
   border: 0;
 }
 
+/* Bagian A1: html dan body dikunci penuh (tidak boleh scroll) */
 html,
 body {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100%;
-  min-height: 100dvh;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   background: var(--color-bg-canvas);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -353,14 +352,15 @@ button:disabled {
   transform: translateY(0);
 }
 
-/* Layar Penuh: Memeriksa Sesi, Galat Konfigurasi, dan Login */
+/* Layar Penuh: Memeriksa Sesi, Galat Konfigurasi, dan Login (menggulung mandiri jika layar pendek) */
 .centered-screen {
-  min-height: 100dvh;
+  height: 100dvh;
   width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: calc(var(--space-6) + env(safe-area-inset-top, 0px))
     calc(var(--space-4) + env(safe-area-inset-right, 0px))
     calc(var(--space-6) + env(safe-area-inset-bottom, 0px))
@@ -370,6 +370,7 @@ button:disabled {
 .session-card,
 .auth-card,
 .config-error-card {
+  margin: auto 0;
   width: 100%;
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
@@ -582,11 +583,14 @@ button:disabled {
   color: var(--color-text-primary);
 }
 
-/* Kerangka Utama Aplikasi (Sidebar + Header + Konten) */
+/* ==========================================================================
+   Bagian A1, A2, A3: Pola App Shell (Root 100dvh, Sidebar Diam, Konten Scroll)
+   ========================================================================== */
 .app-shell {
-  min-height: 100dvh;
-  width: 100%;
   display: flex;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--color-bg-canvas);
 }
 
@@ -602,29 +606,42 @@ html[data-drawer="open"] .sidebar-backdrop {
   opacity: 1;
 }
 
+/* Drawer di HP (<600px): position: fixed; inset: 0 auto 0 0; height: 100dvh */
 .app-sidebar {
   position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0 auto 0 0;
+  height: 100dvh;
   z-index: 50;
   width: min(82vw, 280px);
+  flex-shrink: 0;
   background: var(--color-bg-surface);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   transform: translateX(-100%);
-  transition: transform var(--duration-normal) var(--ease-standard);
+  transition:
+    transform var(--duration-normal) var(--ease-standard),
+    width var(--duration-normal) var(--ease-standard);
   box-shadow: var(--shadow-lg);
 }
 html[data-drawer="open"] .app-sidebar {
   transform: translateX(0);
 }
 
+/* Bagian atas di dalam sidebar: logo tetap + menu navigasi dapat scroll mandiri */
+.sidebar-upper {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .sidebar-top {
+  flex-shrink: 0;
   min-height: var(--header-height);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
@@ -692,6 +709,7 @@ html[data-drawer="open"] .app-sidebar {
 
 .sidebar-nav {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-3);
@@ -743,13 +761,54 @@ html[data-drawer="open"] .app-sidebar {
   text-overflow: ellipsis;
 }
 
+/* Bagian A2 & A3: Bagian bawah sidebar selalu terlihat, tidak ikut scroll, aman dari gesture bar HP */
 .sidebar-bottom {
-  padding: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-3)
+    calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
+
+/* Indikator Online/Offline ringkas di bagian bawah sidebar (di atas pemilih tema) */
+.sidebar-network-pill {
+  min-height: var(--space-6);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sidebar-network-pill.is-offline {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+.network-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--cat-hijau-dot);
+  flex-shrink: 0;
+}
+.sidebar-network-pill.is-offline .network-dot {
+  background: var(--cat-amber-dot);
+}
+.network-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .theme-switcher {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -766,6 +825,7 @@ html[data-drawer="open"] .app-sidebar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
@@ -860,10 +920,14 @@ html[data-drawer="open"] .app-sidebar {
   opacity: 1;
 }
 
-/* Area Utama (Header + Pita Status + Konten) */
+/* Bagian A1: Area Konten Utama adalah SATU-SATUNYA elemen penggulung vertikal */
 .app-workspace {
-  flex: 1 1 auto;
+  flex: 1;
   min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
   display: flex;
   flex-direction: column;
   padding-right: env(safe-area-inset-right, 0px);
@@ -872,6 +936,7 @@ html[data-drawer="open"] .app-sidebar {
   position: sticky;
   top: 0;
   z-index: 30;
+  flex-shrink: 0;
   min-height: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: var(--space-4);
@@ -945,6 +1010,7 @@ html[data-drawer="open"] .app-sidebar {
 }
 
 .status-banner {
+  flex-shrink: 0;
   padding: var(--space-2) var(--space-4);
   background: var(--color-warning-bg);
   border-bottom: 1px solid var(--color-warning-border);
@@ -972,7 +1038,7 @@ html[data-drawer="open"] .app-sidebar {
 }
 
 .app-main {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   width: 100%;
   max-width: 72rem;
   margin: 0 auto;
@@ -1101,7 +1167,7 @@ html[data-drawer="open"] .app-sidebar {
   display: inline-flex;
   align-items: center;
 }
-.btn-link-filter:hover {
+.btn-link-filter:hover:not(:disabled) {
   color: var(--color-accent-hover);
 }
 
@@ -1737,37 +1803,6 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-text-muted);
 }
 
-.dash-placeholder-box {
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-subtle);
-  align-items: flex-start;
-  justify-content: center;
-  gap: var(--space-2);
-}
-.dash-placeholder-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-accent-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.dash-placeholder-title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-.dash-placeholder-desc {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-}
-
 /* Fase 2: Halaman Jadwal (Kalender Bulanan & Daftar Agenda 30 Hari) */
 .jadwal-header-controls {
   display: flex;
@@ -1920,7 +1955,6 @@ html[data-drawer="open"] .app-sidebar {
   border-bottom: none;
 }
 
-/* Sel Kalender: Ringkas di HP (<600px), Besar di Tablet/Desktop (>=600px) */
 .cal-day-cell {
   min-width: 0;
   min-height: 3.25rem;
@@ -2252,7 +2286,7 @@ html[data-drawer="open"] .app-sidebar {
   gap: var(--space-2);
 }
 
-/* Fase 3: Halaman Dokumen Berbentuk LIST (HP/Tablet Potret 2 Tingkat vs Desktop/Tablet Lanskap Kolom Sejajar) */
+/* Fase 3: Halaman Dokumen Berbentuk LIST */
 .doc-list-surface {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
@@ -2401,7 +2435,6 @@ html[data-drawer="open"] .app-sidebar {
   font-weight: 600;
 }
 
-/* Di HP & Tablet Potret: sembunyikan kolom tabel terpisah & tombol desktop, gunakan baris 2 tingkat + menu titik tiga */
 .doc-col-cat,
 .doc-col-type,
 .doc-col-size,
@@ -2463,7 +2496,6 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-danger-text);
 }
 
-/* Desktop (>1024px) DAN Tablet Lanskap (min-width: 820px & orientation: landscape): Kolom sejajar dengan header */
 @media (min-width: 1024.02px), (min-width: 768px) and (orientation: landscape) {
   .doc-list-header,
   .doc-list-row {
@@ -2538,7 +2570,6 @@ html[data-drawer="open"] .app-sidebar {
   justify-content: center;
 }
 
-/* Progres Unggah, Progres Rapikan, & Pilihan Hapus Dokumen */
 .upload-progress-card {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
@@ -2690,7 +2721,6 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-text-muted);
 }
 
-/* Lencana & Callout Sinkronisasi Folder Drive pada Kelola Kategori Dokumen */
 .kategori-badges-inline {
   display: flex;
   align-items: center;
@@ -2762,12 +2792,15 @@ html[data-drawer="open"] .app-sidebar {
   margin: 0;
 }
 
-/* Modal & Lembar Penuh HP (Kelola Kategori, Form Kegiatan, Konfirmasi) */
+/* Modal & Lembar Penuh HP (position: fixed + safe-area-inset-bottom) */
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 150;
-  padding: var(--space-4);
+  padding: calc(var(--space-4) + env(safe-area-inset-top, 0px))
+    calc(var(--space-4) + env(safe-area-inset-right, 0px))
+    calc(var(--space-4) + env(safe-area-inset-bottom, 0px))
+    calc(var(--space-4) + env(safe-area-inset-left, 0px));
   background: var(--color-bg-scrim);
   display: flex;
   align-items: center;
@@ -2776,6 +2809,8 @@ html[data-drawer="open"] .app-sidebar {
 .modal-dialog {
   width: 100%;
   max-width: 24rem;
+  max-height: calc(100dvh - var(--space-8));
+  overflow-y: auto;
   padding: var(--space-6);
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
@@ -2984,7 +3019,10 @@ html[data-drawer="open"] .app-sidebar {
   gap: var(--space-2);
 }
 
-/* Responsif Tablet (600px - 1024px) & Desktop (>1024px) */
+/* ==========================================================================
+   Bagian A1 & A3: Responsif Tablet (600px - 1024px) & Desktop (>1024px)
+   Sidebar: position: relative (TANPA position: sticky), height: 100%, flex-shrink: 0
+   ========================================================================== */
 @media (min-width: 600px) {
   .mobile-menu-btn,
   .sidebar-mobile-close-btn,
@@ -2995,9 +3033,9 @@ html[data-drawer="open"] .app-sidebar {
     display: inline-flex;
   }
   .app-sidebar {
-    position: sticky;
-    top: 0;
-    height: 100dvh;
+    position: relative;
+    inset: auto;
+    height: 100%;
     flex-shrink: 0;
     transform: none;
     box-shadow: none;
@@ -3027,7 +3065,8 @@ html[data-drawer="open"] .app-sidebar {
   }
   html[data-sidebar="collapsed"] .sidebar-brand-title,
   html[data-sidebar="collapsed"] .nav-label,
-  html[data-sidebar="collapsed"] .account-meta {
+  html[data-sidebar="collapsed"] .account-meta,
+  html[data-sidebar="collapsed"] .network-label {
     display: none;
   }
   html[data-sidebar="collapsed"] .sidebar-nav {
@@ -3038,10 +3077,16 @@ html[data-drawer="open"] .app-sidebar {
     padding: var(--space-2);
   }
   html[data-sidebar="collapsed"] .sidebar-bottom {
-    padding: var(--space-2);
+    padding: var(--space-2) var(--space-2)
+      calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
     align-items: center;
   }
-  html[data-sidebar="collapsed"] .theme-switcher {
+  html[data-sidebar="collapsed"] .sidebar-network-pill {
+    width: 100%;
+    justify-content: center;
+    padding: var(--space-1);
+  }
+  html[data-sidebar="collapsed"] .app-sidebar .theme-switcher {
     grid-template-columns: 1fr;
     width: 100%;
   }
@@ -3066,8 +3111,6 @@ html[data-drawer="open"] .app-sidebar {
 
 /* ==========================================================================
    Fase 4: Catatan (Catatan Singkat & Catatan Google Docs) + Integrasi Kegiatan
-   Mematuhi Aturan #13 & #14: hanya memakai CSS Custom Properties, target sentuh
-   minimal 44px (--touch-min), responsif HP/tablet/desktop tanpa scroll horizontal.
    ========================================================================== */
 
 .catatan-filter-grid {
@@ -3334,7 +3377,6 @@ html[data-drawer="open"] .app-sidebar {
   z-index: 165;
 }
 
-/* Integrasi Catatan Terkait di Detail Kegiatan (#kegiatan-detail-modal) */
 .detail-catatan-section {
   width: 100%;
 }
@@ -3439,8 +3481,6 @@ html[data-drawer="open"] .app-sidebar {
 
 /* ==========================================================================
    Fase 5: Laporan (Google Sheets & Unduh CSV Cadangan)
-   Mematuhi Aturan #13 & #14: murni CSS Custom Properties tanpa warna hardcoded,
-   target sentuh minimal 44px (--touch-min), mobile-first tanpa scroll horizontal.
    ========================================================================== */
 
 .laporan-filter-grid {
@@ -3522,4 +3562,251 @@ html[data-drawer="open"] .app-sidebar {
 
 .laporan-history-card .catatan-card-footer > a {
   text-decoration: none;
+}
+
+/* ==========================================================================
+   Fase 6: Halaman Pengaturan, Cadangan JSON, Skeleton, dan Toast Mengambang
+   Mematuhi Aturan #13 & #14: hanya CSS Custom Properties, target sentuh >= 44px,
+   toast & modal position: fixed + env(safe-area-inset-bottom).
+   ========================================================================== */
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: stretch;
+}
+@media (min-width: 720px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+}
+
+.settings-desc-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.settings-theme-switcher {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 480px) {
+  .settings-theme-switcher {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.settings-theme-btn {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.settings-full-btn-mobile {
+  width: 100%;
+}
+@media (min-width: 600px) {
+  .settings-full-btn-mobile {
+    width: auto;
+  }
+}
+
+.settings-mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.settings-mini-item {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.settings-backup-stack {
+  gap: var(--space-4);
+}
+.settings-backup-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 720px) {
+  .settings-backup-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.settings-subpanel {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.settings-subpanel-actions {
+  margin-top: auto;
+  padding-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.settings-import-preview {
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-canvas);
+  border: 1px solid var(--color-border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.settings-import-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.settings-counts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+@media (min-width: 720px) {
+  .settings-counts-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.settings-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Skeleton pemuatan konsisten */
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+.skeleton-card {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.skeleton-line {
+  height: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-hover);
+  animation: denyutSkeleton 1.2s ease-in-out infinite alternate;
+}
+.skeleton-w-40 {
+  width: 40%;
+}
+.skeleton-w-50 {
+  width: 50%;
+}
+.skeleton-w-60 {
+  width: 60%;
+}
+.skeleton-w-70 {
+  width: 70%;
+}
+.skeleton-w-80 {
+  width: 80%;
+}
+@keyframes denyutSkeleton {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.9;
+  }
+}
+
+/* Toast mengambang global: position: fixed + env(safe-area-inset-bottom) */
+.toast-region {
+  position: fixed;
+  right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+  z-index: 185;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 24rem;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  opacity: 0;
+  transform: translateY(var(--space-2));
+  transition:
+    opacity var(--duration-normal) var(--ease-standard),
+    transform var(--duration-normal) var(--ease-standard);
+}
+.toast-item.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast-success {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.toast-warning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+.toast-danger {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+.toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.toast-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.toast-close-btn {
+  color: currentColor;
 }

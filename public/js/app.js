@@ -1,8 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 5: Laporan Google Sheets & CSV)
- * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (termasuk kartu
- * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, Dokumen, Catatan, dan Laporan, pemantau
- * kedaluwarsa token Google Drive, konfirmasi keluar, dan Service Worker.
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: Pengaturan, Cadangan & Penyempurnaan App Shell)
+ * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard, Kegiatan, Jadwal,
+ * Dokumen, Catatan, Laporan, dan Pengaturan, pemantau kedaluwarsa token Google Drive,
+ * konfirmasi keluar dengan pemulihan fokus keyboard, indikator koneksi, toast, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -18,8 +18,10 @@ import { initTema } from "./tema.js";
 import {
   initSidebar,
   perbaruiInfoAkunSidebar,
+  perbaruiStatusKoneksiSidebar,
   tutupDrawerMobile,
   pindahKeBagian,
+  tampilkanToast,
   escapeHtml,
 } from "./sidebar.js";
 import { hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
@@ -55,6 +57,7 @@ import {
   getDaftarDokumen,
   isDokumenSudahDimuat,
   onPerubahanDokumen,
+  perbaruiStatusJaringanDokumen,
   bukaModalUnggahDokumen,
   formatTanggalDokumenLokal,
   formatUkuranBerkas,
@@ -73,6 +76,11 @@ import {
   unsubscribeLaporan,
   perbaruiStatusJaringanLaporan,
 } from "./laporan.js";
+import {
+  initHalamanPengaturan,
+  segarkanTampilanPengaturan,
+  resetHalamanPengaturanSaatKeluar,
+} from "./pengaturan.js";
 import { resetCacheDrive } from "./drive.js";
 
 const NAMA_HARI = [
@@ -107,6 +115,7 @@ let tokenCheckIntervalId = null;
 let logoutDialogOpen = false;
 let focusBeforeModal = null;
 let dashboardSudahDiikat = false;
+let statusOnlineTerakhir = navigator.onLine;
 
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
@@ -115,6 +124,7 @@ export function hentikanSemuaLanggananData() {
   unsubscribeLaporan();
   resetCacheDrive();
   resetHalamanJadwalSaatKeluar();
+  resetHalamanPengaturanSaatKeluar();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
@@ -230,7 +240,7 @@ function pastikanKerangkaDashboard() {
         </div>
         <div id="dash-body-dokumen" class="dash-card-body" aria-live="polite"></div>
         <div class="dash-card-footer">
-          <button type="button" class="btn-link-filter" data-dash-action="unggah-dokumen">+ Unggah dokumen</button>
+          <button type="button" id="btn-dash-unggah-dokumen" class="btn-link-filter" data-dash-action="unggah-dokumen">+ Unggah dokumen</button>
           <button type="button" class="btn-link-filter" data-dash-action="buka-dokumen">Semua dokumen</button>
         </div>
       </section>
@@ -265,10 +275,17 @@ function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
 function renderKartuDokumenDashboard() {
   const bodyDokumen = document.getElementById("dash-body-dokumen");
   const countDokumen = document.getElementById("dash-count-dokumen");
+  const btnUnggahDash = document.getElementById("btn-dash-unggah-dokumen");
+  if (btnUnggahDash instanceof HTMLButtonElement) {
+    btnUnggahDash.disabled = !navigator.onLine;
+    btnUnggahDash.title = navigator.onLine
+      ? "Unggah dokumen ke Google Drive"
+      : "Tidak ada koneksi internet. Pengunggahan memerlukan sambungan aktif.";
+  }
   if (!bodyDokumen) return;
 
   if (!isDokumenSudahDimuat()) {
-    bodyDokumen.innerHTML = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat arsip dokumen...</span></div>`;
+    bodyDokumen.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat arsip dokumen"><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-60"></div></div>`;
     return;
   }
 
@@ -361,7 +378,7 @@ function renderDashboard() {
   if (!bodyHariIni || !body7Hari || !bodyStatus) return;
 
   if (!isKegiatanSudahDimuat()) {
-    const muatHtml = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat data kegiatan...</span></div>`;
+    const muatHtml = `<div class="skeleton-stack" role="status" aria-label="Memuat data kegiatan"><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-50"></div></div>`;
     bodyHariIni.innerHTML = muatHtml;
     body7Hari.innerHTML = muatHtml;
     bodyStatus.innerHTML = muatHtml;
@@ -370,7 +387,6 @@ function renderDashboard() {
 
   const semuaKegiatan = getDaftarKegiatan();
 
-  // 1. Kegiatan hari ini: tanggal == hariIni() (semua status tetap dihitung)
   const kegiatanHariIni = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
       (item) =>
@@ -378,7 +394,6 @@ function renderDashboard() {
     ),
   );
 
-  // 2. 7 hari ke depan: hariIni() sampai tambahHari(7), tidak termasuk hari ini (semua status tetap dihitung)
   const kegiatan7Hari = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
       (item) =>
@@ -388,7 +403,6 @@ function renderDashboard() {
     ),
   );
 
-  // 3. Ringkasan status: jumlah per status
   const hitunganStatus = { Rencana: 0, Berjalan: 0, Selesai: 0 };
   semuaKegiatan.forEach((item) => {
     const st = DAFTAR_STATUS_KEGIATAN.includes(item.status)
@@ -494,7 +508,25 @@ function initHalamanDashboard() {
 
 function periksaStatusTokenDrive() {
   const banner = document.getElementById("token-expired-banner");
-  if (banner) banner.hidden = !isDriveTokenExpired();
+  const teksBanner = document.getElementById("token-expired-text");
+  const btnRelogin = document.getElementById("relogin-drive-btn");
+  const expired = isDriveTokenExpired();
+  const online = navigator.onLine;
+
+  if (banner) banner.hidden = !expired;
+  if (expired && teksBanner) {
+    teksBanner.textContent = online
+      ? "Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Masuk ulang diperlukan sebelum mengakses berkas Drive."
+      : "Sesi akses Google Drive sedang tidak aktif. Izin Drive dapat diperbarui kembali setelah perangkat terhubung ke internet.";
+  }
+  if (btnRelogin instanceof HTMLButtonElement && !btnRelogin.hasAttribute("data-busy")) {
+    btnRelogin.disabled = !online;
+    btnRelogin.title = online
+      ? "Perbarui sesi Google Drive"
+      : "Sambungkan ke internet untuk memperbarui izin Google Drive";
+  }
+
+  segarkanTampilanPengaturan();
 }
 
 function mulaiPemantauTokenDrive() {
@@ -512,22 +544,40 @@ function hentikanPemantauTokenDrive() {
   if (banner) banner.hidden = true;
 }
 
-function perbaruiIndikatorJaringan() {
+function perbaruiIndikatorJaringan(dariEvent = false) {
+  const online = navigator.onLine;
   const offlineBanner = document.getElementById("offline-banner");
-  if (offlineBanner) offlineBanner.hidden = navigator.onLine;
+  if (offlineBanner) offlineBanner.hidden = online;
+
+  perbaruiStatusKoneksiSidebar(online);
+  perbaruiStatusJaringanDokumen();
   perbaruiStatusJaringanCatatan();
   perbaruiStatusJaringanLaporan();
+  renderKartuDokumenDashboard();
+  periksaStatusTokenDrive();
+
+  if (dariEvent && online !== statusOnlineTerakhir && !document.getElementById("app-shell")?.hidden) {
+    tampilkanToast(
+      online
+        ? "Koneksi internet pulih. Fitur Google Drive dan Sheets aktif kembali."
+        : "Perangkat sedang luring. Menampilkan data tersimpan di perangkat.",
+      online ? "success" : "warning"
+    );
+  }
+  statusOnlineTerakhir = online;
 }
 
-function bukaDialogKeluar() {
+function bukaDialogKeluar(pemicuFokus = null) {
   const modal = document.getElementById("logout-confirm-modal");
   const btnBatal = document.getElementById("logout-cancel-btn");
   if (!modal) return;
 
   focusBeforeModal =
-    document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
+    pemicuFokus instanceof HTMLElement
+      ? pemicuFokus
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById("sidebar-logout-btn");
   logoutDialogOpen = true;
   modal.hidden = false;
   requestAnimationFrame(() => {
@@ -541,12 +591,14 @@ function tutupDialogKeluar(kembalikanFokus = true) {
 
   logoutDialogOpen = false;
   modal.hidden = true;
-  if (
-    kembalikanFokus &&
-    focusBeforeModal &&
-    document.contains(focusBeforeModal)
-  ) {
-    focusBeforeModal.focus();
+  if (kembalikanFokus) {
+    const targetFokus =
+      focusBeforeModal && document.contains(focusBeforeModal)
+        ? focusBeforeModal
+        : document.getElementById("sidebar-logout-btn");
+    if (targetFokus instanceof HTMLElement) {
+      targetFokus.focus();
+    }
   }
   focusBeforeModal = null;
 }
@@ -579,18 +631,28 @@ function pasangEventListenerAntarmuka() {
   const btnRelogin = document.getElementById("relogin-drive-btn");
   if (btnRelogin) {
     btnRelogin.addEventListener("click", async () => {
+      if (!navigator.onLine) {
+        tampilkanToast(
+          "Tidak dapat memperbarui izin Google Drive saat luring. Sambungkan ke internet terlebih dahulu.",
+          "warning"
+        );
+        return;
+      }
       btnRelogin.disabled = true;
+      btnRelogin.setAttribute("data-busy", "true");
       const teksAwal = btnRelogin.textContent;
       btnRelogin.textContent = "Memuat...";
       try {
         await loginWithGoogle();
         periksaStatusTokenDrive();
+        tampilkanToast("Izin akses Google Drive berhasil diperbarui.", "success");
       } catch (err) {
         const bannerText = document.getElementById("token-expired-text");
         if (bannerText)
-          bannerText.textContent = `Gagal memperbarui sesi Drive: ${escapeHtml(formatPesanGalatAuth(err))}`;
+          bannerText.textContent = `Gagal memperbarui sesi Drive: ${formatPesanGalatAuth(err)}`;
       } finally {
-        btnRelogin.disabled = false;
+        btnRelogin.removeAttribute("data-busy");
+        btnRelogin.disabled = !navigator.onLine;
         btnRelogin.textContent = teksAwal;
       }
     });
@@ -647,8 +709,8 @@ function pasangEventListenerAntarmuka() {
     }
   });
 
-  window.addEventListener("online", perbaruiIndikatorJaringan);
-  window.addEventListener("offline", perbaruiIndikatorJaringan);
+  window.addEventListener("online", () => perbaruiIndikatorJaringan(true));
+  window.addEventListener("offline", () => perbaruiIndikatorJaringan(true));
   document.addEventListener("visibilitychange", () => {
     if (
       document.visibilityState === "visible" &&
@@ -658,6 +720,7 @@ function pasangEventListenerAntarmuka() {
       perbaruiTanggalHeader();
       renderDashboard();
       renderHalamanJadwal();
+      segarkanTampilanPengaturan();
     }
   });
 }
@@ -749,7 +812,12 @@ function mulaiAplikasi() {
 
   initSidebar({
     initialSection: "dashboard",
-    onLogoutRequest: () => bukaDialogKeluar(),
+    onLogoutRequest: (pemicu) => bukaDialogKeluar(pemicu),
+    onSectionChange: (sectionId) => {
+      if (sectionId === "pengaturan") {
+        segarkanTampilanPengaturan();
+      }
+    },
   });
 
   daftarkanPembukaDetailKegiatan(bukaDialogDetailKegiatan);
@@ -760,10 +828,11 @@ function mulaiAplikasi() {
   initHalamanDokumen();
   initHalamanCatatan();
   initHalamanLaporan();
+  initHalamanPengaturan();
   initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
-  perbaruiIndikatorJaringan();
+  perbaruiIndikatorJaringan(false);
 
   try {
     initAuth((user, _token) => {
@@ -794,6 +863,7 @@ function mulaiAplikasi() {
         unsubCatatan,
         unsubLaporan,
       );
+      segarkanTampilanPengaturan();
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

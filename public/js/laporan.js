@@ -83,10 +83,10 @@ export const DAFTAR_JENIS_LAPORAN = [
   {
     id: "catatan",
     label: "Daftar Catatan",
-    judulPendek: "Daftar Catatan",
-    namaTab: "Daftar Catatan"
+    judulPendek: "Daftar Catatan"
   }
 ];
+DAFTAR_JENIS_LAPORAN[3].namaTab = "Daftar Catatan";
 
 const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
   `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
@@ -112,6 +112,17 @@ let sedangMembuatSpreadsheet = false;
 let hapusRiwayatModalTerbuka = false;
 let itemRiwayatAkanDihapus = null;
 let fokusSebelumModalLaporan = null;
+
+/**
+ * Fase 6 Bagian C1: Mengekspor akses metadata riwayat laporan dari memori/langganan tunggal.
+ */
+export function getDaftarLaporan() {
+  return daftarRiwayatLaporan.map((item) => ({ ...item }));
+}
+
+export function isLaporanSudahDimuat() {
+  return riwayatSudahDimuat;
+}
 
 function hitungAwalBulanIni() {
   const skrStr = hariIni();
@@ -1074,7 +1085,7 @@ function renderPratinjauLaporan() {
   if (paket.sedangMemuatSumber) {
     if (countEl) countEl.textContent = "…";
     if (captionEl) captionEl.textContent = `${paket.infoJenis.label} • ${paket.rentangLabel}`;
-    bodyEl.innerHTML = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat data untuk pratinjau laporan...</span></div>`;
+    bodyEl.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat pratinjau laporan"><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-60"></div></div>`;
     return;
   }
 
@@ -1128,7 +1139,7 @@ function renderRiwayatLaporan() {
   if (!region) return;
 
   if (!riwayatSudahDimuat) {
-    region.innerHTML = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat riwayat laporan...</span></div>`;
+    region.innerHTML = `<div class="skeleton-card" role="status" aria-label="Memuat riwayat laporan"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-70"></div></div>`;
     return;
   }
 

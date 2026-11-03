@@ -293,7 +293,7 @@ function renderKalenderBulanan(petaPerTanggal) {
 
   if (!isKegiatanSudahDimuat()) {
     panelTanggalEl.innerHTML = `<div class="selected-date-header"><div class="selected-date-heading-wrap"><h3 id="jadwal-selected-date-heading" class="selected-date-title">${escapeHtml(judulTanggalTerpilih)}</h3><p class="selected-date-subtitle">Memuat kegiatan...</p></div></div>
-    <div class="empty-stage-card empty-stage-compact"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat jadwal kegiatan...</p></div>`;
+    <div class="skeleton-card" role="status" aria-label="Memuat jadwal kegiatan"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-70"></div></div>`;
     return;
   }
 
@@ -318,7 +318,7 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
   const strAkhir = tambahHari(30);
 
   if (!isKegiatanSudahDimuat()) {
-    region.innerHTML = `<div class="empty-stage-card"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat daftar agenda 30 hari ke depan...</p></div>`;
+    region.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat agenda 30 hari ke depan"><div class="skeleton-card"><div class="skeleton-line skeleton-w-50"></div><div class="skeleton-line skeleton-w-80"></div></div></div>`;
     return;
   }
 
