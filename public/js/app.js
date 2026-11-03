@@ -1,7 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 0: Fondasi)
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 1: Kategori Kegiatan & Kegiatan)
  * Mengatur urutan tampilan sesi masuk, layar galat konfigurasi, layar login,
- * pemantauan kedaluwarsa token Google Drive, konfirmasi keluar, serta pendaftaran PWA Service Worker.
+ * langganan data kegiatan & kategori saat login, pemantauan kedaluwarsa token Google Drive,
+ * konfirmasi keluar, serta pendaftaran PWA Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -21,6 +22,11 @@ import {
   escapeHtml
 } from "./sidebar.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
+import {
+  initHalamanKegiatan,
+  subscribeKegiatan,
+  unsubscribeKegiatan
+} from "./kegiatan.js";
 
 const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const NAMA_BULAN = [
@@ -47,6 +53,7 @@ let focusBeforeModal = null;
  * Menghentikan seluruh langganan Firestore aktif sebelum membuat yang baru atau saat keluar (Aturan #5).
  */
 export function hentikanSemuaLanggananData() {
+  unsubscribeKegiatan();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
@@ -370,7 +377,7 @@ function initPwaInstallPrompt() {
 }
 
 /**
- * Mendaftarkan Service Worker PWA setelah event load dengan penanganan galat (Spesifikasi Bagian 5).
+ * Mendaftarkan Service Worker PWA setelah event load dengan penanganan galat.
  */
 function daftarkanServiceWorker() {
   if (!("serviceWorker" in navigator)) {
@@ -386,14 +393,13 @@ function daftarkanServiceWorker() {
 }
 
 /**
- * Inisialisasi Aplikasi Fondasi (Fase 0).
+ * Inisialisasi Aplikasi (Fase 0 + Fase 1).
  */
 function mulaiAplikasi() {
   initTema();
   daftarkanServiceWorker();
   initPwaInstallPrompt();
 
-  // Tampilkan informasi pemilik terotorisasi pada layar galat konfigurasi jika diperlukan
   const ownerBadge = document.getElementById("authorized-owner-email");
   if (ownerBadge) {
     ownerBadge.textContent = AUTHORIZED_EMAIL;
@@ -409,9 +415,11 @@ function mulaiAplikasi() {
   tampilkanLayarUtama("checking");
 
   initSidebar({
+    initialSection: "kegiatan",
     onLogoutRequest: () => bukaDialogKeluar()
   });
 
+  initHalamanKegiatan();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
   perbaruiIndikatorJaringan();
@@ -437,6 +445,10 @@ function mulaiAplikasi() {
       perbaruiTanggalHeader();
       tampilkanLayarUtama("app");
       mulaiPemantauTokenDrive();
+
+      // Mulai langganan Firestore untuk Kategori Kegiatan & Kegiatan setelah login (Aturan #5)
+      const unsubKegiatan = subscribeKegiatan();
+      dataUnsubscribers.push(unsubKegiatan);
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

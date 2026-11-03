@@ -1,163 +1,86 @@
 /**
- * Pengelolaan Tema (Terang / Gelap / Ikuti Sistem)
- * Menyimpan pilihan ke localStorage "agenda_arsip_tema" dan menyelaraskan
- * atribut data-theme, color-scheme, serta <meta name="theme-color">.
+ * Pengelola Tema Tampilan (Terang / Gelap / Ikuti Sistem) — Aturan #14
+ * Menyimpan preferensi di localStorage dan memperbarui atribut data-theme pada <html>.
  */
 
-export const THEME_STORAGE_KEY = "agenda_arsip_tema";
-export const THEME_COLORS = {
-  light: "#1e40af",
-  dark: "#0f172a"
-};
-
-let currentPreference = "system";
-let mediaQueryList = null;
-const listeners = new Set();
+const STORAGE_KEY_TEMA = "agenda_arsip_tema";
 
 /**
- * Membaca preferensi tema dari localStorage secara aman.
+ * Membaca preferensi tema tersimpan.
  * @returns {"light" | "dark" | "system"}
  */
-export function bacaPreferensiTema() {
+export function getPreferensiTema() {
   try {
-    const tersimpan = localStorage.getItem(THEME_STORAGE_KEY);
-    if (tersimpan === "light" || tersimpan === "dark" || tersimpan === "system") {
-      return tersimpan;
+    const val = localStorage.getItem(STORAGE_KEY_TEMA);
+    if (val === "light" || val === "dark" || val === "system") {
+      return val;
     }
-  } catch (_err) {
-    // Abaikan jika penyimpanan diblokir
+  } catch (_e) {
+    // Abaikan kendala akses localStorage
   }
   return "system";
 }
 
 /**
- * Menentukan tema efektif ("light" atau "dark") berdasarkan preferensi saat ini.
- * @param {"light" | "dark" | "system"} pref
- * @returns {"light" | "dark"}
+ * Menerapkan tema ke elemen <html>, meta theme-color, dan tombol pemilih.
+ * @param {"light" | "dark" | "system"} pilihan
  */
-export function hitungTemaEfektif(pref) {
-  if (pref === "light" || pref === "dark") {
-    return pref;
-  }
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return "light";
-}
-
-/**
- * Memperbarui DOM (data-theme, color-scheme, dan meta theme-color).
- * @param {"light" | "dark" | "system"} pref
- */
-function terapkanKeDokumen(pref) {
+export function terapkanTema(pilihan) {
+  const pref = pilihan === "light" || pilihan === "dark" ? pilihan : "system";
   const root = document.documentElement;
-  const efektif = hitungTemaEfektif(pref);
+  const gelapSistem =
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const efektif = pref === "system" ? (gelapSistem ? "dark" : "light") : pref;
 
-  if (pref === "light") {
-    root.setAttribute("data-theme", "light");
-  } else if (pref === "dark") {
-    root.setAttribute("data-theme", "dark");
+  if (pref === "light" || pref === "dark") {
+    root.setAttribute("data-theme", pref);
   } else {
     root.removeAttribute("data-theme");
   }
-
   root.style.colorScheme = efektif;
 
-  const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) {
-    metaTheme.setAttribute(
-      "content",
-      efektif === "dark" ? THEME_COLORS.dark : THEME_COLORS.light
-    );
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
   }
 
-  perbaruiTombolPemilihTema(pref);
-
-  for (const fn of listeners) {
-    try {
-      fn(pref, efektif);
-    } catch (_err) {
-      // Abaikan kesalahan callback eksternal
-    }
-  }
-}
-
-/**
- * Menyelaraskan status aria-pressed pada tombol pemilih tema di antarmuka.
- * @param {"light" | "dark" | "system"} pref
- */
-function perbaruiTombolPemilihTema(pref) {
-  const tombolList = document.querySelectorAll("[data-theme-choice]");
-  tombolList.forEach((btn) => {
-    const nilai = btn.getAttribute("data-theme-choice");
-    const aktif = nilai === pref;
-    btn.setAttribute("aria-pressed", aktif ? "true" : "false");
+  const semuaTombol = document.querySelectorAll(".theme-choice-btn[data-theme-choice]");
+  semuaTombol.forEach((btn) => {
+    const aktif = btn.getAttribute("data-theme-choice") === pref;
     btn.classList.toggle("is-active", aktif);
+    btn.setAttribute("aria-pressed", aktif ? "true" : "false");
   });
 }
 
 /**
- * Mengatur preferensi tema baru dan menyimpannya ke localStorage.
- * @param {"light" | "dark" | "system"} pref
- */
-export function setTema(pref) {
-  const valid = pref === "light" || pref === "dark" || pref === "system" ? pref : "system";
-  currentPreference = valid;
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, valid);
-  } catch (_err) {
-    // Abaikan kegagalan tulis localStorage
-  }
-  terapkanKeDokumen(valid);
-}
-
-/**
- * Mengambil preferensi tema saat ini.
- * @returns {"light" | "dark" | "system"}
- */
-export function getTema() {
-  return currentPreference;
-}
-
-/**
- * Mendaftarkan pemantau perubahan tema.
- * @param {(pref: string, efektif: string) => void} callback
- * @returns {() => void}
- */
-export function onPerubahanTema(callback) {
-  if (typeof callback === "function") {
-    listeners.add(callback);
-  }
-  return () => listeners.delete(callback);
-}
-
-/**
- * Inisialisasi sistem tema dan pasang event listener pada kontrol pemilih tema.
+ * Menginisialisasi pemilih tema dan pendengar perubahan skema warna sistem.
  */
 export function initTema() {
-  currentPreference = bacaPreferensiTema();
-  terapkanKeDokumen(currentPreference);
-
-  if (window.matchMedia) {
-    mediaQueryList = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      if (currentPreference === "system") {
-        terapkanKeDokumen("system");
-      }
-    };
-    if (typeof mediaQueryList.addEventListener === "function") {
-      mediaQueryList.addEventListener("change", handler);
-    } else if (typeof mediaQueryList.addListener === "function") {
-      mediaQueryList.addListener(handler);
-    }
-  }
+  const awal = getPreferensiTema();
+  terapkanTema(awal);
 
   document.addEventListener("click", (e) => {
-    const target = e.target instanceof Element ? e.target.closest("[data-theme-choice]") : null;
+    const target = e.target instanceof Element ? e.target.closest(".theme-choice-btn[data-theme-choice]") : null;
     if (!target) return;
-    const pilihan = target.getAttribute("data-theme-choice");
-    if (pilihan === "light" || pilihan === "dark" || pilihan === "system") {
-      setTema(pilihan);
+    const nilai = target.getAttribute("data-theme-choice");
+    if (nilai !== "light" && nilai !== "dark" && nilai !== "system") return;
+    try {
+      localStorage.setItem(STORAGE_KEY_TEMA, nilai);
+    } catch (_err) {
+      // Abaikan kendala akses localStorage
     }
+    terapkanTema(nilai);
   });
+
+  if (window.matchMedia) {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const sinkronSistem = () => {
+      if (getPreferensiTema() === "system") {
+        terapkanTema("system");
+      }
+    };
+    if (typeof mql.addEventListener === "function") {
+      mql.addEventListener("change", sinkronSistem);
+    }
+  }
 }

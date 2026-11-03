@@ -1,73 +1,73 @@
 /**
- * Navigasi Sidebar Kiri, Drawer HP, Tooltip Saat Diciutkan, dan Konfigurasi Menu
- * Mematuhi spesifikasi Fase 0 Bagian 1 & 2.
+ * Modul Navigasi Sidebar, Drawer Mobile, Tooltip Ciut, dan Escape HTML (Aturan #9, #13, #14)
  */
 
-export const SIDEBAR_STORAGE_KEY = "agenda_arsip_sidebar";
+const STORAGE_SIDEBAR_KEY = "agenda_arsip_sidebar";
 
-/**
- * Satu array konfigurasi menu utama (id, label, ikon SVG, tujuan, deskripsi singkat).
- */
-export const MENU_KONFIGURASI = [
+export const MENU_SECTIONS = [
   {
     id: "dashboard",
     label: "Dashboard",
-    tujuan: "section-dashboard",
-    deskripsi: "Ringkasan kegiatan terdekat, arsip dokumen terbaru, dan ikhtisar harian Anda.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="1.75"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.75"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.75"/><rect x="3" y="15" width="7.5" height="6" rx="1.75"/></svg>`
+    fase: "Fase 2",
+    desc: "Ringkasan kegiatan hari ini, jadwal mendatang, dan pintasan cepat akan hadir pada Fase 2.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>`
   },
   {
     id: "kegiatan",
     label: "Kegiatan",
-    tujuan: "section-kegiatan",
-    deskripsi: "Daftar agenda kegiatan, tenggat pelaksanaan, kategori, dan status penyelesaian.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`
+    fase: "Fase 1",
+    desc: "Kelola daftar kegiatan harian, kategori berwarna, filter status, dan pencarian.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`
   },
   {
     id: "jadwal",
     label: "Jadwal",
-    tujuan: "section-jadwal",
-    deskripsi: "Tampilan kalender bulanan dan mingguan untuk meninjau agenda berdasarkan tanggal.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="16" y1="2.5" x2="16" y2="6"/><line x1="8" y1="2.5" x2="8" y2="6"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 17.5h.01"/><path d="M12 17.5h.01"/></svg>`
+    fase: "Fase 2",
+    desc: "Tampilan kalender bulanan dan agenda mingguan terpadu akan hadir pada Fase 2.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
   },
   {
     id: "dokumen",
     label: "Dokumen",
-    tujuan: "section-dokumen",
-    deskripsi: "Arsip berkas penting yang terhubung rapi ke folder Google Drive pribadi Anda.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8.5" y1="13" x2="15.5" y2="13"/><line x1="8.5" y1="17" x2="13.5" y2="17"/></svg>`
+    fase: "Fase 3",
+    desc: "Arsip dokumen yang terhubung langsung ke folder Google Drive pribadi akan hadir pada Fase 3.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`
   },
   {
     id: "catatan",
     label: "Catatan",
-    tujuan: "section-catatan",
-    deskripsi: "Ruang catatan cepat, notula rapat, dan draf pemikiran yang tersinkronisasi.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`
+    fase: "Fase 4",
+    desc: "Ruang catatan cepat dan referensi pribadi akan hadir pada Fase 4.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`
   },
   {
     id: "laporan",
     label: "Laporan",
-    tujuan: "section-laporan",
-    deskripsi: "Rekapitulasi kegiatan dan arsip dokumen periodik serta ekspor ke Google Sheets.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></svg>`
+    fase: "Fase 5",
+    desc: "Rekapitulasi kegiatan dan ekspor ke Google Sheets akan hadir pada Fase 5.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`
   },
   {
     id: "pengaturan",
     label: "Pengaturan",
-    tujuan: "section-pengaturan",
-    deskripsi: "Pengaturan kategori, folder arsip Google Drive, templat dokumen, dan preferensi.",
-    ikon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
+    fase: "Fase 5",
+    desc: "Pengaturan folder Google Drive utama dan preferensi aplikasi akan hadir pada Fase 5.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
   }
 ];
 
+let activeSectionId = "kegiatan";
+let onNavigateCallback = null;
+let drawerTriggerFocus = null;
+
 /**
- * Melakukan escape karakter HTML berbahaya dari teks masukan.
- * @param {string} teks
+ * Mengamankan teks masukan pengguna sebelum disisipkan ke HTML (Aturan #9).
+ * @param {unknown} str
  * @returns {string}
  */
-export function escapeHtml(teks) {
-  const s = String(teks ?? "");
-  return s
+export function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -75,504 +75,311 @@ export function escapeHtml(teks) {
     .replace(/'/g, "&#39;");
 }
 
-let activeMenuId = "dashboard";
-let drawerOpen = false;
-let lastFocusedBeforeDrawer = null;
-let tooltipTarget = null;
-let onNavigateCallback = null;
-
-function isMobileViewport() {
-  return window.matchMedia("(max-width: 599.98px)").matches;
-}
-
-function isDesktopViewport() {
-  return window.matchMedia("(min-width: 1024.02px)").matches;
-}
-
-function isHoverCapable() {
-  return window.matchMedia("(hover: hover)").matches;
-}
-
-/**
- * Membaca status sidebar tersimpan ("expanded" | "collapsed" | null).
- */
-function bacaStatusSidebarTersimpan() {
-  try {
-    const v = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (v === "expanded" || v === "collapsed") {
-      return v;
-    }
-  } catch (_err) {
-    // Abaikan kesalahan penyimpanan
-  }
-  return null;
-}
-
-function simpanStatusSidebar(status) {
-  try {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, status);
-  } catch (_err) {
-    // Abaikan kesalahan penyimpanan
-  }
-}
-
-/**
- * Menentukan apakah sidebar sedang diperluas pada tablet/desktop.
- * @returns {boolean}
- */
-export function apakahSidebarDiperluas() {
-  const state = document.documentElement.getAttribute("data-sidebar");
-  if (state === "expanded") return true;
-  if (state === "collapsed") return false;
-  return isDesktopViewport();
-}
-
-/**
- * Menetapkan status diperluas/diciutkan pada sidebar desktop/tablet.
- * @param {boolean} expanded
- * @param {boolean} [simpan=true]
- */
-export function setSidebarExpanded(expanded, simpan = true) {
-  const nilai = expanded ? "expanded" : "collapsed";
-  document.documentElement.setAttribute("data-sidebar", nilai);
-  if (simpan) {
-    simpanStatusSidebar(nilai);
-  }
-  const btnToggle = document.getElementById("sidebar-collapse-btn");
-  if (btnToggle) {
-    btnToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-    const label = expanded ? "Ciutkan bilah sisi" : "Perluas bilah sisi";
-    btnToggle.setAttribute("aria-label", label);
-    btnToggle.setAttribute("title", label);
-  }
-  if (expanded) {
-    sembunyikanTooltip();
-  }
-}
-
-/**
- * Membuka drawer sidebar pada layar HP (<600px) dan mengunci fokus di dalamnya.
- */
 export function bukaDrawerMobile() {
-  if (!isMobileViewport()) return;
-  const sidebar = document.getElementById("app-sidebar");
+  const root = document.documentElement;
   const backdrop = document.getElementById("sidebar-backdrop");
-  const btnHamburger = document.getElementById("mobile-menu-btn");
-  if (!sidebar || !backdrop) return;
+  const btnMenu = document.getElementById("mobile-menu-btn");
+  const btnTutup = document.getElementById("sidebar-mobile-close-btn");
 
-  lastFocusedBeforeDrawer = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  drawerOpen = true;
-  document.documentElement.setAttribute("data-drawer", "open");
-  backdrop.hidden = false;
-  sidebar.removeAttribute("aria-hidden");
-  if (btnHamburger) {
-    btnHamburger.setAttribute("aria-expanded", "true");
-  }
+  drawerTriggerFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (backdrop) backdrop.hidden = false;
+  root.setAttribute("data-drawer", "open");
+  if (btnMenu) btnMenu.setAttribute("aria-expanded", "true");
 
-  // Pindahkan fokus ke tombol tutup atau item menu aktif di dalam drawer
   requestAnimationFrame(() => {
-    const fokusPertama =
-      sidebar.querySelector('.nav-link[aria-current="page"]') ||
-      sidebar.querySelector("button, [href], [tabindex]:not([tabindex='-1'])");
-    if (fokusPertama instanceof HTMLElement) {
-      fokusPertama.focus();
+    if (btnTutup instanceof HTMLElement) {
+      btnTutup.focus();
     }
   });
 }
 
 /**
- * Menutup drawer sidebar pada layar HP dan mengembalikan fokus.
+ * Menutup drawer navigasi pada layar HP.
  * @param {boolean} [kembalikanFokus=true]
  */
 export function tutupDrawerMobile(kembalikanFokus = true) {
-  if (!drawerOpen) return;
+  const root = document.documentElement;
   const backdrop = document.getElementById("sidebar-backdrop");
-  const btnHamburger = document.getElementById("mobile-menu-btn");
+  const btnMenu = document.getElementById("mobile-menu-btn");
 
-  drawerOpen = false;
-  document.documentElement.removeAttribute("data-drawer");
-  if (backdrop) {
-    backdrop.hidden = true;
-  }
-  if (btnHamburger) {
-    btnHamburger.setAttribute("aria-expanded", "false");
-  }
-
-  if (kembalikanFokus && lastFocusedBeforeDrawer && document.contains(lastFocusedBeforeDrawer)) {
-    lastFocusedBeforeDrawer.focus();
-  }
-  lastFocusedBeforeDrawer = null;
-}
-
-/**
- * Menampilkan tooltip di sebelah kanan ikon saat sidebar dalam kondisi diciutkan.
- * @param {HTMLElement} el
- */
-function tampilkanTooltip(el) {
-  const tooltip = document.getElementById("sidebar-tooltip");
-  if (!tooltip || !el) return;
-
-  // Tooltip hanya relevan saat sidebar diciutkan di luar mode drawer HP
-  if (isMobileViewport() || apakahSidebarDiperluas()) {
-    sembunyikanTooltip();
+  if (root.getAttribute("data-drawer") !== "open") {
+    if (backdrop) backdrop.hidden = true;
     return;
   }
 
-  const label = el.getAttribute("data-tooltip") || el.getAttribute("aria-label") || "";
-  if (!label) return;
+  root.removeAttribute("data-drawer");
+  if (btnMenu) btnMenu.setAttribute("aria-expanded", "false");
+  if (backdrop) backdrop.hidden = true;
 
-  tooltipTarget = el;
-  tooltip.textContent = label;
-  tooltip.hidden = false;
-  el.setAttribute("aria-describedby", "sidebar-tooltip");
-
-  const rect = el.getBoundingClientRect();
-  const tengahY = rect.top + rect.height / 2;
-  const kiriX = rect.right + 12;
-
-  tooltip.style.top = `${Math.round(tengahY)}px`;
-  tooltip.style.left = `${Math.round(kiriX)}px`;
-  tooltip.classList.add("is-visible");
+  if (kembalikanFokus && drawerTriggerFocus && document.contains(drawerTriggerFocus)) {
+    drawerTriggerFocus.focus();
+  }
+  drawerTriggerFocus = null;
 }
 
 /**
- * Menyembunyikan tooltip sidebar.
+ * Berpindah halaman bagian aplikasi.
+ * @param {string} sectionId
  */
-export function sembunyikanTooltip() {
-  const tooltip = document.getElementById("sidebar-tooltip");
-  if (tooltipTarget) {
-    tooltipTarget.removeAttribute("aria-describedby");
-    tooltipTarget = null;
-  }
-  if (tooltip) {
-    tooltip.classList.remove("is-visible");
-    tooltip.hidden = true;
-  }
-}
+export function pindahKeBagian(sectionId) {
+  const ditemukan = MENU_SECTIONS.find((m) => m.id === sectionId) || MENU_SECTIONS[0];
+  activeSectionId = ditemukan.id;
 
-/**
- * Membangun daftar item menu di sidebar dan kerangka bagian konten dari MENU_KONFIGURASI.
- */
-function renderMenuDanBagian() {
-  const navList = document.getElementById("sidebar-nav-list");
-  const contentContainer = document.getElementById("main-sections-container");
-
-  if (navList) {
-    navList.innerHTML = MENU_KONFIGURASI.map((item) => {
-      const isAktif = item.id === activeMenuId;
-      return `
-        <li class="nav-item">
-          <button
-            type="button"
-            class="nav-link${isAktif ? " is-active" : ""}"
-            id="nav-item-${escapeHtml(item.id)}"
-            data-nav-id="${escapeHtml(item.id)}"
-            data-target="${escapeHtml(item.tujuan)}"
-            data-tooltip="${escapeHtml(item.label)}"
-            aria-label="${escapeHtml(item.label)}"
-            ${isAktif ? 'aria-current="page"' : ""}
-          >
-            <span class="nav-icon">${item.ikon}</span>
-            <span class="nav-label">${escapeHtml(item.label)}</span>
-          </button>
-        </li>
-      `;
-    }).join("");
+  const judulHeader = document.getElementById("header-page-title");
+  if (judulHeader) {
+    judulHeader.textContent = ditemukan.label;
   }
 
-  if (contentContainer && contentContainer.children.length === 0) {
-    contentContainer.innerHTML = MENU_KONFIGURASI.map((item) => {
-      const isAktif = item.id === activeMenuId;
-      return `
-        <section
-          id="${escapeHtml(item.tujuan)}"
-          class="content-section"
-          data-section-id="${escapeHtml(item.id)}"
-          aria-labelledby="heading-${escapeHtml(item.id)}"
-          ${isAktif ? "" : "hidden"}
-        >
-          <div class="empty-stage-card">
-            <div class="empty-stage-icon" aria-hidden="true">
-              ${item.ikon}
-            </div>
-            <h2 id="heading-${escapeHtml(item.id)}" class="empty-stage-title">${escapeHtml(item.label)}</h2>
-            <p class="empty-stage-badge">Fitur ini segera hadir</p>
-            <p class="empty-stage-desc">${escapeHtml(item.deskripsi)}</p>
-          </div>
-        </section>
-      `;
-    }).join("");
-  }
-}
-
-/**
- * Mengaktifkan salah satu bagian halaman tanpa memuat ulang halaman.
- * @param {string} menuId
- */
-export function pindahBagian(menuId) {
-  const targetKonfig = MENU_KONFIGURASI.find((m) => m.id === menuId) || MENU_KONFIGURASI[0];
-  activeMenuId = targetKonfig.id;
-
-  const semuaTombol = document.querySelectorAll("#sidebar-nav-list .nav-link");
-  semuaTombol.forEach((btn) => {
-    const cocok = btn.getAttribute("data-nav-id") === activeMenuId;
-    btn.classList.toggle("is-active", cocok);
-    if (cocok) {
+  document.querySelectorAll(".nav-link[data-section]").forEach((btn) => {
+    const aktif = btn.getAttribute("data-section") === activeSectionId;
+    btn.classList.toggle("is-active", aktif);
+    if (aktif) {
       btn.setAttribute("aria-current", "page");
     } else {
       btn.removeAttribute("aria-current");
     }
   });
 
-  const semuaBagian = document.querySelectorAll("#main-sections-container .content-section");
-  semuaBagian.forEach((sec) => {
-    const cocok = sec.getAttribute("data-section-id") === activeMenuId;
-    sec.hidden = !cocok;
+  document.querySelectorAll(".content-section[data-section-panel]").forEach((panel) => {
+    const aktif = panel.getAttribute("data-section-panel") === activeSectionId;
+    panel.hidden = !aktif;
   });
 
-  const judulHeader = document.getElementById("header-page-title");
-  if (judulHeader) {
-    judulHeader.textContent = targetKonfig.label;
-  }
-
-  sembunyikanTooltip();
-
-  if (drawerOpen) {
-    tutupDrawerMobile(false);
-  }
+  tutupDrawerMobile(false);
 
   if (typeof onNavigateCallback === "function") {
-    onNavigateCallback(targetKonfig);
+    onNavigateCallback(activeSectionId);
   }
 }
 
-/**
- * Mengunci fokus keyboard (Tab / Shift+Tab) di dalam drawer ketika drawer HP sedang terbuka.
- * @param {KeyboardEvent} e
- */
-function tanganiKunciFokusDrawer(e) {
-  if (!drawerOpen || e.key !== "Tab") return;
-  const sidebar = document.getElementById("app-sidebar");
-  if (!sidebar) return;
-
-  const kandidat = Array.from(
-    sidebar.querySelectorAll(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
-  ).filter((el) => el instanceof HTMLElement && el.offsetParent !== null);
-
-  if (kandidat.length === 0) return;
-
-  const pertama = kandidat[0];
-  const terakhir = kandidat[kandidat.length - 1];
-
-  if (e.shiftKey) {
-    if (document.activeElement === pertama || !sidebar.contains(document.activeElement)) {
-      e.preventDefault();
-      terakhir.focus();
-    }
-  } else {
-    if (document.activeElement === terakhir || !sidebar.contains(document.activeElement)) {
-      e.preventDefault();
-      pertama.focus();
-    }
-  }
+export function getActiveSectionId() {
+  return activeSectionId;
 }
 
-/**
- * Memperbarui informasi akun pengguna di bagian bawah sidebar secara aman (escaped).
- * @param {any} user
- */
-export function perbaruiInfoAkunSidebar(user) {
-  const namaEl = document.getElementById("sidebar-user-name");
-  const emailEl = document.getElementById("sidebar-user-email");
-  const avatarImg = document.getElementById("sidebar-user-photo");
-  const avatarFallback = document.getElementById("sidebar-user-initials");
+function renderKerangkaBagianAwal() {
+  const navList = document.getElementById("sidebar-nav-list");
+  const container = document.getElementById("main-sections-container");
 
-  if (!user) {
-    if (namaEl) namaEl.textContent = "Pengguna";
-    if (emailEl) emailEl.textContent = "";
-    if (avatarImg) {
-      avatarImg.hidden = true;
-      avatarImg.removeAttribute("src");
-    }
-    if (avatarFallback) {
-      avatarFallback.hidden = false;
-      avatarFallback.textContent = "AA";
-    }
-    return;
+  if (navList) {
+    navList.innerHTML = MENU_SECTIONS.map(
+      (item) => `
+        <li>
+          <button
+            type="button"
+            class="nav-link${item.id === activeSectionId ? " is-active" : ""}"
+            data-section="${escapeHtml(item.id)}"
+            data-tooltip="${escapeHtml(item.label)}"
+            ${item.id === activeSectionId ? 'aria-current="page"' : ""}
+          >
+            <span class="nav-icon">${item.svg}</span>
+            <span class="nav-label">${escapeHtml(item.label)}</span>
+          </button>
+        </li>
+      `
+    ).join("");
   }
 
-  const namaLengkap = String(user.displayName || "").trim();
-  const potonganNama = namaLengkap
-    ? namaLengkap.split(/\s+/).slice(0, 2).join(" ")
-    : String(user.email || "Pemilik").split("@")[0];
-
-  const inisial = potonganNama
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((k) => k[0].toUpperCase())
-    .join("") || "AA";
-
-  if (namaEl) {
-    namaEl.textContent = potonganNama;
-    namaEl.setAttribute("title", namaLengkap || potonganNama);
-  }
-  if (emailEl) {
-    emailEl.textContent = String(user.email || "");
-    emailEl.setAttribute("title", String(user.email || ""));
-  }
-
-  if (avatarFallback) {
-    avatarFallback.textContent = inisial;
-  }
-
-  if (avatarImg && user.photoURL) {
-    avatarImg.onload = () => {
-      avatarImg.hidden = false;
-      if (avatarFallback) avatarFallback.hidden = true;
-    };
-    avatarImg.onerror = () => {
-      avatarImg.hidden = true;
-      if (avatarFallback) avatarFallback.hidden = false;
-    };
-    avatarImg.src = String(user.photoURL);
-    avatarImg.alt = `Foto profil ${potonganNama}`;
-  } else if (avatarImg) {
-    avatarImg.hidden = true;
-    if (avatarFallback) avatarFallback.hidden = false;
-  }
-}
-
-/**
- * Inisialisasi seluruh perilaku sidebar, drawer HP, dan tooltip.
- * @param {{ onNavigate?: (item: any) => void, onLogoutRequest?: () => void }} [opsi]
- */
-export function initSidebar(opsi = {}) {
-  onNavigateCallback = opsi.onNavigate || null;
-
-  renderMenuDanBagian();
-
-  // Terapkan status awal sidebar berdasarkan penyimpanan atau lebar layar
-  const tersimpan = bacaStatusSidebarTersimpan();
-  if (tersimpan) {
-    setSidebarExpanded(tersimpan === "expanded", false);
-  } else {
-    setSidebarExpanded(isDesktopViewport(), false);
-  }
-
-  pindahBagian(activeMenuId);
-
-  const btnCollapse = document.getElementById("sidebar-collapse-btn");
-  if (btnCollapse) {
-    btnCollapse.addEventListener("click", () => {
-      setSidebarExpanded(!apakahSidebarDiperluas(), true);
-    });
-  }
-
-  const btnHamburger = document.getElementById("mobile-menu-btn");
-  if (btnHamburger) {
-    btnHamburger.addEventListener("click", () => {
-      if (drawerOpen) {
-        tutupDrawerMobile(true);
-      } else {
-        bukaDrawerMobile();
+  if (container) {
+    MENU_SECTIONS.forEach((item) => {
+      let panel = document.getElementById(`section-${item.id}`);
+      if (!panel) {
+        panel = document.createElement("section");
+        panel.id = `section-${item.id}`;
+        panel.className = "content-section";
+        panel.setAttribute("data-section-panel", item.id);
+        panel.hidden = item.id !== activeSectionId;
+        if (item.id !== "kegiatan") {
+          panel.innerHTML = `
+            <div class="empty-stage-card">
+              <div class="empty-stage-icon" aria-hidden="true">${item.svg}</div>
+              <p class="empty-stage-badge">Segera Hadir &bull; ${escapeHtml(item.fase)}</p>
+              <h2 class="empty-stage-title">${escapeHtml(item.label)}</h2>
+              <p class="empty-stage-desc">${escapeHtml(item.desc)}</p>
+            </div>
+          `;
+        }
+        container.appendChild(panel);
       }
     });
   }
+}
 
-  const btnCloseDrawer = document.getElementById("sidebar-mobile-close-btn");
-  if (btnCloseDrawer) {
-    btnCloseDrawer.addEventListener("click", () => {
-      tutupDrawerMobile(true);
+function initTooltipSidebar() {
+  const tooltip = document.getElementById("sidebar-tooltip");
+  const sidebar = document.getElementById("app-sidebar");
+  if (!tooltip || !sidebar) return;
+
+  const sembunyikan = () => {
+    tooltip.classList.remove("is-visible");
+    tooltip.hidden = true;
+  };
+
+  const tampilkan = (el) => {
+    if (document.documentElement.getAttribute("data-sidebar") !== "collapsed") {
+      sembunyikan();
+      return;
+    }
+    if (window.matchMedia && !window.matchMedia("(min-width: 600px)").matches) {
+      sembunyikan();
+      return;
+    }
+    const label = el.getAttribute("data-tooltip");
+    if (!label) return;
+    const rect = el.getBoundingClientRect();
+    tooltip.textContent = label;
+    tooltip.hidden = false;
+    tooltip.style.top = `${Math.round(rect.top + rect.height / 2)}px`;
+    tooltip.style.left = `${Math.round(rect.right + 10)}px`;
+    requestAnimationFrame(() => {
+      tooltip.classList.add("is-visible");
+    });
+  };
+
+  sidebar.addEventListener("mouseover", (e) => {
+    const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
+    if (target) tampilkan(target);
+  });
+
+  sidebar.addEventListener("mouseout", (e) => {
+    const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
+    if (target) sembunyikan();
+  });
+
+  sidebar.addEventListener("focusin", (e) => {
+    const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
+    if (target) tampilkan(target);
+  });
+
+  sidebar.addEventListener("focusout", sembunyikan);
+}
+
+/**
+ * Memperbarui informasi profil pengguna di bagian bawah sidebar.
+ * @param {import("https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js").User | null} user
+ */
+export function perbaruiInfoAkunSidebar(user) {
+  const imgEl = document.getElementById("sidebar-user-photo");
+  const initialsEl = document.getElementById("sidebar-user-initials");
+  const nameEl = document.getElementById("sidebar-user-name");
+  const emailEl = document.getElementById("sidebar-user-email");
+
+  if (!user) {
+    if (imgEl) {
+      imgEl.removeAttribute("src");
+      imgEl.hidden = true;
+    }
+    if (initialsEl) {
+      initialsEl.textContent = "AA";
+      initialsEl.hidden = false;
+    }
+    if (nameEl) nameEl.textContent = "Pengguna";
+    if (emailEl) emailEl.textContent = "";
+    return;
+  }
+
+  const nama = (user.displayName || "Pemilik Agenda").trim();
+  const email = (user.email || "").trim();
+  const bagian = nama.split(/\s+/).filter(Boolean);
+  const inisial =
+    bagian.length >= 2
+      ? `${bagian[0][0]}${bagian[1][0]}`.toUpperCase()
+      : nama.slice(0, 2).toUpperCase() || "AA";
+
+  if (nameEl) nameEl.textContent = nama;
+  if (emailEl) emailEl.textContent = email;
+  if (initialsEl) initialsEl.textContent = inisial;
+
+  if (imgEl && user.photoURL) {
+    imgEl.src = user.photoURL;
+    imgEl.hidden = false;
+    if (initialsEl) initialsEl.hidden = true;
+    imgEl.onerror = () => {
+      imgEl.hidden = true;
+      if (initialsEl) initialsEl.hidden = false;
+    };
+  } else {
+    if (imgEl) imgEl.hidden = true;
+    if (initialsEl) initialsEl.hidden = false;
+  }
+}
+
+/**
+ * Menginisialisasi sidebar, tombol ciutkan, drawer HP, dan navigasi antar bagian.
+ * @param {{ onLogoutRequest?: () => void, onSectionChange?: (id: string) => void, initialSection?: string }} [options]
+ */
+export function initSidebar(options = {}) {
+  if (options.initialSection) {
+    activeSectionId = options.initialSection;
+  }
+  onNavigateCallback = options.onSectionChange || null;
+
+  renderKerangkaBagianAwal();
+
+  const root = document.documentElement;
+  const btnCollapse = document.getElementById("sidebar-collapse-btn");
+  const sinkronTombolCollapse = () => {
+    const collapsed = root.getAttribute("data-sidebar") === "collapsed";
+    if (btnCollapse) {
+      btnCollapse.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      const label = collapsed ? "Perluas bilah sisi" : "Ciutkan bilah sisi";
+      btnCollapse.setAttribute("aria-label", label);
+      btnCollapse.setAttribute("title", label);
+    }
+  };
+  sinkronTombolCollapse();
+
+  if (btnCollapse) {
+    btnCollapse.addEventListener("click", () => {
+      const sekarang = root.getAttribute("data-sidebar") === "collapsed" ? "expanded" : "collapsed";
+      root.setAttribute("data-sidebar", sekarang);
+      try {
+        localStorage.setItem(STORAGE_SIDEBAR_KEY, sekarang);
+      } catch (_e) {
+        // Abaikan kendala localStorage
+      }
+      sinkronTombolCollapse();
     });
   }
 
+  const btnMenuMobile = document.getElementById("mobile-menu-btn");
+  const btnTutupMobile = document.getElementById("sidebar-mobile-close-btn");
   const backdrop = document.getElementById("sidebar-backdrop");
+
+  if (btnMenuMobile) {
+    btnMenuMobile.addEventListener("click", () => bukaDrawerMobile());
+  }
+  if (btnTutupMobile) {
+    btnTutupMobile.addEventListener("click", () => tutupDrawerMobile(true));
+  }
   if (backdrop) {
-    backdrop.addEventListener("click", () => {
-      tutupDrawerMobile(true);
-    });
+    backdrop.addEventListener("click", () => tutupDrawerMobile(true));
   }
 
   const navList = document.getElementById("sidebar-nav-list");
   if (navList) {
     navList.addEventListener("click", (e) => {
-      const btn = e.target instanceof Element ? e.target.closest("[data-nav-id]") : null;
+      const btn = e.target instanceof Element ? e.target.closest(".nav-link[data-section]") : null;
       if (!btn) return;
-      const id = btn.getAttribute("data-nav-id");
-      if (id) {
-        pindahBagian(id);
-      }
-    });
-  }
-
-  // Tooltip untuk item sidebar saat diciutkan (hover di perangkat pointer & fokus keyboard)
-  const sidebar = document.getElementById("app-sidebar");
-  if (sidebar) {
-    sidebar.addEventListener("mouseenter", (e) => {
-      if (!isHoverCapable()) return;
-      const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
-      if (target instanceof HTMLElement) {
-        tampilkanTooltip(target);
-      }
-    }, true);
-
-    sidebar.addEventListener("mouseleave", (e) => {
-      if (!isHoverCapable()) return;
-      const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
-      if (target && target === tooltipTarget) {
-        sembunyikanTooltip();
-      }
-    }, true);
-
-    sidebar.addEventListener("focusin", (e) => {
-      const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
-      if (target instanceof HTMLElement) {
-        tampilkanTooltip(target);
-      }
-    });
-
-    sidebar.addEventListener("focusout", (e) => {
-      const target = e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
-      if (target && target === tooltipTarget) {
-        sembunyikanTooltip();
-      }
+      const tujuan = btn.getAttribute("data-section");
+      if (tujuan) pindahKeBagian(tujuan);
     });
   }
 
   const btnLogout = document.getElementById("sidebar-logout-btn");
-  if (btnLogout && typeof opsi.onLogoutRequest === "function") {
+  if (btnLogout && typeof options.onLogoutRequest === "function") {
     btnLogout.addEventListener("click", () => {
-      sembunyikanTooltip();
-      opsi.onLogoutRequest();
+      tutupDrawerMobile(false);
+      options.onLogoutRequest();
     });
   }
 
-  // Penanganan tombol Escape (menutup tooltip atau drawer) dan fokus trap
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (tooltipTarget) {
-        sembunyikanTooltip();
-      }
-      if (drawerOpen) {
-        e.preventDefault();
-        tutupDrawerMobile(true);
-      }
-      return;
+    if (e.key === "Escape" && root.getAttribute("data-drawer") === "open") {
+      e.preventDefault();
+      tutupDrawerMobile(true);
     }
-    tanganiKunciFokusDrawer(e);
   });
 
-  // Penyesuaian saat ukuran layar berubah melintasi batas HP / Tablet / Desktop
-  window.addEventListener("resize", () => {
-    if (!isMobileViewport() && drawerOpen) {
-      tutupDrawerMobile(false);
-    }
-    if (!bacaStatusSidebarTersimpan()) {
-      setSidebarExpanded(isDesktopViewport(), false);
-    }
-    sembunyikanTooltip();
-  });
+  initTooltipSidebar();
+  pindahKeBagian(activeSectionId);
 }

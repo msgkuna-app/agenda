@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v0.1.0";
+const VERSION = "agenda-arsip-v1.1.0";
 
 const APP_SHELL = [
   "/",
@@ -11,10 +11,12 @@ const APP_SHELL = [
   "/js/util-tanggal.js",
   "/js/tema.js",
   "/js/sidebar.js",
+  "/js/kategori.js",
+  "/js/kegiatan.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",
-  "/icons/apple-touch-icon.png"
+  "/icons/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -22,7 +24,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(VERSION)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -34,10 +36,10 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           keys
             .filter((key) => key !== VERSION)
-            .map((oldKey) => caches.delete(oldKey))
-        )
+            .map((oldKey) => caches.delete(oldKey)),
+        ),
       )
-      .then(() => self.clients.claim())
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -80,7 +82,7 @@ self.addEventListener("fetch", (event) => {
           cache.put(request, networkResponse.clone());
         }
         return networkResponse;
-      })
+      }),
     );
     return;
   }
@@ -109,7 +111,7 @@ self.addEventListener("fetch", (event) => {
           }
           throw _err;
         }
-      })()
+      })(),
     );
   }
 });

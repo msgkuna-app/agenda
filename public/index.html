@@ -347,6 +347,233 @@
       </div>
     </div>
 
+    <!-- Dialog / Lembar Penuh HP: Kelola Kategori (Fase 1 & dipakai ulang Fase 3) -->
+    <div
+      id="kategori-manage-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kategori-manage-title"
+      hidden
+    >
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="kategori-manage-title" class="modal-title">Kelola Kategori Kegiatan</h2>
+          <button
+            type="button"
+            id="kategori-manage-close-btn"
+            class="icon-btn"
+            aria-label="Tutup kelola kategori"
+            title="Tutup"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-scroll-body">
+          <div id="kategori-alert-box" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="kategori-alert-text"></span>
+          </div>
+
+          <form id="kategori-form" class="kategori-editor-box" novalidate>
+            <div class="kategori-editor-header">
+              <h3 id="kategori-form-heading" class="sub-card-title">Tambah Kategori Baru</h3>
+              <span id="kategori-nama-counter" class="char-counter" aria-live="polite">0/40</span>
+            </div>
+            <input type="hidden" id="kategori-edit-id" value="" />
+
+            <div class="form-field">
+              <label for="kategori-nama-input" class="form-label">Nama Kategori <span class="required-mark">*</span></label>
+              <input
+                type="text"
+                id="kategori-nama-input"
+                class="form-input"
+                maxlength="40"
+                placeholder="Mis. Proyek Prioritas"
+                required
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="form-field">
+              <span class="form-label" id="kategori-warna-label">Warna Lencana</span>
+              <div
+                id="kategori-warna-picker"
+                class="color-swatch-grid"
+                role="radiogroup"
+                aria-labelledby="kategori-warna-label"
+              ></div>
+            </div>
+
+            <div class="kategori-editor-actions">
+              <button type="button" id="kategori-cancel-edit-btn" class="btn-secondary" hidden>
+                Batal Ubah
+              </button>
+              <button type="submit" id="kategori-submit-btn" class="btn-primary">
+                Tambah Kategori
+              </button>
+            </div>
+          </form>
+
+          <div class="kategori-list-section">
+            <h3 class="sub-card-title">Daftar &amp; Urutan Kategori</h3>
+            <ul id="kategori-manage-list" class="kategori-manage-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dialog / Lembar Penuh HP: Form Tambah / Ubah Kegiatan (Fase 1) -->
+    <div
+      id="kegiatan-form-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kegiatan-form-title"
+      hidden
+    >
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="kegiatan-form-title" class="modal-title">Tambah Kegiatan</h2>
+          <button
+            type="button"
+            id="kegiatan-form-close-btn"
+            class="icon-btn"
+            aria-label="Tutup formulir kegiatan"
+            title="Tutup"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <form id="kegiatan-form" class="modal-scroll-body form-stack" novalidate>
+          <input type="hidden" id="kegiatan-edit-id" value="" />
+
+          <div id="kegiatan-form-alert" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="kegiatan-form-alert-text"></span>
+          </div>
+
+          <div class="form-field">
+            <label for="kegiatan-judul-input" class="form-label">Judul Kegiatan <span class="required-mark">*</span></label>
+            <input
+              type="text"
+              id="kegiatan-judul-input"
+              class="form-input"
+              maxlength="160"
+              placeholder="Contoh: Rapat evaluasi triwulan"
+              required
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="kegiatan-tanggal-input" class="form-label">Tanggal <span class="required-mark">*</span></label>
+              <input
+                type="date"
+                id="kegiatan-tanggal-input"
+                class="form-input"
+                required
+              />
+            </div>
+
+            <div class="form-field">
+              <label for="kegiatan-status-select" class="form-label">Status</label>
+              <select id="kegiatan-status-select" class="form-select">
+                <option value="Rencana">Rencana</option>
+                <option value="Berjalan">Berjalan</option>
+                <option value="Selesai">Selesai</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="kegiatan-mulai-input" class="form-label">Waktu Mulai</label>
+              <input type="time" id="kegiatan-mulai-input" class="form-input" />
+            </div>
+
+            <div class="form-field">
+              <label for="kegiatan-selesai-input" class="form-label">Waktu Selesai</label>
+              <input type="time" id="kegiatan-selesai-input" class="form-input" />
+            </div>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="kegiatan-kategori-select" class="form-label">Kategori</label>
+              <select id="kegiatan-kategori-select" class="form-select">
+                <option value="">Tanpa Kategori</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="kegiatan-lokasi-input" class="form-label">Lokasi</label>
+              <input
+                type="text"
+                id="kegiatan-lokasi-input"
+                class="form-input"
+                maxlength="140"
+                placeholder="Opsional, mis. Ruang Rapat Lt. 2 / Daring"
+                autocomplete="off"
+              />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="kegiatan-catatan-input" class="form-label">Catatan</label>
+            <textarea
+              id="kegiatan-catatan-input"
+              class="form-textarea"
+              rows="3"
+              placeholder="Rincian agenda, tautan pendukung, atau hal yang perlu disiapkan..."
+            ></textarea>
+          </div>
+
+          <div class="modal-actions modal-actions-sticky">
+            <button type="button" id="kegiatan-form-cancel-btn" class="btn-secondary">Batal</button>
+            <button type="submit" id="kegiatan-form-submit-btn" class="btn-primary">Simpan Kegiatan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Dialog Konfirmasi Hapus Kegiatan (Fase 1) -->
+    <div
+      id="kegiatan-delete-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kegiatan-delete-title"
+      aria-describedby="kegiatan-delete-desc"
+      hidden
+    >
+      <div class="modal-dialog">
+        <h2 id="kegiatan-delete-title" class="modal-title">Hapus kegiatan ini?</h2>
+        <p id="kegiatan-delete-desc" class="modal-desc"></p>
+        <div class="modal-actions">
+          <button type="button" id="kegiatan-delete-cancel-btn" class="btn-secondary">Batal</button>
+          <button type="button" id="kegiatan-delete-confirm-btn" class="btn-danger">Hapus</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Dialog Panduan Pasang PWA di iOS Safari -->
     <div
       id="ios-install-modal"

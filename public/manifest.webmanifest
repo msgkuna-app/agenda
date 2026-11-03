@@ -1,14 +1,13 @@
 {
-  "id": "/",
   "name": "Agenda & Arsip",
   "short_name": "Agenda",
-  "description": "Aplikasi web pribadi Agenda & Arsip untuk pengelolaan kegiatan, jadwal, dan arsip dokumen.",
-  "display": "standalone",
+  "description": "Aplikasi web pribadi Agenda & Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan.",
+  "lang": "id",
   "start_url": "/",
   "scope": "/",
-  "theme_color": "#1e40af",
+  "display": "standalone",
   "background_color": "#f8fafc",
-  "lang": "id",
+  "theme_color": "#1e40af",
   "icons": [
     {
       "src": "/icons/icon-192.png",
