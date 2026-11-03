@@ -27,21 +27,15 @@
           if (t === "light" || t === "dark" || t === "system") prefTema = t;
         } catch (_e) {}
 
-        var gelapSistem =
-          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var gelapSistem = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         var efektif = prefTema === "system" ? (gelapSistem ? "dark" : "light") : prefTema;
 
-        if (prefTema === "light" || prefTema === "dark") {
-          root.setAttribute("data-theme", prefTema);
-        } else {
-          root.removeAttribute("data-theme");
-        }
+        if (prefTema === "light" || prefTema === "dark") root.setAttribute("data-theme", prefTema);
+        else root.removeAttribute("data-theme");
         root.style.colorScheme = efektif;
 
         var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) {
-          meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
-        }
+        if (meta) meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
 
         var statusSidebar = null;
         try {
@@ -50,10 +44,7 @@
         } catch (_e2) {}
 
         if (!statusSidebar) {
-          statusSidebar =
-            window.matchMedia && window.matchMedia("(min-width: 1024.02px)").matches
-              ? "expanded"
-              : "collapsed";
+          statusSidebar = window.matchMedia && window.matchMedia("(min-width: 1024.02px)").matches ? "expanded" : "collapsed";
         }
         root.setAttribute("data-sidebar", statusSidebar);
       })();
@@ -64,7 +55,7 @@
   <body>
     <a href="#main-content" class="skip-link">Langsung ke konten utama</a>
 
-    <!-- 1. Layar Memeriksa Sesi Masuk (tampil pertama kali sebelum status auth diketahui) -->
+    <!-- 1. Layar Memeriksa Sesi Masuk -->
     <main id="screen-checking" class="centered-screen" aria-live="polite">
       <div class="session-card">
         <div class="spinner" aria-hidden="true"></div>
@@ -72,15 +63,14 @@
       </div>
     </main>
 
-    <!-- 2. Layar Galat Konfigurasi Firebase (jika placeholder belum diganti di js/firebase-config.js) -->
+    <!-- 2. Layar Galat Konfigurasi Firebase -->
     <main id="screen-config-error" class="centered-screen" hidden>
       <section class="config-error-card" aria-labelledby="config-error-heading">
         <div class="config-error-header">
           <div class="config-error-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
           </div>
           <div>
@@ -101,32 +91,24 @@
       </section>
     </main>
 
-    <!-- 3. Layar Login (satu-satunya tampilan saat pengguna belum masuk) -->
+    <!-- 3. Layar Login -->
     <main id="screen-login" class="centered-screen" hidden>
       <section class="auth-card" aria-labelledby="login-heading">
         <div class="brand-emblem" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="17" rx="2.5" />
-            <line x1="8" y1="2.5" x2="8" y2="6" />
-            <line x1="16" y1="2.5" x2="16" y2="6" />
-            <line x1="3" y1="9.5" x2="21" y2="9.5" />
-            <line x1="8" y1="14" x2="16" y2="14" />
-            <line x1="8" y1="17.5" x2="13" y2="17.5" />
+            <rect x="3" y="4" width="18" height="17" rx="2.5" /><line x1="8" y1="2.5" x2="8" y2="6" /><line x1="16" y1="2.5" x2="16" y2="6" />
+            <line x1="3" y1="9.5" x2="21" y2="9.5" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17.5" x2="13" y2="17.5" />
           </svg>
         </div>
 
         <div class="auth-header-group">
           <h1 id="login-heading" class="auth-title">Agenda &amp; Arsip</h1>
-          <p class="auth-subtitle">
-            Ruang kerja pribadi untuk mengelola kegiatan, jadwal, catatan, dan arsip dokumen Google Drive.
-          </p>
+          <p class="auth-subtitle">Ruang kerja pribadi untuk mengelola kegiatan, jadwal, catatan, dan arsip dokumen Google Drive.</p>
         </div>
 
         <div id="login-error-box" class="alert-box" role="alert" hidden>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
           <span id="login-error-text"></span>
         </div>
@@ -148,8 +130,7 @@
           <div class="theme-switcher" role="group" aria-label="Pemilih tema tampilan">
             <button type="button" class="theme-choice-btn" data-theme-choice="light" aria-label="Tema Terang" title="Tema Terang" aria-pressed="false">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
               </svg>
             </button>
             <button type="button" class="theme-choice-btn" data-theme-choice="dark" aria-label="Tema Gelap" title="Tema Gelap" aria-pressed="false">
@@ -159,9 +140,7 @@
             </button>
             <button type="button" class="theme-choice-btn" data-theme-choice="system" aria-label="Ikuti Sistem" title="Ikuti Sistem" aria-pressed="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <line x1="12" y1="17" x2="12" y2="21"/>
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
               </svg>
             </button>
           </div>
@@ -169,7 +148,7 @@
       </section>
     </main>
 
-    <!-- 4. Pembungkus Utama Aplikasi (Hanya tampil setelah pengguna pemilik berhasil login) -->
+    <!-- 4. Pembungkus Utama Aplikasi -->
     <div id="app-shell" class="app-shell" hidden>
       <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
 
@@ -178,38 +157,21 @@
           <div class="sidebar-brand">
             <span class="sidebar-brand-mark" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="17" rx="2.5" />
-                <line x1="8" y1="2.5" x2="8" y2="6" />
-                <line x1="16" y1="2.5" x2="16" y2="6" />
-                <line x1="3" y1="9.5" x2="21" y2="9.5" />
+                <rect x="3" y="4" width="18" height="17" rx="2.5" /><line x1="8" y1="2.5" x2="8" y2="6" /><line x1="16" y1="2.5" x2="16" y2="6" /><line x1="3" y1="9.5" x2="21" y2="9.5" />
               </svg>
             </span>
             <span class="sidebar-brand-title">Agenda &amp; Arsip</span>
           </div>
 
-          <button
-            type="button"
-            id="sidebar-collapse-btn"
-            class="icon-btn sidebar-collapse-btn"
-            aria-expanded="true"
-            aria-label="Ciutkan bilah sisi"
-            title="Ciutkan bilah sisi"
-          >
+          <button type="button" id="sidebar-collapse-btn" class="icon-btn sidebar-collapse-btn" aria-expanded="true" aria-label="Ciutkan bilah sisi" title="Ciutkan bilah sisi">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
 
-          <button
-            type="button"
-            id="sidebar-mobile-close-btn"
-            class="icon-btn sidebar-mobile-close-btn"
-            aria-label="Tutup menu navigasi"
-            title="Tutup menu navigasi"
-          >
+          <button type="button" id="sidebar-mobile-close-btn" class="icon-btn sidebar-mobile-close-btn" aria-label="Tutup menu navigasi" title="Tutup menu navigasi">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -220,46 +182,19 @@
 
         <div class="sidebar-bottom">
           <div class="theme-switcher" role="group" aria-label="Pemilih tema">
-            <button
-              type="button"
-              class="theme-choice-btn"
-              data-theme-choice="light"
-              data-tooltip="Tema Terang"
-              aria-label="Tema Terang"
-              title="Tema Terang"
-              aria-pressed="false"
-            >
+            <button type="button" class="theme-choice-btn" data-theme-choice="light" data-tooltip="Tema Terang" aria-label="Tema Terang" title="Tema Terang" aria-pressed="false">
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
               </svg>
             </button>
-            <button
-              type="button"
-              class="theme-choice-btn"
-              data-theme-choice="dark"
-              data-tooltip="Tema Gelap"
-              aria-label="Tema Gelap"
-              title="Tema Gelap"
-              aria-pressed="false"
-            >
+            <button type="button" class="theme-choice-btn" data-theme-choice="dark" data-tooltip="Tema Gelap" aria-label="Tema Gelap" title="Tema Gelap" aria-pressed="false">
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
               </svg>
             </button>
-            <button
-              type="button"
-              class="theme-choice-btn"
-              data-theme-choice="system"
-              data-tooltip="Ikuti Sistem"
-              aria-label="Ikuti Sistem"
-              title="Ikuti Sistem"
-              aria-pressed="true"
-            >
+            <button type="button" class="theme-choice-btn" data-theme-choice="system" data-tooltip="Ikuti Sistem" aria-label="Ikuti Sistem" title="Ikuti Sistem" aria-pressed="true">
               <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <line x1="12" y1="17" x2="12" y2="21"/>
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
               </svg>
             </button>
           </div>
@@ -276,42 +211,23 @@
               </div>
             </div>
 
-            <button
-              type="button"
-              id="sidebar-logout-btn"
-              class="icon-btn logout-btn"
-              data-tooltip="Keluar"
-              aria-label="Keluar"
-              title="Keluar"
-            >
+            <button type="button" id="sidebar-logout-btn" class="icon-btn logout-btn" data-tooltip="Keluar" aria-label="Keluar" title="Keluar">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-                <line x1="12" y1="2" x2="12" y2="12" />
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><line x1="12" y1="2" x2="12" y2="12" />
               </svg>
             </button>
           </div>
         </div>
       </aside>
 
-      <!-- Tooltip eksternal untuk ikon sidebar saat diciutkan -->
       <div id="sidebar-tooltip" class="sidebar-tooltip" role="tooltip" hidden></div>
 
       <div class="app-workspace">
         <header class="app-header">
           <div class="header-left">
-            <button
-              type="button"
-              id="mobile-menu-btn"
-              class="icon-btn mobile-menu-btn"
-              aria-controls="app-sidebar"
-              aria-expanded="false"
-              aria-label="Buka menu navigasi"
-              title="Buka menu navigasi"
-            >
+            <button type="button" id="mobile-menu-btn" class="icon-btn mobile-menu-btn" aria-controls="app-sidebar" aria-expanded="false" aria-label="Buka menu navigasi" title="Buka menu navigasi">
               <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </button>
             <h1 id="header-page-title" class="header-page-title">Dashboard</h1>
@@ -321,21 +237,17 @@
             <span id="header-date-text" class="header-date"></span>
             <button type="button" id="pwa-install-btn" class="btn-install-pwa" hidden>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               <span>Pasang Aplikasi</span>
             </button>
           </div>
         </header>
 
-        <!-- Pita luring (offline) -->
         <div id="offline-banner" class="status-banner" role="status" hidden>
           <span>Tidak ada koneksi internet. Menampilkan data tersimpan di perangkat.</span>
         </div>
 
-        <!-- Pita token Google Drive kedaluwarsa (>50 menit) -->
         <div id="token-expired-banner" class="status-banner" role="status" hidden>
           <span id="token-expired-text">Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Masuk ulang diperlukan sebelum mengakses berkas Drive.</span>
           <button type="button" id="relogin-drive-btn" class="btn-banner-action">Masuk ulang</button>
@@ -348,27 +260,13 @@
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Kelola Kategori (Fase 1 & dipakai ulang Fase 3) -->
-    <div
-      id="kategori-manage-modal"
-      class="modal-overlay modal-sheet-mobile"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="kategori-manage-title"
-      hidden
-    >
+    <div id="kategori-manage-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kategori-manage-title" hidden>
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
           <h2 id="kategori-manage-title" class="modal-title">Kelola Kategori Kegiatan</h2>
-          <button
-            type="button"
-            id="kategori-manage-close-btn"
-            class="icon-btn"
-            aria-label="Tutup kelola kategori"
-            title="Tutup"
-          >
+          <button type="button" id="kategori-manage-close-btn" class="icon-btn" aria-label="Tutup kelola kategori" title="Tutup">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
@@ -376,9 +274,7 @@
         <div class="modal-scroll-body">
           <div id="kategori-alert-box" class="alert-box" role="alert" hidden>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <span id="kategori-alert-text"></span>
           </div>
@@ -392,34 +288,17 @@
 
             <div class="form-field">
               <label for="kategori-nama-input" class="form-label">Nama Kategori <span class="required-mark">*</span></label>
-              <input
-                type="text"
-                id="kategori-nama-input"
-                class="form-input"
-                maxlength="40"
-                placeholder="Mis. Proyek Prioritas"
-                required
-                autocomplete="off"
-              />
+              <input type="text" id="kategori-nama-input" class="form-input" maxlength="40" placeholder="Mis. Proyek Prioritas" required autocomplete="off" />
             </div>
 
             <div class="form-field">
               <span class="form-label" id="kategori-warna-label">Warna Lencana</span>
-              <div
-                id="kategori-warna-picker"
-                class="color-swatch-grid"
-                role="radiogroup"
-                aria-labelledby="kategori-warna-label"
-              ></div>
+              <div id="kategori-warna-picker" class="color-swatch-grid" role="radiogroup" aria-labelledby="kategori-warna-label"></div>
             </div>
 
             <div class="kategori-editor-actions">
-              <button type="button" id="kategori-cancel-edit-btn" class="btn-secondary" hidden>
-                Batal Ubah
-              </button>
-              <button type="submit" id="kategori-submit-btn" class="btn-primary">
-                Tambah Kategori
-              </button>
+              <button type="button" id="kategori-cancel-edit-btn" class="btn-secondary" hidden>Batal Ubah</button>
+              <button type="submit" id="kategori-submit-btn" class="btn-primary">Tambah Kategori</button>
             </div>
           </form>
 
@@ -432,27 +311,13 @@
     </div>
 
     <!-- Dialog / Lembar Penuh HP: Form Tambah / Ubah Kegiatan (Fase 1) -->
-    <div
-      id="kegiatan-form-modal"
-      class="modal-overlay modal-sheet-mobile"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="kegiatan-form-title"
-      hidden
-    >
+    <div id="kegiatan-form-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kegiatan-form-title" hidden>
       <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
         <div class="modal-header-row">
           <h2 id="kegiatan-form-title" class="modal-title">Tambah Kegiatan</h2>
-          <button
-            type="button"
-            id="kegiatan-form-close-btn"
-            class="icon-btn"
-            aria-label="Tutup formulir kegiatan"
-            title="Tutup"
-          >
+          <button type="button" id="kegiatan-form-close-btn" class="icon-btn" aria-label="Tutup formulir kegiatan" title="Tutup">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
@@ -462,37 +327,21 @@
 
           <div id="kegiatan-form-alert" class="alert-box" role="alert" hidden>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <span id="kegiatan-form-alert-text"></span>
           </div>
 
           <div class="form-field">
             <label for="kegiatan-judul-input" class="form-label">Judul Kegiatan <span class="required-mark">*</span></label>
-            <input
-              type="text"
-              id="kegiatan-judul-input"
-              class="form-input"
-              maxlength="160"
-              placeholder="Contoh: Rapat evaluasi triwulan"
-              required
-              autocomplete="off"
-            />
+            <input type="text" id="kegiatan-judul-input" class="form-input" maxlength="160" placeholder="Contoh: Rapat evaluasi triwulan" required autocomplete="off" />
           </div>
 
           <div class="form-row-2col">
             <div class="form-field">
               <label for="kegiatan-tanggal-input" class="form-label">Tanggal <span class="required-mark">*</span></label>
-              <input
-                type="date"
-                id="kegiatan-tanggal-input"
-                class="form-input"
-                required
-              />
+              <input type="date" id="kegiatan-tanggal-input" class="form-input" required />
             </div>
-
             <div class="form-field">
               <label for="kegiatan-status-select" class="form-label">Status</label>
               <select id="kegiatan-status-select" class="form-select">
@@ -508,7 +357,6 @@
               <label for="kegiatan-mulai-input" class="form-label">Waktu Mulai</label>
               <input type="time" id="kegiatan-mulai-input" class="form-input" />
             </div>
-
             <div class="form-field">
               <label for="kegiatan-selesai-input" class="form-label">Waktu Selesai</label>
               <input type="time" id="kegiatan-selesai-input" class="form-input" />
@@ -522,28 +370,15 @@
                 <option value="">Tanpa Kategori</option>
               </select>
             </div>
-
             <div class="form-field">
               <label for="kegiatan-lokasi-input" class="form-label">Lokasi</label>
-              <input
-                type="text"
-                id="kegiatan-lokasi-input"
-                class="form-input"
-                maxlength="140"
-                placeholder="Opsional, mis. Ruang Rapat Lt. 2 / Daring"
-                autocomplete="off"
-              />
+              <input type="text" id="kegiatan-lokasi-input" class="form-input" maxlength="140" placeholder="Opsional, mis. Ruang Rapat Lt. 2 / Daring" autocomplete="off" />
             </div>
           </div>
 
           <div class="form-field">
             <label for="kegiatan-catatan-input" class="form-label">Catatan</label>
-            <textarea
-              id="kegiatan-catatan-input"
-              class="form-textarea"
-              rows="3"
-              placeholder="Rincian agenda, tautan pendukung, atau hal yang perlu disiapkan..."
-            ></textarea>
+            <textarea id="kegiatan-catatan-input" class="form-textarea" rows="3" placeholder="Rincian agenda, tautan pendukung, atau hal yang perlu disiapkan..."></textarea>
           </div>
 
           <div class="modal-actions modal-actions-sticky">
@@ -555,15 +390,7 @@
     </div>
 
     <!-- Dialog Konfirmasi Hapus Kegiatan (Fase 1) -->
-    <div
-      id="kegiatan-delete-modal"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="kegiatan-delete-title"
-      aria-describedby="kegiatan-delete-desc"
-      hidden
-    >
+    <div id="kegiatan-delete-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="kegiatan-delete-title" aria-describedby="kegiatan-delete-desc" hidden>
       <div class="modal-dialog">
         <h2 id="kegiatan-delete-title" class="modal-title">Hapus kegiatan ini?</h2>
         <p id="kegiatan-delete-desc" class="modal-desc"></p>
@@ -574,15 +401,41 @@
       </div>
     </div>
 
+    <!-- Dialog / Lembar Penuh HP: Rincian Kegiatan Cepat dari Jadwal & Dashboard (Fase 2) -->
+    <div id="kegiatan-detail-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="kegiatan-detail-title" hidden>
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="kegiatan-detail-title" class="modal-title">Rincian Kegiatan</h2>
+          <button type="button" id="kegiatan-detail-close-btn" class="icon-btn" aria-label="Tutup rincian kegiatan" title="Tutup">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-scroll-body">
+          <div id="kegiatan-detail-alert" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="kegiatan-detail-alert-text"></span>
+          </div>
+
+          <div id="kegiatan-detail-body" class="form-stack"></div>
+
+          <div class="modal-actions modal-actions-sticky modal-actions-split">
+            <button type="button" id="kegiatan-detail-delete-btn" class="btn-danger-outline">Hapus</button>
+            <div class="modal-actions-group">
+              <button type="button" id="kegiatan-detail-dismiss-btn" class="btn-secondary">Tutup</button>
+              <button type="button" id="kegiatan-detail-edit-btn" class="btn-primary">Ubah Kegiatan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Dialog Panduan Pasang PWA di iOS Safari -->
-    <div
-      id="ios-install-modal"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ios-install-title"
-      hidden
-    >
+    <div id="ios-install-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" hidden>
       <div class="modal-dialog">
         <h2 id="ios-install-title" class="modal-title">Pasang di iPhone / iPad</h2>
         <ol class="ios-guide-steps">
@@ -596,20 +449,10 @@
     </div>
 
     <!-- Dialog Konfirmasi Keluar -->
-    <div
-      id="logout-confirm-modal"
-      class="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="logout-modal-title"
-      aria-describedby="logout-modal-desc"
-      hidden
-    >
+    <div id="logout-confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title" aria-describedby="logout-modal-desc" hidden>
       <div class="modal-dialog">
         <h2 id="logout-modal-title" class="modal-title">Keluar dari aplikasi?</h2>
-        <p id="logout-modal-desc" class="modal-desc">
-          Sesi masuk dan akses sementara Google Drive di peramban ini akan diakhiri.
-        </p>
+        <p id="logout-modal-desc" class="modal-desc">Sesi masuk dan akses sementara Google Drive di peramban ini akan diakhiri.</p>
         <div class="modal-actions">
           <button type="button" id="logout-cancel-btn" class="btn-secondary">Batal</button>
           <button type="button" id="logout-confirm-btn" class="btn-danger">Keluar</button>

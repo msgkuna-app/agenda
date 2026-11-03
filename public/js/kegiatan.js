@@ -1,8 +1,8 @@
 /**
- * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1)
+ * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Ekspor Minimal Fase 2)
  * Mencakup daftar kegiatan, pencarian (judul, catatan, lokasi), filter kategori & status,
  * pengurutan tanggal, tambah, ubah, hapus dengan konfirmasi, ubah status cepat,
- * serta integrasi real-time dengan modul kategori.js (Aturan #5, #6, #7, #9, #10, #12).
+ * serta observer tunggal bagi modul jadwal.js dan Dashboard tanpa langganan ganda.
  */
 import {
   getFirestoreDb,
@@ -26,24 +26,15 @@ import { escapeHtml, pindahKeBagian } from "./sidebar.js";
 export const DAFTAR_STATUS_KEGIATAN = ["Rencana", "Berjalan", "Selesai"];
 
 const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-const NAMA_BULAN_PENDEK = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "Mei",
-  "Jun",
-  "Jul",
-  "Agu",
-  "Sep",
-  "Okt",
-  "Nov",
-  "Des"
-];
+const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-/**
- * Instance manajer kategori khusus koleksi "kategoriKegiatan" dengan pemakai "kegiatan".
- */
+const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
+  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
+
+const IKON_KALENDER_META = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 15);
+const IKON_JAM_META = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);
+const IKON_LOKASI_META = svgIkon('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>', 15);
+
 export const manajerKategoriKegiatan = buatManajerKategori({
   namaKoleksiKategori: "kategoriKegiatan",
   namaKoleksiPemakai: "kegiatan",
@@ -56,64 +47,68 @@ let daftarKegiatan = [];
 let sudahDimuatPertamaKali = false;
 let antarmukaSudahDiikat = false;
 let dialogKelolaKategoriCtrl = null;
+const listenersPerubahanKegiatan = new Set();
 
-// State filter & pengurutan halaman Kegiatan
 let kataKunciCari = "";
-let filterKategoriId = "ALL"; // "ALL" | "__TANPA_KATEGORI__" | <kategoriId>
-let filterStatus = "ALL";     // "ALL" | "Rencana" | "Berjalan" | "Selesai"
-let urutanTanggal = "asc";    // "asc" (Terdekat/Terlama dulu) | "desc" (Terbaru dulu)
+let filterKategoriId = "ALL";
+let filterStatus = "ALL";
+let urutanTanggal = "asc";
 
-// State modal form & konfirmasi hapus kegiatan
 let formModalTerbuka = false;
 let hapusModalTerbuka = false;
 let idKegiatanAkanDihapus = null;
 let fokusSebelumModalKegiatan = null;
 
-/**
- * Memformat tanggal "YYYY-MM-DD" menggunakan parseTanggal dari util-tanggal.js (Aturan #6).
- * @param {string} tanggalStr
- * @returns {string}
- */
-function formatTanggalTampilan(tanggalStr) {
-  const objek = parseTanggal(tanggalStr);
-  if (!objek) {
-    return tanggalStr || "-";
-  }
-  const hari = NAMA_HARI_PENDEK[objek.getDay()];
-  const tgl = objek.getDate();
-  const bln = NAMA_BULAN_PENDEK[objek.getMonth()];
-  const thn = objek.getFullYear();
-
-  const strHariIni = hariIni();
-  if (tanggalStr === strHariIni) {
-    return `Hari ini • ${hari}, ${tgl} ${bln} ${thn}`;
-  }
-  return `${hari}, ${tgl} ${bln} ${thn}`;
+export function getDaftarKegiatan() {
+  return daftarKegiatan.map((item) => ({ ...item }));
 }
 
-/**
- * Memvalidasi format jam "HH:MM" (opsional).
- * @param {string} jam
- * @returns {boolean}
- */
+export function isKegiatanSudahDimuat() {
+  return sudahDimuatPertamaKali;
+}
+
+export function onPerubahanKegiatan(listener) {
+  if (typeof listener !== "function") return () => {};
+  listenersPerubahanKegiatan.add(listener);
+  return () => listenersPerubahanKegiatan.delete(listener);
+}
+
+function beritahuPerubahanKegiatan() {
+  const salinan = getDaftarKegiatan();
+  const statusMuat = sudahDimuatPertamaKali;
+  listenersPerubahanKegiatan.forEach((fn) => {
+    try { fn(salinan, statusMuat); } catch (_err) {}
+  });
+}
+
+export async function ubahStatusKegiatanCepat(id, statusBaru) {
+  const targetId = String(id || "").trim();
+  if (!targetId || !DAFTAR_STATUS_KEGIATAN.includes(statusBaru)) {
+    throw new Error("Status kegiatan tidak valid.");
+  }
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, "kegiatan", targetId), {
+    status: statusBaru,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function formatTanggalTampilan(tanggalStr) {
+  const objek = parseTanggal(tanggalStr);
+  if (!objek) return tanggalStr || "-";
+  const teks = `${NAMA_HARI_PENDEK[objek.getDay()]}, ${objek.getDate()} ${NAMA_BULAN_PENDEK[objek.getMonth()]} ${objek.getFullYear()}`;
+  return tanggalStr === hariIni() ? `Hari ini • ${teks}` : teks;
+}
+
 function validJamOpsional(jam) {
   if (!jam) return true;
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(jam);
 }
 
-/**
- * Menghitung jumlah kegiatan lokal di memori yang memakai kategoriId tertentu.
- * Dipakai untuk menampilkan lencana jumlah real-time pada layar Kelola Kategori.
- * @param {string} kategoriId
- * @returns {number}
- */
 function hitungKegiatanPemakaiLokal(kategoriId) {
   const target = String(kategoriId || "").trim();
   if (!target) {
-    return daftarKegiatan.filter((item) => {
-      const info = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
-      return info.tetap;
-    }).length;
+    return daftarKegiatan.filter((item) => manajerKategoriKegiatan.cariInfoKategori(item.kategoriId).tetap).length;
   }
   return daftarKegiatan.filter((item) => String(item.kategoriId || "").trim() === target).length;
 }
@@ -122,141 +117,80 @@ function tampilkanGalatHalamanKegiatan(pesan) {
   const box = document.getElementById("kegiatan-page-error");
   const txt = document.getElementById("kegiatan-page-error-text");
   if (!box || !txt) return;
-  if (pesan) {
-    txt.textContent = pesan;
-    box.hidden = false;
-  } else {
-    txt.textContent = "";
-    box.hidden = true;
-  }
+  txt.textContent = pesan || "";
+  box.hidden = !pesan;
 }
 
-function kelasBadgeStatus(status) {
+export function kelasBadgeStatus(status) {
   if (status === "Berjalan") return "status-badge status-berjalan";
   if (status === "Selesai") return "status-badge status-selesai";
   return "status-badge status-rencana";
 }
 
-/**
- * Membangun struktur HTML halaman Kegiatan di dalam #section-kegiatan satu kali.
- */
 function pastikanKerangkaHalamanKegiatan() {
   const panel = document.getElementById("section-kegiatan");
-  if (!panel || panel.querySelector("#kegiatan-toolbar")) {
-    return;
-  }
+  if (!panel || panel.querySelector("#kegiatan-toolbar")) return;
 
-  panel.innerHTML = `
-    <div class="page-stack">
-      <div class="section-header-bar">
-        <div class="section-heading-group">
-          <h2 class="section-heading-title">Daftar Kegiatan</h2>
-          <p class="section-heading-subtitle">
-            Catat agenda kegiatan, atur kategori berwarna, dan perbarui status pelaksanaan secara langsung.
-          </p>
-        </div>
-        <div class="section-header-actions">
-          <button type="button" id="btn-buka-kelola-kategori" class="btn-secondary">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-              <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>
-            <span>Kelola Kategori</span>
-          </button>
-          <button type="button" id="btn-tambah-kegiatan" class="btn-primary">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            <span>Tambah Kegiatan</span>
-          </button>
-        </div>
+  panel.innerHTML = `<div class="page-stack">
+    <div class="section-header-bar">
+      <div class="section-heading-group">
+        <h2 class="section-heading-title">Daftar Kegiatan</h2>
+        <p class="section-heading-subtitle">Catat agenda kegiatan, atur kategori berwarna, dan perbarui status pelaksanaan secara langsung.</p>
       </div>
-
-      <div id="kegiatan-page-error" class="alert-box" role="alert" hidden>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span id="kegiatan-page-error-text"></span>
+      <div class="section-header-actions">
+        <button type="button" id="btn-buka-kelola-kategori" class="btn-secondary">${svgIkon('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>', 17)}<span>Kelola Kategori</span></button>
+        <button type="button" id="btn-tambah-kegiatan" class="btn-primary">${svgIkon('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', 18, 2.2)}<span>Tambah Kegiatan</span></button>
       </div>
-
-      <!-- Bilah Pencarian, Filter, dan Pengurutan -->
-      <div id="kegiatan-toolbar" class="filter-card">
-        <div class="search-field-wrap">
-          <label for="kegiatan-search-input" class="sr-only">Cari kegiatan</label>
-          <svg class="search-field-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="search"
-            id="kegiatan-search-input"
-            class="form-input input-with-icon"
-            placeholder="Cari judul, catatan, atau lokasi..."
-            autocomplete="off"
-          />
-        </div>
-
-        <div class="filter-controls-grid">
-          <div class="filter-control-item">
-            <label for="kegiatan-filter-kategori" class="filter-label">Kategori</label>
-            <select id="kegiatan-filter-kategori" class="form-select">
-              <option value="ALL">Semua Kategori</option>
-            </select>
-          </div>
-
-          <div class="filter-control-item">
-            <label for="kegiatan-filter-status" class="filter-label">Status</label>
-            <select id="kegiatan-filter-status" class="form-select">
-              <option value="ALL">Semua Status</option>
-              <option value="Rencana">Rencana</option>
-              <option value="Berjalan">Berjalan</option>
-              <option value="Selesai">Selesai</option>
-            </select>
-          </div>
-
-          <div class="filter-control-item">
-            <label for="kegiatan-sort-tanggal" class="filter-label">Urutan Tanggal</label>
-            <select id="kegiatan-sort-tanggal" class="form-select">
-              <option value="asc">Tanggal Terlama &rarr; Terbaru</option>
-              <option value="desc">Tanggal Terbaru &rarr; Terlama</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="kegiatan-active-filter-bar" class="active-filter-bar" hidden>
-          <span id="kegiatan-result-summary" class="result-summary-text"></span>
-          <button type="button" id="btn-reset-filter-kegiatan" class="btn-link-filter">
-            Atur ulang filter
-          </button>
-        </div>
-      </div>
-
-      <!-- Wadah Daftar Kegiatan -->
-      <div id="kegiatan-list-region" aria-live="polite"></div>
     </div>
-  `;
+    <div id="kegiatan-page-error" class="alert-box" role="alert" hidden>${svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18)}<span id="kegiatan-page-error-text"></span></div>
+    <div id="kegiatan-toolbar" class="filter-card">
+      <div class="search-field-wrap">
+        <label for="kegiatan-search-input" class="sr-only">Cari kegiatan</label>
+        ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
+        <input type="search" id="kegiatan-search-input" class="form-input input-with-icon" placeholder="Cari judul, catatan, atau lokasi..." autocomplete="off" />
+      </div>
+      <div class="filter-controls-grid">
+        <div class="filter-control-item">
+          <label for="kegiatan-filter-kategori" class="filter-label">Kategori</label>
+          <select id="kegiatan-filter-kategori" class="form-select"><option value="ALL">Semua Kategori</option></select>
+        </div>
+        <div class="filter-control-item">
+          <label for="kegiatan-filter-status" class="filter-label">Status</label>
+          <select id="kegiatan-filter-status" class="form-select">
+            <option value="ALL">Semua Status</option>
+            <option value="Rencana">Rencana</option>
+            <option value="Berjalan">Berjalan</option>
+            <option value="Selesai">Selesai</option>
+          </select>
+        </div>
+        <div class="filter-control-item">
+          <label for="kegiatan-sort-tanggal" class="filter-label">Urutan Tanggal</label>
+          <select id="kegiatan-sort-tanggal" class="form-select">
+            <option value="asc">Tanggal Terlama &rarr; Terbaru</option>
+            <option value="desc">Tanggal Terbaru &rarr; Terlama</option>
+          </select>
+        </div>
+      </div>
+      <div id="kegiatan-active-filter-bar" class="active-filter-bar" hidden>
+        <span id="kegiatan-result-summary" class="result-summary-text"></span>
+        <button type="button" id="btn-reset-filter-kegiatan" class="btn-link-filter">Atur ulang filter</button>
+      </div>
+    </div>
+    <div id="kegiatan-list-region" aria-live="polite"></div>
+  </div>`;
 }
 
-/**
- * Menyegarkan opsi dropdown kategori pada filter halaman & form modal kegiatan.
- */
 function perbaruiDropdownKategori() {
   const daftarKat = manajerKategoriKegiatan.getDaftarKategori();
 
   const selectFilter = document.getElementById("kegiatan-filter-kategori");
   if (selectFilter instanceof HTMLSelectElement) {
     const nilaiSebelumnya = filterKategoriId;
-    const opsiHtml = [
+    selectFilter.innerHTML = [
       `<option value="ALL">Semua Kategori</option>`,
-      ...daftarKat.map(
-        (k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.nama)}</option>`
-      ),
+      ...daftarKat.map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.nama)}</option>`),
       `<option value="__TANPA_KATEGORI__">${escapeHtml(TANPA_KATEGORI_INFO.nama)}</option>`
-    ];
-    selectFilter.innerHTML = opsiHtml.join("");
+    ].join("");
 
     const masihValid =
       nilaiSebelumnya === "ALL" ||
@@ -269,31 +203,19 @@ function perbaruiDropdownKategori() {
   const selectForm = document.getElementById("kegiatan-kategori-select");
   if (selectForm instanceof HTMLSelectElement) {
     const nilaiFormSaatIni = selectForm.value;
-    const opsiForm = [
+    selectForm.innerHTML = [
       `<option value="">${escapeHtml(TANPA_KATEGORI_INFO.nama)}</option>`,
-      ...daftarKat.map(
-        (k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.nama)}</option>`
-      )
-    ];
-    selectForm.innerHTML = opsiForm.join("");
-    if (daftarKat.some((k) => k.id === nilaiFormSaatIni)) {
-      selectForm.value = nilaiFormSaatIni;
-    } else {
-      selectForm.value = "";
-    }
+      ...daftarKat.map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.nama)}</option>`)
+    ].join("");
+    selectForm.value = daftarKat.some((k) => k.id === nilaiFormSaatIni) ? nilaiFormSaatIni : "";
   }
 }
 
-/**
- * Menyaring dan mengurutkan daftar kegiatan sesuai state pencarian, filter, dan urutan.
- */
 function ambilKegiatanTersaring() {
   const q = kataKunciCari.trim().toLowerCase();
 
   const tersaring = daftarKegiatan.filter((item) => {
-    if (filterStatus !== "ALL" && item.status !== filterStatus) {
-      return false;
-    }
+    if (filterStatus !== "ALL" && item.status !== filterStatus) return false;
 
     if (filterKategoriId !== "ALL") {
       const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
@@ -305,12 +227,11 @@ function ambilKegiatanTersaring() {
     }
 
     if (q) {
-      const cocokJudul = item.judul.toLowerCase().includes(q);
-      const cocokCatatan = item.catatan.toLowerCase().includes(q);
-      const cocokLokasi = item.lokasi.toLowerCase().includes(q);
-      if (!cocokJudul && !cocokCatatan && !cocokLokasi) {
-        return false;
-      }
+      const cocok =
+        item.judul.toLowerCase().includes(q) ||
+        item.catatan.toLowerCase().includes(q) ||
+        item.lokasi.toLowerCase().includes(q);
+      if (!cocok) return false;
     }
 
     return true;
@@ -320,28 +241,19 @@ function ambilKegiatanTersaring() {
     const tglA = a.tanggal || "";
     const tglB = b.tanggal || "";
     if (tglA !== tglB) {
-      return urutanTanggal === "asc"
-        ? tglA.localeCompare(tglB)
-        : tglB.localeCompare(tglA);
+      return urutanTanggal === "asc" ? tglA.localeCompare(tglB) : tglB.localeCompare(tglA);
     }
     const jamA = a.waktuMulai || "99:99";
     const jamB = b.waktuMulai || "99:99";
     if (jamA !== jamB) {
-      return urutanTanggal === "asc"
-        ? jamA.localeCompare(jamB)
-        : jamB.localeCompare(jamA);
+      return urutanTanggal === "asc" ? jamA.localeCompare(jamB) : jamB.localeCompare(jamA);
     }
-    return String(a.judul || "").localeCompare(String(b.judul || ""), "id", {
-      sensitivity: "base"
-    });
+    return String(a.judul || "").localeCompare(String(b.judul || ""), "id", { sensitivity: "base" });
   });
 
   return tersaring;
 }
 
-/**
- * Merender daftar kartu kegiatan ke dalam #kegiatan-list-region (semua teks di-escape sesuai Aturan #9).
- */
 function renderDaftarKegiatan() {
   const region = document.getElementById("kegiatan-list-region");
   const barFilterAktif = document.getElementById("kegiatan-active-filter-bar");
@@ -349,17 +261,11 @@ function renderDaftarKegiatan() {
   if (!region) return;
 
   if (!sudahDimuatPertamaKali) {
-    region.innerHTML = `
-      <div class="empty-stage-card">
-        <div class="spinner" aria-hidden="true"></div>
-        <p class="session-status-text">Memuat daftar kegiatan...</p>
-      </div>
-    `;
+    region.innerHTML = `<div class="empty-stage-card"><div class="spinner" aria-hidden="true"></div><p class="session-status-text">Memuat daftar kegiatan...</p></div>`;
     return;
   }
 
-  const adaFilter =
-    kataKunciCari.trim() !== "" || filterKategoriId !== "ALL" || filterStatus !== "ALL";
+  const adaFilter = kataKunciCari.trim() !== "" || filterKategoriId !== "ALL" || filterStatus !== "ALL";
   const hasil = ambilKegiatanTersaring();
 
   if (barFilterAktif && ringkasanEl) {
@@ -376,144 +282,52 @@ function renderDaftarKegiatan() {
   }
 
   if (daftarKegiatan.length === 0) {
-    region.innerHTML = `
-      <div class="empty-stage-card">
-        <div class="empty-stage-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-        </div>
-        <h3 class="empty-stage-title">Belum Ada Kegiatan</h3>
-        <p class="empty-stage-desc">
-          Mulai catat kegiatan atau rencana agenda Anda dengan menekan tombol <strong>Tambah Kegiatan</strong> di atas.
-        </p>
-      </div>
-    `;
+    region.innerHTML = `<div class="empty-stage-card">
+      <div class="empty-stage-icon" aria-hidden="true">${svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 24)}</div>
+      <h3 class="empty-stage-title">Belum Ada Kegiatan</h3>
+      <p class="empty-stage-desc">Mulai catat kegiatan atau rencana agenda Anda dengan menekan tombol <strong>Tambah Kegiatan</strong> di atas.</p>
+    </div>`;
     return;
   }
 
   if (hasil.length === 0) {
-    region.innerHTML = `
-      <div class="empty-stage-card">
-        <h3 class="empty-stage-title">Tidak Ada Kegiatan yang Cocok</h3>
-        <p class="empty-stage-desc">
-          Tidak ditemukan kegiatan yang sesuai dengan kata kunci pencarian atau filter yang dipilih.
-        </p>
-      </div>
-    `;
+    region.innerHTML = `<div class="empty-stage-card"><h3 class="empty-stage-title">Tidak Ada Kegiatan yang Cocok</h3><p class="empty-stage-desc">Tidak ditemukan kegiatan yang sesuai dengan kata kunci pencarian atau filter yang dipilih.</p></div>`;
     return;
   }
 
-  const htmlKartu = hasil
-    .map((item) => {
-      const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
-      const rentangWaktu = item.waktuMulai
-        ? item.waktuSelesai
-          ? `${item.waktuMulai} – ${item.waktuSelesai}`
-          : item.waktuMulai
-        : "";
+  const htmlKartu = hasil.map((item) => {
+    const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
+    const rentangWaktu = item.waktuMulai
+      ? item.waktuSelesai ? `${item.waktuMulai} – ${item.waktuSelesai}` : item.waktuMulai
+      : "";
+    const opsiStatusCepat = DAFTAR_STATUS_KEGIATAN.map(
+      (st) => `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
+    ).join("");
 
-      const opsiStatusCepat = DAFTAR_STATUS_KEGIATAN.map(
-        (st) =>
-          `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
-      ).join("");
-
-      return `
-        <article class="kegiatan-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
-          <div class="kegiatan-card-top">
-            <div class="kegiatan-badges-row">
-              <span class="cat-badge cat-color-${escapeHtml(infoKat.warna)}">
-                <span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span>
-                <span>${escapeHtml(infoKat.nama)}</span>
-              </span>
-              <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
-            </div>
-
-            <div class="kegiatan-quick-status">
-              <label for="quick-status-${escapeHtml(item.id)}" class="sr-only">
-                Ubah status cepat untuk ${escapeHtml(item.judul)}
-              </label>
-              <select
-                id="quick-status-${escapeHtml(item.id)}"
-                class="quick-status-select"
-                data-action="quick-status"
-                data-id="${escapeHtml(item.id)}"
-                aria-label="Status kegiatan ${escapeHtml(item.judul)}"
-              >
-                ${opsiStatusCepat}
-              </select>
-            </div>
-          </div>
-
-          <h3 class="kegiatan-card-title">${escapeHtml(item.judul)}</h3>
-
-          <div class="kegiatan-meta-list">
-            <span class="kegiatan-meta-item">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              <span>${escapeHtml(formatTanggalTampilan(item.tanggal))}</span>
-            </span>
-
-            ${
-              rentangWaktu
-                ? `<span class="kegiatan-meta-item">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                    <span>${escapeHtml(rentangWaktu)}</span>
-                  </span>`
-                : ""
-            }
-
-            ${
-              item.lokasi
-                ? `<span class="kegiatan-meta-item">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                    <span>${escapeHtml(item.lokasi)}</span>
-                  </span>`
-                : ""
-            }
-          </div>
-
-          ${
-            item.catatan
-              ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>`
-              : ""
-          }
-
-          <div class="kegiatan-card-footer">
-            <button
-              type="button"
-              class="btn-secondary btn-sm-touch"
-              data-action="edit-kegiatan"
-              data-id="${escapeHtml(item.id)}"
-            >
-              Ubah
-            </button>
-            <button
-              type="button"
-              class="btn-danger-outline btn-sm-touch"
-              data-action="delete-kegiatan"
-              data-id="${escapeHtml(item.id)}"
-            >
-              Hapus
-            </button>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+    return `<article class="kegiatan-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
+      <div class="kegiatan-card-top">
+        <div class="kegiatan-badges-row">
+          <span class="cat-badge cat-color-${escapeHtml(infoKat.warna)}"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
+          <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
+        </div>
+        <div class="kegiatan-quick-status">
+          <label for="quick-status-${escapeHtml(item.id)}" class="sr-only">Ubah status cepat untuk ${escapeHtml(item.judul)}</label>
+          <select id="quick-status-${escapeHtml(item.id)}" class="quick-status-select" data-action="quick-status" data-id="${escapeHtml(item.id)}" aria-label="Status kegiatan ${escapeHtml(item.judul)}">${opsiStatusCepat}</select>
+        </div>
+      </div>
+      <h3 class="kegiatan-card-title">${escapeHtml(item.judul)}</h3>
+      <div class="kegiatan-meta-list">
+        <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatTanggalTampilan(item.tanggal))}</span></span>
+        ${rentangWaktu ? `<span class="kegiatan-meta-item">${IKON_JAM_META}<span>${escapeHtml(rentangWaktu)}</span></span>` : ""}
+        ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI_META}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
+      </div>
+      ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
+      <div class="kegiatan-card-footer">
+        <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan" data-id="${escapeHtml(item.id)}">Ubah</button>
+        <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-kegiatan" data-id="${escapeHtml(item.id)}">Hapus</button>
+      </div>
+    </article>`;
+  }).join("");
 
   region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>`;
 }
@@ -522,20 +336,11 @@ function setPesanGalatFormKegiatan(pesan) {
   const box = document.getElementById("kegiatan-form-alert");
   const txt = document.getElementById("kegiatan-form-alert-text");
   if (!box || !txt) return;
-  if (pesan) {
-    txt.textContent = pesan;
-    box.hidden = false;
-  } else {
-    txt.textContent = "";
-    box.hidden = true;
-  }
+  txt.textContent = pesan || "";
+  box.hidden = !pesan;
 }
 
-/**
- * Membuka modal Tambah / Ubah Kegiatan.
- * @param {object | null} [kegiatanEdit=null]
- */
-function bukaModalFormKegiatan(kegiatanEdit = null) {
+export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
   const modal = document.getElementById("kegiatan-form-modal");
   const titleEl = document.getElementById("kegiatan-form-title");
   const idInput = document.getElementById("kegiatan-edit-id");
@@ -548,11 +353,9 @@ function bukaModalFormKegiatan(kegiatanEdit = null) {
   const statusSelect = document.getElementById("kegiatan-status-select");
   const catatanInput = document.getElementById("kegiatan-catatan-input");
   const submitBtn = document.getElementById("kegiatan-form-submit-btn");
-
   if (!modal) return;
 
-  fokusSebelumModalKegiatan =
-    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  fokusSebelumModalKegiatan = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   setPesanGalatFormKegiatan("");
   perbaruiDropdownKategori();
 
@@ -570,17 +373,18 @@ function bukaModalFormKegiatan(kegiatanEdit = null) {
       kategoriSelect.value = info.tetap ? "" : info.id;
     }
     if (statusSelect instanceof HTMLSelectElement) {
-      statusSelect.value = DAFTAR_STATUS_KEGIATAN.includes(kegiatanEdit.status)
-        ? kegiatanEdit.status
-        : "Rencana";
+      statusSelect.value = DAFTAR_STATUS_KEGIATAN.includes(kegiatanEdit.status) ? kegiatanEdit.status : "Rencana";
     }
     if (catatanInput) catatanInput.value = kegiatanEdit.catatan || "";
   } else {
+    const tanggalTerpilihValid =
+      typeof tanggalAwal === "string" && parseTanggal(tanggalAwal) ? tanggalAwal.trim() : hariIni();
+
     if (titleEl) titleEl.textContent = "Tambah Kegiatan";
     if (submitBtn) submitBtn.textContent = "Simpan Kegiatan";
     if (idInput) idInput.value = "";
     if (judulInput) judulInput.value = "";
-    if (tanggalInput) tanggalInput.value = hariIni();
+    if (tanggalInput) tanggalInput.value = tanggalTerpilihValid;
     if (mulaiInput) mulaiInput.value = "";
     if (selesaiInput) selesaiInput.value = "";
     if (lokasiInput) lokasiInput.value = "";
@@ -592,19 +396,14 @@ function bukaModalFormKegiatan(kegiatanEdit = null) {
         kategoriSelect.value = daftarKat.length > 0 ? daftarKat[0].id : "";
       }
     }
-    if (statusSelect instanceof HTMLSelectElement) {
-      statusSelect.value = "Rencana";
-    }
+    if (statusSelect instanceof HTMLSelectElement) statusSelect.value = "Rencana";
     if (catatanInput) catatanInput.value = "";
   }
 
   formModalTerbuka = true;
   modal.hidden = false;
-
   requestAnimationFrame(() => {
-    if (judulInput instanceof HTMLElement) {
-      judulInput.focus();
-    }
+    if (judulInput instanceof HTMLElement) judulInput.focus();
   });
 }
 
@@ -615,28 +414,19 @@ function tutupModalFormKegiatan(kembalikanFokus = true) {
   modal.hidden = true;
   setPesanGalatFormKegiatan("");
 
-  if (
-    kembalikanFokus &&
-    fokusSebelumModalKegiatan &&
-    document.contains(fokusSebelumModalKegiatan)
-  ) {
+  if (kembalikanFokus && fokusSebelumModalKegiatan && document.contains(fokusSebelumModalKegiatan)) {
     fokusSebelumModalKegiatan.focus();
   }
   fokusSebelumModalKegiatan = null;
 }
 
-/**
- * Membuka dialog konfirmasi penghapusan kegiatan.
- * @param {object} item
- */
-function bukaDialogHapusKegiatan(item) {
+export function bukaDialogHapusKegiatan(item) {
   const modal = document.getElementById("kegiatan-delete-modal");
   const desc = document.getElementById("kegiatan-delete-desc");
   const cancelBtn = document.getElementById("kegiatan-delete-cancel-btn");
-  if (!modal) return;
+  if (!modal || !item) return;
 
-  fokusSebelumModalKegiatan =
-    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  fokusSebelumModalKegiatan = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   idKegiatanAkanDihapus = item.id;
   if (desc) {
     desc.textContent = `Kegiatan "${item.judul}" pada ${formatTanggalTampilan(item.tanggal)} akan dihapus permanen.`;
@@ -644,11 +434,8 @@ function bukaDialogHapusKegiatan(item) {
 
   hapusModalTerbuka = true;
   modal.hidden = false;
-
   requestAnimationFrame(() => {
-    if (cancelBtn instanceof HTMLElement) {
-      cancelBtn.focus();
-    }
+    if (cancelBtn instanceof HTMLElement) cancelBtn.focus();
   });
 }
 
@@ -659,76 +446,40 @@ function tutupDialogHapusKegiatan(kembalikanFokus = true) {
   idKegiatanAkanDihapus = null;
   modal.hidden = true;
 
-  if (
-    kembalikanFokus &&
-    fokusSebelumModalKegiatan &&
-    document.contains(fokusSebelumModalKegiatan)
-  ) {
+  if (kembalikanFokus && fokusSebelumModalKegiatan && document.contains(fokusSebelumModalKegiatan)) {
     fokusSebelumModalKegiatan.focus();
   }
   fokusSebelumModalKegiatan = null;
 }
 
-/**
- * Validasi masukan form kegiatan (judul & tanggal wajib, waktu selesai >= waktu mulai).
- */
 function ambilDanValidasiDataForm() {
-  const judulEl = document.getElementById("kegiatan-judul-input");
-  const tanggalEl = document.getElementById("kegiatan-tanggal-input");
-  const mulaiEl = document.getElementById("kegiatan-mulai-input");
-  const selesaiEl = document.getElementById("kegiatan-selesai-input");
-  const lokasiEl = document.getElementById("kegiatan-lokasi-input");
-  const kategoriEl = document.getElementById("kegiatan-kategori-select");
-  const statusEl = document.getElementById("kegiatan-status-select");
-  const catatanEl = document.getElementById("kegiatan-catatan-input");
+  const judul = String(document.getElementById("kegiatan-judul-input")?.value || "").trim();
+  const tanggal = String(document.getElementById("kegiatan-tanggal-input")?.value || "").trim();
+  const waktuMulai = String(document.getElementById("kegiatan-mulai-input")?.value || "").trim();
+  const waktuSelesai = String(document.getElementById("kegiatan-selesai-input")?.value || "").trim();
+  const lokasi = String(document.getElementById("kegiatan-lokasi-input")?.value || "").trim();
+  const kategoriId = String(document.getElementById("kegiatan-kategori-select")?.value || "").trim();
+  const statusMentah = String(document.getElementById("kegiatan-status-select")?.value || "Rencana").trim();
+  const catatan = String(document.getElementById("kegiatan-catatan-input")?.value || "").trim();
 
-  const judul = String(judulEl?.value || "").trim();
-  const tanggal = String(tanggalEl?.value || "").trim();
-  const waktuMulai = String(mulaiEl?.value || "").trim();
-  const waktuSelesai = String(selesaiEl?.value || "").trim();
-  const lokasi = String(lokasiEl?.value || "").trim();
-  const kategoriId = String(kategoriEl?.value || "").trim();
-  const statusMentah = String(statusEl?.value || "Rencana").trim();
-  const catatan = String(catatanEl?.value || "").trim();
-
-  if (!judul) {
-    throw new Error("Judul kegiatan wajib diisi.");
-  }
-
+  if (!judul) throw new Error("Judul kegiatan wajib diisi.");
   if (!tanggal || !parseTanggal(tanggal)) {
     throw new Error("Tanggal kegiatan wajib diisi dengan format tanggal yang benar.");
   }
-
   if (!validJamOpsional(waktuMulai) || !validJamOpsional(waktuSelesai)) {
     throw new Error("Format waktu harus berupa jam:menit (HH:MM).");
   }
-
   if (waktuSelesai && !waktuMulai) {
     throw new Error("Isi waktu mulai terlebih dahulu sebelum mengisi waktu selesai.");
   }
-
   if (waktuMulai && waktuSelesai && waktuSelesai < waktuMulai) {
     throw new Error("Waktu selesai tidak boleh lebih awal dari waktu mulai.");
   }
 
   const status = DAFTAR_STATUS_KEGIATAN.includes(statusMentah) ? statusMentah : "Rencana";
-
-  return {
-    judul,
-    catatan,
-    tanggal,
-    waktuMulai,
-    waktuSelesai,
-    lokasi,
-    kategoriId,
-    status
-  };
+  return { judul, catatan, tanggal, waktuMulai, waktuSelesai, lokasi, kategoriId, status };
 }
 
-/**
- * Mengatur filter kategori dari layar Kelola Kategori ("Lihat kegiatan kategori ini").
- * @param {string} targetKategoriId
- */
 export function terapkanFilterKategoriKegiatan(targetKategoriId) {
   kataKunciCari = "";
   filterStatus = "ALL";
@@ -747,9 +498,24 @@ export function terapkanFilterKategoriKegiatan(targetKategoriId) {
   renderDaftarKegiatan();
 }
 
-/**
- * Mengikat seluruh event listener Halaman Kegiatan, modal form, konfirmasi hapus, dan Kelola Kategori.
- */
+export function terapkanFilterStatusKegiatan(targetStatus) {
+  kataKunciCari = "";
+  filterKategoriId = "ALL";
+  filterStatus = DAFTAR_STATUS_KEGIATAN.includes(targetStatus) ? targetStatus : "ALL";
+
+  const searchInput = document.getElementById("kegiatan-search-input");
+  const statusSelect = document.getElementById("kegiatan-filter-status");
+  const katSelect = document.getElementById("kegiatan-filter-kategori");
+
+  if (searchInput instanceof HTMLInputElement) searchInput.value = "";
+  perbaruiDropdownKategori();
+  if (katSelect instanceof HTMLSelectElement) katSelect.value = "ALL";
+  if (statusSelect instanceof HTMLSelectElement) statusSelect.value = filterStatus;
+
+  pindahKeBagian("kegiatan");
+  renderDaftarKegiatan();
+}
+
 export function initHalamanKegiatan() {
   pastikanKerangkaHalamanKegiatan();
   if (antarmukaSudahDiikat) return;
@@ -765,19 +531,14 @@ export function initHalamanKegiatan() {
   manajerKategoriKegiatan.onChange(() => {
     perbaruiDropdownKategori();
     renderDaftarKegiatan();
+    beritahuPerubahanKegiatan();
   });
 
   const btnKelolaKat = document.getElementById("btn-buka-kelola-kategori");
-  if (btnKelolaKat) {
-    btnKelolaKat.addEventListener("click", () => {
-      dialogKelolaKategoriCtrl?.buka();
-    });
-  }
+  if (btnKelolaKat) btnKelolaKat.addEventListener("click", () => dialogKelolaKategoriCtrl?.buka());
 
   const btnTambah = document.getElementById("btn-tambah-kegiatan");
-  if (btnTambah) {
-    btnTambah.addEventListener("click", () => bukaModalFormKegiatan(null));
-  }
+  if (btnTambah) btnTambah.addEventListener("click", () => bukaModalFormKegiatan(null));
 
   const searchInput = document.getElementById("kegiatan-search-input");
   if (searchInput) {
@@ -836,19 +597,12 @@ export function initHalamanKegiatan() {
       const item = daftarKegiatan.find((k) => k.id === id);
       if (!item) return;
 
-      if (aksi === "edit-kegiatan") {
-        bukaModalFormKegiatan(item);
-      } else if (aksi === "delete-kegiatan") {
-        bukaDialogHapusKegiatan(item);
-      }
+      if (aksi === "edit-kegiatan") bukaModalFormKegiatan(item);
+      else if (aksi === "delete-kegiatan") bukaDialogHapusKegiatan(item);
     });
 
     listRegion.addEventListener("change", async (e) => {
-      const select =
-        e.target instanceof HTMLSelectElement &&
-        e.target.getAttribute("data-action") === "quick-status"
-          ? e.target
-          : null;
+      const select = e.target instanceof HTMLSelectElement && e.target.getAttribute("data-action") === "quick-status" ? e.target : null;
       if (!select) return;
 
       const id = select.getAttribute("data-id");
@@ -858,11 +612,7 @@ export function initHalamanKegiatan() {
       tampilkanGalatHalamanKegiatan("");
       select.disabled = true;
       try {
-        const db = getFirestoreDb();
-        await updateDoc(doc(db, "kegiatan", id), {
-          status: statusBaru,
-          updatedAt: new Date().toISOString()
-        });
+        await ubahStatusKegiatanCepat(id, statusBaru);
       } catch (err) {
         tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
         renderDaftarKegiatan();
@@ -872,19 +622,14 @@ export function initHalamanKegiatan() {
     });
   }
 
-  // Modal Form Kegiatan
   const formModal = document.getElementById("kegiatan-form-modal");
   const formEl = document.getElementById("kegiatan-form");
   const formCloseBtn = document.getElementById("kegiatan-form-close-btn");
   const formCancelBtn = document.getElementById("kegiatan-form-cancel-btn");
   const formSubmitBtn = document.getElementById("kegiatan-form-submit-btn");
 
-  if (formCloseBtn) {
-    formCloseBtn.addEventListener("click", () => tutupModalFormKegiatan(true));
-  }
-  if (formCancelBtn) {
-    formCancelBtn.addEventListener("click", () => tutupModalFormKegiatan(true));
-  }
+  if (formCloseBtn) formCloseBtn.addEventListener("click", () => tutupModalFormKegiatan(true));
+  if (formCancelBtn) formCancelBtn.addEventListener("click", () => tutupModalFormKegiatan(true));
   if (formModal) {
     formModal.addEventListener("click", (e) => {
       if (e.target === formModal) tutupModalFormKegiatan(true);
@@ -900,9 +645,7 @@ export function initHalamanKegiatan() {
       try {
         payload = ambilDanValidasiDataForm();
       } catch (validErr) {
-        setPesanGalatFormKegiatan(
-          validErr instanceof Error ? validErr.message : "Data kegiatan belum lengkap."
-        );
+        setPesanGalatFormKegiatan(validErr instanceof Error ? validErr.message : "Data kegiatan belum lengkap.");
         return;
       }
 
@@ -913,16 +656,9 @@ export function initHalamanKegiatan() {
       try {
         const db = getFirestoreDb();
         if (idEdit) {
-          await updateDoc(doc(db, "kegiatan", idEdit), {
-            ...payload,
-            updatedAt: sekarang
-          });
+          await updateDoc(doc(db, "kegiatan", idEdit), { ...payload, updatedAt: sekarang });
         } else {
-          await addDoc(collection(db, "kegiatan"), {
-            ...payload,
-            createdAt: sekarang,
-            updatedAt: sekarang
-          });
+          await addDoc(collection(db, "kegiatan"), { ...payload, createdAt: sekarang, updatedAt: sekarang });
         }
         tutupModalFormKegiatan(true);
       } catch (err) {
@@ -933,14 +669,11 @@ export function initHalamanKegiatan() {
     });
   }
 
-  // Modal Konfirmasi Hapus Kegiatan
   const deleteModal = document.getElementById("kegiatan-delete-modal");
   const deleteCancelBtn = document.getElementById("kegiatan-delete-cancel-btn");
   const deleteConfirmBtn = document.getElementById("kegiatan-delete-confirm-btn");
 
-  if (deleteCancelBtn) {
-    deleteCancelBtn.addEventListener("click", () => tutupDialogHapusKegiatan(true));
-  }
+  if (deleteCancelBtn) deleteCancelBtn.addEventListener("click", () => tutupDialogHapusKegiatan(true));
   if (deleteModal) {
     deleteModal.addEventListener("click", (e) => {
       if (e.target === deleteModal) tutupDialogHapusKegiatan(true);
@@ -977,24 +710,20 @@ export function initHalamanKegiatan() {
   });
 }
 
-/**
- * Memulai langganan real-time koleksi "kategoriKegiatan" dan "kegiatan" setelah pengguna sah masuk.
- * Mematuhi Aturan #5: selalu menghentikan langganan lama terlebih dahulu sebelum membuat yang baru.
- */
 export function subscribeKegiatan() {
   unsubscribeKegiatan();
   initHalamanKegiatan();
   sudahDimuatPertamaKali = false;
   renderDaftarKegiatan();
+  beritahuPerubahanKegiatan();
 
   manajerKategoriKegiatan.subscribe(
     () => {
       perbaruiDropdownKategori();
       renderDaftarKegiatan();
+      beritahuPerubahanKegiatan();
     },
-    (pesanGalat) => {
-      tampilkanGalatHalamanKegiatan(pesanGalat);
-    }
+    (pesanGalat) => tampilkanGalatHalamanKegiatan(pesanGalat)
   );
 
   const db = getFirestoreDb();
@@ -1026,27 +755,22 @@ export function subscribeKegiatan() {
       tampilkanGalatHalamanKegiatan("");
       renderDaftarKegiatan();
       dialogKelolaKategoriCtrl?.segarkanTampilan();
+      beritahuPerubahanKegiatan();
     },
     (err) => {
       sudahDimuatPertamaKali = true;
       tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
       renderDaftarKegiatan();
+      beritahuPerubahanKegiatan();
     }
   );
 
   return () => unsubscribeKegiatan();
 }
 
-/**
- * Menghentikan langganan Firestore kegiatan & kategori kegiatan saat logout atau pergantian sesi (Aturan #5).
- */
 export function unsubscribeKegiatan() {
   if (typeof unsubscribeSnapshotKegiatan === "function") {
-    try {
-      unsubscribeSnapshotKegiatan();
-    } catch (_e) {
-      // Abaikan kesalahan berhenti langganan
-    }
+    try { unsubscribeSnapshotKegiatan(); } catch (_e) {}
     unsubscribeSnapshotKegiatan = null;
   }
 
@@ -1057,4 +781,5 @@ export function unsubscribeKegiatan() {
   tutupModalFormKegiatan(false);
   tutupDialogHapusKegiatan(false);
   dialogKelolaKategoriCtrl?.tutup(false);
+  beritahuPerubahanKegiatan();
 }

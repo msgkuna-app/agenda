@@ -1,8 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 1: Kategori Kegiatan & Kegiatan)
- * Mengatur urutan tampilan sesi masuk, layar galat konfigurasi, layar login,
- * langganan data kegiatan & kategori saat login, pemantauan kedaluwarsa token Google Drive,
- * konfirmasi keluar, serta pendaftaran PWA Service Worker.
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 2: Jadwal & Dashboard)
+ * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (mengikuti
+ * langganan kegiatan tunggal tanpa langganan ganda), halaman Kegiatan & Jadwal,
+ * pemantau kedaluwarsa token Google Drive, konfirmasi keluar, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -19,58 +19,60 @@ import {
   initSidebar,
   perbaruiInfoAkunSidebar,
   tutupDrawerMobile,
+  pindahKeBagian,
   escapeHtml
 } from "./sidebar.js";
-import { hariIni, parseTanggal } from "./util-tanggal.js";
+import { hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import {
+  DAFTAR_STATUS_KEGIATAN,
+  manajerKategoriKegiatan,
   initHalamanKegiatan,
   subscribeKegiatan,
-  unsubscribeKegiatan
+  unsubscribeKegiatan,
+  getDaftarKegiatan,
+  isKegiatanSudahDimuat,
+  onPerubahanKegiatan,
+  bukaModalFormKegiatan,
+  terapkanFilterStatusKegiatan,
+  kelasBadgeStatus
 } from "./kegiatan.js";
+import {
+  initHalamanJadwal,
+  renderHalamanJadwal,
+  bukaJadwalPadaTanggal,
+  bukaDialogDetailKegiatan,
+  resetHalamanJadwalSaatKeluar,
+  formatTanggalLengkapIndonesia,
+  formatTanggalRingkasIndonesia,
+  urutkanKegiatanKronologis
+} from "./jadwal.js";
 
 const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const NAMA_BULAN = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember"
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ];
+
+const svgIkon = (isi, uk = 18, tebal = 2) =>
+  `<svg viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 let dataUnsubscribers = [];
 let tokenCheckIntervalId = null;
 let logoutDialogOpen = false;
 let focusBeforeModal = null;
+let dashboardSudahDiikat = false;
 
-/**
- * Menghentikan seluruh langganan Firestore aktif sebelum membuat yang baru atau saat keluar (Aturan #5).
- */
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
+  resetHalamanJadwalSaatKeluar();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
-      try {
-        unsub();
-      } catch (_err) {
-        // Abaikan kesalahan saat berhenti berlangganan
-      }
+      try { unsub(); } catch (_err) {}
     }
   }
 }
 
-/**
- * Menampilkan tepat satu layar utama ("checking" | "config-error" | "login" | "app")
- * sehingga saat belum login, sidebar dan header sama sekali tidak tampil (Aturan #5).
- * @param {"checking" | "config-error" | "login" | "app"} namaLayar
- */
 function tampilkanLayarUtama(namaLayar) {
   const layarChecking = document.getElementById("screen-checking");
   const layarConfigError = document.getElementById("screen-config-error");
@@ -88,51 +90,245 @@ function tampilkanLayarUtama(namaLayar) {
   }
 }
 
-/**
- * Menampilkan atau menyembunyikan kotak pesan galat di layar login.
- * @param {string} pesan
- */
 function setPesanGalatLogin(pesan) {
   const kotak = document.getElementById("login-error-box");
   const teks = document.getElementById("login-error-text");
   if (!kotak || !teks) return;
-
-  if (pesan && pesan.trim()) {
-    teks.textContent = pesan.trim();
-    kotak.hidden = false;
-  } else {
-    teks.textContent = "";
-    kotak.hidden = true;
-  }
+  const bersih = pesan ? pesan.trim() : "";
+  teks.textContent = bersih;
+  kotak.hidden = !bersih;
 }
 
-/**
- * Menampilkan tanggal hari ini secara ramah di header menggunakan util-tanggal.js.
- */
 function perbaruiTanggalHeader() {
   const el = document.getElementById("header-date-text");
   if (!el) return;
   const isoLokal = hariIni();
   const tgl = parseTanggal(isoLokal);
-  if (!tgl) {
-    el.textContent = isoLokal;
-    return;
-  }
-  const hari = NAMA_HARI[tgl.getDay()];
-  const tanggal = tgl.getDate();
-  const bulan = NAMA_BULAN[tgl.getMonth()];
-  const tahun = tgl.getFullYear();
-  el.textContent = `${hari}, ${tanggal} ${bulan} ${tahun}`;
+  el.textContent = tgl
+    ? `${NAMA_HARI[tgl.getDay()]}, ${tgl.getDate()} ${NAMA_BULAN[tgl.getMonth()]} ${tgl.getFullYear()}`
+    : isoLokal;
 }
 
-/**
- * Memeriksa status kedaluwarsa access token Google Drive (50 menit)
- * dan menampilkan pita "Masuk ulang" jika token kedaluwarsa atau belum tersedia.
- */
+function pastikanKerangkaDashboard() {
+  const panel = document.getElementById("section-dashboard");
+  if (!panel || panel.querySelector("#dashboard-cards-grid")) return;
+
+  panel.innerHTML = `<div class="page-stack">
+    <div class="section-header-bar">
+      <div class="section-heading-group">
+        <h2 class="section-heading-title">Ringkasan Hari Ini</h2>
+        <p id="dashboard-subtitle-tanggal" class="section-heading-subtitle"></p>
+      </div>
+      <div class="section-header-actions">
+        <button type="button" id="btn-dashboard-buka-jadwal" class="btn-secondary">${svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 17)}<span>Buka Jadwal</span></button>
+        <button type="button" id="btn-dashboard-tambah-kegiatan" class="btn-primary">${svgIkon('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', 18, 2.2)}<span>Tambah kegiatan</span></button>
+      </div>
+    </div>
+    <div id="dashboard-cards-grid" class="dashboard-cards-grid">
+      <section class="dash-card" aria-labelledby="dash-title-hari-ini">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-hari-ini" class="dash-card-title">Kegiatan hari ini</h3>
+            <span id="dash-meta-hari-ini" class="dash-card-caption"></span>
+          </div>
+          <span id="dash-count-hari-ini" class="dash-metric-number">0</span>
+        </div>
+        <div id="dash-body-hari-ini" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="tambah-hari-ini">+ Tambah kegiatan hari ini</button>
+          <button type="button" class="btn-link-filter" data-dash-action="jadwal-hari-ini">Lihat di kalender</button>
+        </div>
+      </section>
+
+      <section class="dash-card" aria-labelledby="dash-title-7hari">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-7hari" class="dash-card-title">7 hari ke depan</h3>
+            <span id="dash-meta-7hari" class="dash-card-caption"></span>
+          </div>
+          <span id="dash-count-7hari" class="dash-metric-number">0</span>
+        </div>
+        <div id="dash-body-7hari" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="buka-jadwal">Buka halaman Jadwal</button>
+        </div>
+      </section>
+
+      <section class="dash-card" aria-labelledby="dash-title-status">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-status" class="dash-card-title">Ringkasan status</h3>
+            <span id="dash-meta-status" class="dash-card-caption">Semua kegiatan tercatat</span>
+          </div>
+          <span id="dash-count-total" class="dash-metric-number">0</span>
+        </div>
+        <div id="dash-body-status" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="semua-kegiatan">Kelola semua kegiatan</button>
+        </div>
+      </section>
+
+      <section class="dash-card" aria-labelledby="dash-title-dokumen">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-dokumen" class="dash-card-title">Dokumen terbaru</h3>
+            <span class="dash-card-caption">Arsip Google Drive</span>
+          </div>
+        </div>
+        <div id="dash-body-dokumen" class="dash-card-body dash-placeholder-box">
+          <div class="dash-placeholder-icon" aria-hidden="true">${svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', 22)}</div>
+          <p class="dash-placeholder-title">Segera Hadir pada Fase 3</p>
+          <p class="dash-placeholder-desc">Daftar dokumen terbaru dari Google Drive Anda akan tampil secara otomatis di kartu ini setelah modul Dokumen &amp; Arsip diaktifkan pada Fase 3.</p>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
+
+function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
+  const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
+  const labelWaktu = item.waktuMulai
+    ? item.waktuSelesai ? `${item.waktuMulai}–${item.waktuSelesai}` : item.waktuMulai
+    : "Sepanjang hari";
+  const infoSub = tampilkanTanggal ? `${formatTanggalRingkasIndonesia(item.tanggal)} • ${labelWaktu}` : labelWaktu;
+
+  return `<li class="dash-activity-item${item.status === "Selesai" ? " is-completed" : ""}">
+    <div class="dash-activity-main">
+      <button type="button" class="dash-activity-title-btn" data-dash-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
+      <div class="dash-activity-meta">
+        <span class="dash-activity-time">${escapeHtml(infoSub)}</span>
+        <span class="dash-meta-sep" aria-hidden="true">•</span>
+        <span class="dash-cat-inline"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
+      </div>
+    </div>
+    <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
+  </li>`;
+}
+
+function renderDashboard() {
+  pastikanKerangkaDashboard();
+
+  const strHariIni = hariIni();
+  const strBesok = tambahHari(1);
+  const strTujuhHari = tambahHari(7);
+
+  const subtitleEl = document.getElementById("dashboard-subtitle-tanggal");
+  if (subtitleEl) {
+    subtitleEl.textContent = `Ikhtisar jadwal dan status kegiatan Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
+  }
+
+  const metaHariIniEl = document.getElementById("dash-meta-hari-ini");
+  const meta7HariEl = document.getElementById("dash-meta-7hari");
+  if (metaHariIniEl) metaHariIniEl.textContent = formatTanggalRingkasIndonesia(strHariIni);
+  if (meta7HariEl) meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
+
+  const bodyHariIni = document.getElementById("dash-body-hari-ini");
+  const body7Hari = document.getElementById("dash-body-7hari");
+  const bodyStatus = document.getElementById("dash-body-status");
+  const countHariIni = document.getElementById("dash-count-hari-ini");
+  const count7Hari = document.getElementById("dash-count-7hari");
+  const countTotal = document.getElementById("dash-count-total");
+  if (!bodyHariIni || !body7Hari || !bodyStatus) return;
+
+  if (!isKegiatanSudahDimuat()) {
+    const muatHtml = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat data kegiatan...</span></div>`;
+    bodyHariIni.innerHTML = muatHtml;
+    body7Hari.innerHTML = muatHtml;
+    bodyStatus.innerHTML = muatHtml;
+    return;
+  }
+
+  const semuaKegiatan = getDaftarKegiatan();
+
+  // 1. Kegiatan hari ini: tanggal == hariIni() (semua status tetap dihitung)
+  const kegiatanHariIni = urutkanKegiatanKronologis(
+    semuaKegiatan.filter((item) => Boolean(parseTanggal(item.tanggal)) && item.tanggal === strHariIni)
+  );
+
+  // 2. 7 hari ke depan: hariIni() sampai tambahHari(7), tidak termasuk hari ini (semua status tetap dihitung)
+  const kegiatan7Hari = urutkanKegiatanKronologis(
+    semuaKegiatan.filter(
+      (item) => Boolean(parseTanggal(item.tanggal)) && item.tanggal > strHariIni && item.tanggal <= strTujuhHari
+    )
+  );
+
+  // 3. Ringkasan status: jumlah per status
+  const hitunganStatus = { Rencana: 0, Berjalan: 0, Selesai: 0 };
+  semuaKegiatan.forEach((item) => {
+    const st = DAFTAR_STATUS_KEGIATAN.includes(item.status) ? item.status : "Rencana";
+    hitunganStatus[st] += 1;
+  });
+
+  if (countHariIni) countHariIni.textContent = String(kegiatanHariIni.length);
+  if (count7Hari) count7Hari.textContent = String(kegiatan7Hari.length);
+  if (countTotal) countTotal.textContent = String(semuaKegiatan.length);
+
+  if (kegiatanHariIni.length === 0) {
+    bodyHariIni.innerHTML = `<p class="dash-empty-text">Belum ada kegiatan yang dijadwalkan untuk hari ini.</p>`;
+  } else {
+    const maks = 5;
+    const sisa = kegiatanHariIni.length - maks;
+    bodyHariIni.innerHTML = `<ul class="dash-activity-list">${kegiatanHariIni.slice(0, maks).map((item) => renderBarisKegiatanDashboard(item, false)).join("")}</ul>${sisa > 0 ? `<p class="dash-more-note">+${sisa} kegiatan lainnya hari ini</p>` : ""}`;
+  }
+
+  if (kegiatan7Hari.length === 0) {
+    body7Hari.innerHTML = `<p class="dash-empty-text">Tidak ada kegiatan terjadwal untuk 7 hari ke depan (besok hingga ${escapeHtml(formatTanggalRingkasIndonesia(strTujuhHari))}).</p>`;
+  } else {
+    const maks7 = 5;
+    const sisa7 = kegiatan7Hari.length - maks7;
+    body7Hari.innerHTML = `<ul class="dash-activity-list">${kegiatan7Hari.slice(0, maks7).map((item) => renderBarisKegiatanDashboard(item, true)).join("")}</ul>${sisa7 > 0 ? `<p class="dash-more-note">+${sisa7} kegiatan lainnya dalam 7 hari ke depan</p>` : ""}`;
+  }
+
+  const totalSemua = semuaKegiatan.length;
+  bodyStatus.innerHTML = `<ul class="dash-status-list">${DAFTAR_STATUS_KEGIATAN.map((st) => {
+    const jumlah = hitunganStatus[st] || 0;
+    const persen = totalSemua > 0 ? Math.round((jumlah / totalSemua) * 100) : 0;
+    return `<li class="dash-status-row">
+      <button type="button" class="dash-status-btn" data-dash-action="filter-status" data-status="${escapeHtml(st)}" title="Lihat kegiatan berstatus ${escapeHtml(st)}">
+        <span class="${kelasBadgeStatus(st)}">${escapeHtml(st)}</span>
+        <span class="dash-status-numbers"><strong class="dash-status-count">${jumlah}</strong><span class="dash-status-pct">(${persen}%)</span></span>
+      </button>
+    </li>`;
+  }).join("")}</ul>`;
+}
+
+function initHalamanDashboard() {
+  pastikanKerangkaDashboard();
+  if (dashboardSudahDiikat) return;
+  dashboardSudahDiikat = true;
+
+  const panel = document.getElementById("section-dashboard");
+  if (panel) {
+    panel.addEventListener("click", (e) => {
+      const targetEl = e.target instanceof Element ? e.target : null;
+      if (!targetEl) return;
+
+      if (targetEl.closest("#btn-dashboard-buka-jadwal")) { pindahKeBagian("jadwal"); return; }
+      if (targetEl.closest("#btn-dashboard-tambah-kegiatan")) { bukaModalFormKegiatan(null, hariIni()); return; }
+
+      const btnAksi = targetEl.closest("button[data-dash-action]");
+      if (!btnAksi) return;
+
+      const aksi = btnAksi.getAttribute("data-dash-action");
+      if (aksi === "tambah-hari-ini") bukaModalFormKegiatan(null, hariIni());
+      else if (aksi === "jadwal-hari-ini") bukaJadwalPadaTanggal(hariIni());
+      else if (aksi === "buka-jadwal") pindahKeBagian("jadwal");
+      else if (aksi === "semua-kegiatan") terapkanFilterStatusKegiatan("ALL");
+      else if (aksi === "filter-status") terapkanFilterStatusKegiatan(btnAksi.getAttribute("data-status") || "ALL");
+      else if (aksi === "detail-kegiatan") {
+        const id = btnAksi.getAttribute("data-id") || "";
+        if (id) bukaDialogDetailKegiatan(id);
+      }
+    });
+  }
+
+  onPerubahanKegiatan(() => renderDashboard());
+  renderDashboard();
+}
+
 function periksaStatusTokenDrive() {
   const banner = document.getElementById("token-expired-banner");
-  if (!banner) return;
-  banner.hidden = !isDriveTokenExpired();
+  if (banner) banner.hidden = !isDriveTokenExpired();
 }
 
 function mulaiPemantauTokenDrive() {
@@ -150,18 +346,11 @@ function hentikanPemantauTokenDrive() {
   if (banner) banner.hidden = true;
 }
 
-/**
- * Menampilkan pemberitahuan status koneksi internet (offline/online).
- */
 function perbaruiIndikatorJaringan() {
   const offlineBanner = document.getElementById("offline-banner");
-  if (!offlineBanner) return;
-  offlineBanner.hidden = navigator.onLine;
+  if (offlineBanner) offlineBanner.hidden = navigator.onLine;
 }
 
-/**
- * Membuka dialog konfirmasi "Keluar dari aplikasi?" (tanpa window.confirm karena batasan iFrame/PWA).
- */
 function bukaDialogKeluar() {
   const modal = document.getElementById("logout-confirm-modal");
   const btnBatal = document.getElementById("logout-cancel-btn");
@@ -170,34 +359,23 @@ function bukaDialogKeluar() {
   focusBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   logoutDialogOpen = true;
   modal.hidden = false;
-
   requestAnimationFrame(() => {
-    if (btnBatal instanceof HTMLElement) {
-      btnBatal.focus();
-    }
+    if (btnBatal instanceof HTMLElement) btnBatal.focus();
   });
 }
 
-/**
- * Menutup dialog konfirmasi keluar.
- * @param {boolean} [kembalikanFokus=true]
- */
 function tutupDialogKeluar(kembalikanFokus = true) {
   const modal = document.getElementById("logout-confirm-modal");
   if (!modal || !logoutDialogOpen) return;
 
   logoutDialogOpen = false;
   modal.hidden = true;
-
   if (kembalikanFokus && focusBeforeModal && document.contains(focusBeforeModal)) {
     focusBeforeModal.focus();
   }
   focusBeforeModal = null;
 }
 
-/**
- * Memasang seluruh event listener untuk login, masuk ulang token, dan konfirmasi keluar.
- */
 function pasangEventListenerAntarmuka() {
   const btnLogin = document.getElementById("google-login-btn");
   if (btnLogin) {
@@ -234,9 +412,7 @@ function pasangEventListenerAntarmuka() {
         periksaStatusTokenDrive();
       } catch (err) {
         const bannerText = document.getElementById("token-expired-text");
-        if (bannerText) {
-          bannerText.textContent = `Gagal memperbarui sesi Drive: ${escapeHtml(formatPesanGalatAuth(err))}`;
-        }
+        if (bannerText) bannerText.textContent = `Gagal memperbarui sesi Drive: ${escapeHtml(formatPesanGalatAuth(err))}`;
       } finally {
         btnRelogin.disabled = false;
         btnRelogin.textContent = teksAwal;
@@ -248,17 +424,8 @@ function pasangEventListenerAntarmuka() {
   const btnBatalLogout = document.getElementById("logout-cancel-btn");
   const btnKonfirmasiLogout = document.getElementById("logout-confirm-btn");
 
-  if (btnBatalLogout) {
-    btnBatalLogout.addEventListener("click", () => tutupDialogKeluar(true));
-  }
-
-  if (modalLogout) {
-    modalLogout.addEventListener("click", (e) => {
-      if (e.target === modalLogout) {
-        tutupDialogKeluar(true);
-      }
-    });
-  }
+  if (btnBatalLogout) btnBatalLogout.addEventListener("click", () => tutupDialogKeluar(true));
+  if (modalLogout) modalLogout.addEventListener("click", (e) => { if (e.target === modalLogout) tutupDialogKeluar(true); });
 
   if (btnKonfirmasiLogout) {
     btnKonfirmasiLogout.addEventListener("click", async () => {
@@ -304,15 +471,14 @@ function pasangEventListenerAntarmuka() {
     if (document.visibilityState === "visible" && !document.getElementById("app-shell")?.hidden) {
       periksaStatusTokenDrive();
       perbaruiTanggalHeader();
+      renderDashboard();
+      renderHalamanJadwal();
     }
   });
 }
 
 let deferredInstallPrompt = null;
 
-/**
- * Mengelola tombol "Pasang Aplikasi" untuk PWA (beforeinstallprompt & panduan iOS Safari).
- */
 function initPwaInstallPrompt() {
   const btnInstall = document.getElementById("pwa-install-btn");
   const iosModal = document.getElementById("ios-install-modal");
@@ -322,18 +488,13 @@ function initPwaInstallPrompt() {
   const sedangStandalone =
     (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
     window.navigator.standalone === true;
-
   if (sedangStandalone) {
     btnInstall.hidden = true;
     return;
   }
 
-  const ua = window.navigator.userAgent.toLowerCase();
-  const perangkatIos = /iphone|ipad|ipod/.test(ua);
-
-  if (perangkatIos) {
-    btnInstall.hidden = false;
-  }
+  const perangkatIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  if (perangkatIos) btnInstall.hidden = false;
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -350,39 +511,24 @@ function initPwaInstallPrompt() {
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       const pilihan = await deferredInstallPrompt.userChoice;
-      if (pilihan && pilihan.outcome === "accepted") {
-        btnInstall.hidden = true;
-      }
+      if (pilihan && pilihan.outcome === "accepted") btnInstall.hidden = true;
       deferredInstallPrompt = null;
     } else if (perangkatIos && iosModal) {
       iosModal.hidden = false;
-      if (btnTutupIos instanceof HTMLElement) {
-        btnTutupIos.focus();
-      }
+      if (btnTutupIos instanceof HTMLElement) btnTutupIos.focus();
     }
   });
 
   if (btnTutupIos && iosModal) {
-    btnTutupIos.addEventListener("click", () => {
-      iosModal.hidden = true;
-      btnInstall.focus();
-    });
+    btnTutupIos.addEventListener("click", () => { iosModal.hidden = true; btnInstall.focus(); });
     iosModal.addEventListener("click", (e) => {
-      if (e.target === iosModal) {
-        iosModal.hidden = true;
-        btnInstall.focus();
-      }
+      if (e.target === iosModal) { iosModal.hidden = true; btnInstall.focus(); }
     });
   }
 }
 
-/**
- * Mendaftarkan Service Worker PWA setelah event load dengan penanganan galat.
- */
 function daftarkanServiceWorker() {
-  if (!("serviceWorker" in navigator)) {
-    return;
-  }
+  if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", async () => {
     try {
       await navigator.serviceWorker.register("/sw.js", { scope: "/" });
@@ -392,50 +538,42 @@ function daftarkanServiceWorker() {
   });
 }
 
-/**
- * Inisialisasi Aplikasi (Fase 0 + Fase 1).
- */
 function mulaiAplikasi() {
   initTema();
   daftarkanServiceWorker();
   initPwaInstallPrompt();
 
   const ownerBadge = document.getElementById("authorized-owner-email");
-  if (ownerBadge) {
-    ownerBadge.textContent = AUTHORIZED_EMAIL;
-  }
+  if (ownerBadge) ownerBadge.textContent = AUTHORIZED_EMAIL;
 
-  // Aturan #1: Jika placeholder di firebase-config.js belum diganti, tampilkan layar galat panduan
   if (!isFirebaseConfigured()) {
     tampilkanLayarUtama("config-error");
     return;
   }
 
-  // Aturan #5: Awalnya tampilkan "Memeriksa sesi masuk..." sampai status diketahui
   tampilkanLayarUtama("checking");
 
   initSidebar({
-    initialSection: "kegiatan",
+    initialSection: "dashboard",
     onLogoutRequest: () => bukaDialogKeluar()
   });
 
   initHalamanKegiatan();
+  initHalamanJadwal();
+  initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
   perbaruiIndikatorJaringan();
 
   try {
     initAuth((user, _token) => {
-      // Hentikan langganan Firestore lama setiap kali status autentikasi berubah (Aturan #5)
       hentikanSemuaLanggananData();
 
       if (!user) {
         hentikanPemantauTokenDrive();
         perbaruiInfoAkunSidebar(null);
         const pesanPenolakan = consumeLastAuthError();
-        if (pesanPenolakan) {
-          setPesanGalatLogin(pesanPenolakan);
-        }
+        if (pesanPenolakan) setPesanGalatLogin(pesanPenolakan);
         tampilkanLayarUtama("login");
         return;
       }
@@ -446,7 +584,6 @@ function mulaiAplikasi() {
       tampilkanLayarUtama("app");
       mulaiPemantauTokenDrive();
 
-      // Mulai langganan Firestore untuk Kategori Kegiatan & Kegiatan setelah login (Aturan #5)
       const unsubKegiatan = subscribeKegiatan();
       dataUnsubscribers.push(unsubKegiatan);
     });
