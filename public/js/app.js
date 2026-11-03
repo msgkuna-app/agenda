@@ -1,8 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 2: Jadwal & Dashboard)
- * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (mengikuti
- * langganan kegiatan tunggal tanpa langganan ganda), halaman Kegiatan & Jadwal,
- * pemantau kedaluwarsa token Google Drive, konfirmasi keluar, dan Service Worker.
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 3: Dokumen di Google Drive)
+ * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (termasuk kartu
+ * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, dan Dokumen, pemantau kedaluwarsa token
+ * Google Drive, konfirmasi keluar, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -46,6 +46,19 @@ import {
   formatTanggalRingkasIndonesia,
   urutkanKegiatanKronologis
 } from "./jadwal.js";
+import {
+  manajerKategoriDokumen,
+  initHalamanDokumen,
+  subscribeDokumen,
+  unsubscribeDokumen,
+  getDaftarDokumen,
+  isDokumenSudahDimuat,
+  onPerubahanDokumen,
+  bukaModalUnggahDokumen,
+  formatTanggalDokumenLokal,
+  formatUkuranBerkas,
+  infoJenisBerkasMime
+} from "./dokumen.js";
 
 const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const NAMA_BULAN = [
@@ -64,6 +77,7 @@ let dashboardSudahDiikat = false;
 
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
+  unsubscribeDokumen();
   resetHalamanJadwalSaatKeluar();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
@@ -172,13 +186,14 @@ function pastikanKerangkaDashboard() {
         <div class="dash-card-header">
           <div class="dash-card-heading-group">
             <h3 id="dash-title-dokumen" class="dash-card-title">Dokumen terbaru</h3>
-            <span class="dash-card-caption">Arsip Google Drive</span>
+            <span class="dash-card-caption">5 berkas terakhir di Google Drive</span>
           </div>
+          <span id="dash-count-dokumen" class="dash-metric-number">0</span>
         </div>
-        <div id="dash-body-dokumen" class="dash-card-body dash-placeholder-box">
-          <div class="dash-placeholder-icon" aria-hidden="true">${svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', 22)}</div>
-          <p class="dash-placeholder-title">Segera Hadir pada Fase 3</p>
-          <p class="dash-placeholder-desc">Daftar dokumen terbaru dari Google Drive Anda akan tampil secara otomatis di kartu ini setelah modul Dokumen &amp; Arsip diaktifkan pada Fase 3.</p>
+        <div id="dash-body-dokumen" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="unggah-dokumen">+ Unggah dokumen</button>
+          <button type="button" class="btn-link-filter" data-dash-action="buka-dokumen">Semua dokumen</button>
         </div>
       </section>
     </div>
@@ -205,6 +220,71 @@ function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
   </li>`;
 }
 
+function renderKartuDokumenDashboard() {
+  const bodyDokumen = document.getElementById("dash-body-dokumen");
+  const countDokumen = document.getElementById("dash-count-dokumen");
+  if (!bodyDokumen) return;
+
+  if (!isDokumenSudahDimuat()) {
+    bodyDokumen.innerHTML = `<div class="dash-loading-state"><div class="spinner" aria-hidden="true"></div><span>Memuat arsip dokumen...</span></div>`;
+    return;
+  }
+
+  const semuaDokumen = getDaftarDokumen();
+  if (countDokumen) countDokumen.textContent = String(semuaDokumen.length);
+
+  if (semuaDokumen.length === 0) {
+    bodyDokumen.innerHTML = `<p class="dash-empty-text">Belum ada dokumen yang diunggah ke Google Drive.</p>`;
+    return;
+  }
+
+  const limaTerbaru = [...semuaDokumen]
+    .sort((a, b) =>
+      String(b.tanggalUnggah || b.createdAt || "").localeCompare(
+        String(a.tanggalUnggah || a.createdAt || "")
+      )
+    )
+    .slice(0, 5);
+
+  const htmlItem = limaTerbaru
+    .map((dok) => {
+      const infoKat = manajerKategoriDokumen.cariInfoKategori(dok.kategoriId);
+      const jenis = infoJenisBerkasMime(dok.mimeType, dok.namaFile);
+      const nama = dok.namaTampilan || dok.namaFile || "Dokumen";
+      const tanggalLokalStr = formatTanggalDokumenLokal(dok.tanggalUnggah || dok.createdAt);
+      const ukuranStr = formatUkuranBerkas(dok.ukuran);
+      const tautanAman =
+        dok.tautan && /^https?:\/\//i.test(dok.tautan)
+          ? dok.tautan
+          : dok.driveFileId
+            ? `https://drive.google.com/file/d/${encodeURIComponent(dok.driveFileId)}/view`
+            : "#";
+
+      return `<li class="dash-doc-item">
+        <div class="dash-activity-main">
+          <a href="${escapeHtml(tautanAman)}" target="_blank" rel="noopener noreferrer" class="dash-doc-link" title="Buka ${escapeHtml(nama)} di Google Drive">
+            <span class="dash-doc-link-text">${escapeHtml(nama)}</span>
+          </a>
+          <div class="dash-activity-meta">
+            <span>${escapeHtml(jenis.label)}</span>
+            <span class="dash-meta-sep" aria-hidden="true">•</span>
+            <span>${escapeHtml(ukuranStr)}</span>
+            <span class="dash-meta-sep" aria-hidden="true">•</span>
+            <span>${escapeHtml(tanggalLokalStr)}</span>
+            <span class="dash-meta-sep" aria-hidden="true">•</span>
+            <span class="dash-cat-inline"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
+          </div>
+        </div>
+      </li>`;
+    })
+    .join("");
+
+  const sisa = semuaDokumen.length - limaTerbaru.length;
+  bodyDokumen.innerHTML = `<ul class="dash-doc-list">${htmlItem}</ul>${
+    sisa > 0 ? `<p class="dash-more-note">+${sisa} dokumen lainnya di Arsip Dokumen</p>` : ""
+  }`;
+}
+
 function renderDashboard() {
   pastikanKerangkaDashboard();
 
@@ -214,13 +294,15 @@ function renderDashboard() {
 
   const subtitleEl = document.getElementById("dashboard-subtitle-tanggal");
   if (subtitleEl) {
-    subtitleEl.textContent = `Ikhtisar jadwal dan status kegiatan Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
+    subtitleEl.textContent = `Ikhtisar jadwal, status kegiatan, dan arsip dokumen Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
   }
 
   const metaHariIniEl = document.getElementById("dash-meta-hari-ini");
   const meta7HariEl = document.getElementById("dash-meta-7hari");
   if (metaHariIniEl) metaHariIniEl.textContent = formatTanggalRingkasIndonesia(strHariIni);
   if (meta7HariEl) meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
+
+  renderKartuDokumenDashboard();
 
   const bodyHariIni = document.getElementById("dash-body-hari-ini");
   const body7Hari = document.getElementById("dash-body-7hari");
@@ -318,11 +400,17 @@ function initHalamanDashboard() {
       else if (aksi === "detail-kegiatan") {
         const id = btnAksi.getAttribute("data-id") || "";
         if (id) bukaDialogDetailKegiatan(id);
+      } else if (aksi === "unggah-dokumen") {
+        pindahKeBagian("dokumen");
+        bukaModalUnggahDokumen();
+      } else if (aksi === "buka-dokumen") {
+        pindahKeBagian("dokumen");
       }
     });
   }
 
   onPerubahanKegiatan(() => renderDashboard());
+  onPerubahanDokumen(() => renderKartuDokumenDashboard());
   renderDashboard();
 }
 
@@ -560,6 +648,7 @@ function mulaiAplikasi() {
 
   initHalamanKegiatan();
   initHalamanJadwal();
+  initHalamanDokumen();
   initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
@@ -585,7 +674,8 @@ function mulaiAplikasi() {
       mulaiPemantauTokenDrive();
 
       const unsubKegiatan = subscribeKegiatan();
-      dataUnsubscribers.push(unsubKegiatan);
+      const unsubDokumen = subscribeDokumen();
+      dataUnsubscribers.push(unsubKegiatan, unsubDokumen);
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

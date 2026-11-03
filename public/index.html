@@ -434,6 +434,223 @@
       </div>
     </div>
 
+    <!-- Dialog / Lembar Penuh HP: Unggah Dokumen Baru ke Google Drive (Fase 3) -->
+    <div id="dokumen-upload-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-upload-title" hidden>
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="dokumen-upload-title" class="modal-title">Unggah Dokumen ke Google Drive</h2>
+          <button type="button" id="dokumen-upload-close-btn" class="icon-btn" aria-label="Tutup unggah dokumen" title="Tutup">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <form id="dokumen-upload-form" class="modal-scroll-body form-stack" novalidate>
+          <div id="dokumen-upload-alert" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="dokumen-upload-alert-text"></span>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-upload-file" class="form-label">Berkas Dokumen <span class="required-mark">*</span></label>
+            <input type="file" id="dokumen-upload-file" class="form-input form-file-input" required />
+            <span id="dokumen-upload-file-info" class="field-hint-text">Pilih berkas dari perangkat Anda.</span>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-field">
+              <label for="dokumen-upload-kategori" class="form-label">Kategori Dokumen</label>
+              <select id="dokumen-upload-kategori" class="form-select">
+                <option value="">Tanpa Kategori</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="dokumen-upload-nama" class="form-label">Nama Tampilan (Opsional)</label>
+              <input type="text" id="dokumen-upload-nama" class="form-input" maxlength="160" placeholder="Kosongkan untuk memakai nama asli berkas" autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-upload-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+            <select id="dokumen-upload-kegiatan" class="form-select">
+              <option value="">— Tidak dikaitkan ke kegiatan —</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-upload-catatan" class="form-label">Catatan (Opsional)</label>
+            <textarea id="dokumen-upload-catatan" class="form-textarea" rows="3" placeholder="Keterangan singkat isi dokumen, nomor referensi, atau konteks..."></textarea>
+          </div>
+
+          <div id="dokumen-upload-progress-wrap" class="upload-progress-card" aria-live="polite" hidden>
+            <div class="upload-progress-top">
+              <span id="dokumen-upload-progress-label" class="upload-progress-label">Mengunggah ke Google Drive...</span>
+              <span id="dokumen-upload-progress-pct" class="upload-progress-pct">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="dokumen-upload-progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+
+          <div class="modal-actions modal-actions-sticky">
+            <button type="button" id="dokumen-upload-cancel-btn" class="btn-secondary">Batal</button>
+            <button type="submit" id="dokumen-upload-submit-btn" class="btn-primary">Unggah ke Drive</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Dialog / Lembar Penuh HP: Ubah Metadata Dokumen (Fase 3) -->
+    <div id="dokumen-edit-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-edit-title" hidden>
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="dokumen-edit-title" class="modal-title">Ubah Metadata Dokumen</h2>
+          <button type="button" id="dokumen-edit-close-btn" class="icon-btn" aria-label="Tutup ubah metadata" title="Tutup">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <form id="dokumen-edit-form" class="modal-scroll-body form-stack" novalidate>
+          <input type="hidden" id="dokumen-edit-id" value="" />
+
+          <div id="dokumen-edit-alert" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="dokumen-edit-alert-text"></span>
+          </div>
+
+          <div class="form-field">
+            <span class="form-label">Berkas Asli di Google Drive</span>
+            <p id="dokumen-edit-namafile-info" class="readonly-file-pill"></p>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-edit-nama" class="form-label">Nama Tampilan <span class="required-mark">*</span></label>
+            <input type="text" id="dokumen-edit-nama" class="form-input" maxlength="160" required autocomplete="off" />
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-edit-kategori" class="form-label">Kategori Dokumen</label>
+            <select id="dokumen-edit-kategori" class="form-select">
+              <option value="">Tanpa Kategori</option>
+            </select>
+            <span class="field-hint-text">Mengubah kategori akan ikut memindahkan berkas ke subfolder kategori tujuan di Google Drive.</span>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-edit-kegiatan" class="form-label">Kegiatan Terkait (Opsional)</label>
+            <select id="dokumen-edit-kegiatan" class="form-select">
+              <option value="">— Tidak dikaitkan ke kegiatan —</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="dokumen-edit-catatan" class="form-label">Catatan (Opsional)</label>
+            <textarea id="dokumen-edit-catatan" class="form-textarea" rows="3" placeholder="Catatan tambahan mengenai dokumen ini..."></textarea>
+          </div>
+
+          <div class="modal-actions modal-actions-sticky">
+            <button type="button" id="dokumen-edit-cancel-btn" class="btn-secondary">Batal</button>
+            <button type="submit" id="dokumen-edit-submit-btn" class="btn-primary">Simpan Perubahan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Dialog Konfirmasi Hapus Dokumen (Fase 3) -->
+    <div id="dokumen-delete-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dokumen-delete-title" aria-describedby="dokumen-delete-desc" hidden>
+      <div class="modal-dialog modal-dialog-medium">
+        <h2 id="dokumen-delete-title" class="modal-title">Hapus Dokumen?</h2>
+        <p id="dokumen-delete-desc" class="modal-desc"></p>
+
+        <div id="dokumen-delete-alert" class="alert-box" role="alert" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span id="dokumen-delete-alert-text"></span>
+        </div>
+
+        <div class="delete-choice-group" role="radiogroup" aria-label="Pilihan penghapusan dokumen">
+          <label class="delete-choice-card">
+            <input type="radio" name="dokumen-delete-mode" id="dokumen-delete-mode-app" value="app-only" checked />
+            <div class="delete-choice-content">
+              <span class="delete-choice-title">Hapus dari daftar aplikasi saja</span>
+              <span class="delete-choice-desc">Catatan di aplikasi dihapus, tetapi berkas asli tetap tersimpan utuh di Google Drive Anda.</span>
+            </div>
+          </label>
+          <label class="delete-choice-card">
+            <input type="radio" name="dokumen-delete-mode" id="dokumen-delete-mode-drive" value="with-drive-trash" />
+            <div class="delete-choice-content">
+              <span class="delete-choice-title">Hapus dari aplikasi &amp; pindahkan berkas ke Sampah Drive</span>
+              <span class="delete-choice-desc">Catatan dihapus dan berkas di Google Drive dipindahkan ke Sampah (trashed).</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="dokumen-delete-cancel-btn" class="btn-secondary">Batal</button>
+          <button type="button" id="dokumen-delete-confirm-btn" class="btn-danger">Hapus Dokumen</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dialog Rapikan Dokumen ke Folder Kategori Drive (Fase 3) -->
+    <div id="dokumen-organize-modal" class="modal-overlay modal-sheet-mobile" role="dialog" aria-modal="true" aria-labelledby="dokumen-organize-title" hidden>
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="dokumen-organize-title" class="modal-title">Rapikan Dokumen ke Folder Kategori</h2>
+          <button type="button" id="dokumen-organize-close-btn" class="icon-btn" aria-label="Tutup dialog rapikan dokumen" title="Tutup">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="modal-scroll-body">
+          <div class="organize-notice-box">
+            <p class="modal-desc">
+              Fitur ini memeriksa setiap dokumen yang tercatat di aplikasi lalu memindahkannya ke subfolder kategorinya masing-masing di dalam folder induk <strong>Agenda-Arsip</strong> di Google Drive. Operasi ini aman dijalankan berulang (berkas yang sudah berada di folder yang tepat akan dilewati).
+            </p>
+            <p class="organize-scope-note">
+              <strong>Catatan izin Google Drive:</strong> Sesuai cakupan keamanan <code>drive.file</code>, aplikasi ini hanya dapat memindahkan berkas yang diunggah atau dibuat melalui aplikasi ini.
+            </p>
+          </div>
+
+          <p id="dokumen-organize-total-info" class="result-summary-text"></p>
+
+          <div id="dokumen-organize-alert" class="alert-box" role="alert" hidden>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="dokumen-organize-alert-text"></span>
+          </div>
+
+          <div id="dokumen-organize-progress-box" class="upload-progress-card" aria-live="polite" hidden>
+            <div class="upload-progress-top">
+              <span class="upload-progress-label">Memeriksa &amp; memindahkan berkas...</span>
+              <span id="dokumen-organize-progress-text" class="upload-progress-pct">0 dari 0</span>
+            </div>
+            <div class="progress-track">
+              <div id="dokumen-organize-progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+
+          <div id="dokumen-organize-summary-box" hidden></div>
+
+          <div class="modal-actions modal-actions-sticky">
+            <button type="button" id="dokumen-organize-cancel-btn" class="btn-secondary">Tutup</button>
+            <button type="button" id="dokumen-organize-start-btn" class="btn-primary">Mulai Rapikan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Dialog Panduan Pasang PWA di iOS Safari -->
     <div id="ios-install-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ios-install-title" hidden>
       <div class="modal-dialog">

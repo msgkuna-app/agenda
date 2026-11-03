@@ -1,7 +1,9 @@
 /**
- * Modul Generik Pengelolaan Kategori (Fase 1 & dipakai ulang pada Fase 3 untuk kategoriDokumen)
+ * Modul Generik Pengelolaan Kategori (Fase 1 & diperluas pada Fase 3 untuk kategoriDokumen)
  * Mendukung langganan real-time, pembuatan kategori bawaan anti-duplikat, tambah, ubah,
- * pengurutan naik/turun, serta penghapusan aman dengan getCountFromServer (Aturan #5, #7, #9, #10, #12).
+ * pengurutan naik/turun, penghapusan aman dengan getCountFromServer, serta sinkronisasi
+ * folder Google Drive khusus untuk koleksi "kategoriDokumen" tanpa merusak kategori kegiatan
+ * (Aturan #5, #7, #8, #9, #10, #12).
  */
 import {
   getFirestoreDb,
@@ -43,6 +45,14 @@ export const KATEGORI_KEGIATAN_BAWAAN = [
   { id: "bawaan-lainnya", nama: "Lainnya", warna: "abu", urutan: 5 }
 ];
 
+export const KATEGORI_DOKUMEN_BAWAAN = [
+  { id: "bawaan-dok-umum", nama: "Umum", warna: "biru", urutan: 1 },
+  { id: "bawaan-dok-keuangan", nama: "Keuangan", warna: "hijau", urutan: 2 },
+  { id: "bawaan-dok-pekerjaan", nama: "Pekerjaan", warna: "ungu", urutan: 3 },
+  { id: "bawaan-dok-pribadi", nama: "Pribadi", warna: "amber", urutan: 4 },
+  { id: "bawaan-dok-lainnya", nama: "Lainnya", warna: "abu", urutan: 5 }
+];
+
 export const TANPA_KATEGORI_INFO = Object.freeze({
   id: "",
   nama: "Tanpa Kategori",
@@ -76,13 +86,98 @@ export function urutkanDaftarKategori(daftar) {
   });
 }
 
+// Memastikan pengikatan event listener DOM pada #kategori-manage-modal hanya dipasang satu kali,
+// dan selalu mendelegasikan aksi ke sesi pengontrol dialog yang sedang terbuka.
+let sesiDialogAktif = null;
+let listenerDomModalTerpasang = false;
+
+function pasangListenerDomModalKategoriSekali() {
+  if (listenerDomModalTerpasang) return;
+  listenerDomModalTerpasang = true;
+
+  const modal = document.getElementById("kategori-manage-modal");
+  const closeBtn = document.getElementById("kategori-manage-close-btn");
+  const form = document.getElementById("kategori-form");
+  const inputNama = document.getElementById("kategori-nama-input");
+  const swatchContainer = document.getElementById("kategori-warna-picker");
+  const cancelEditBtn = document.getElementById("kategori-cancel-edit-btn");
+  const listContainer = document.getElementById("kategori-manage-list");
+
+  if (inputNama) {
+    inputNama.addEventListener("input", () => {
+      sesiDialogAktif?.perbaruiPenghitungKarakter();
+    });
+  }
+
+  if (swatchContainer) {
+    swatchContainer.addEventListener("click", (e) => {
+      const btn = e.target instanceof Element ? e.target.closest(".color-swatch-btn[data-warna]") : null;
+      if (!btn || !sesiDialogAktif) return;
+      const dipilih = btn.getAttribute("data-warna");
+      if (dipilih) {
+        sesiDialogAktif.pilihWarna(dipilih);
+      }
+    });
+  }
+
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener("click", () => {
+      sesiDialogAktif?.batalkanModeUbah();
+    });
+  }
+
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      sesiDialogAktif?.tanganiSubmitForm();
+    });
+  }
+
+  if (listContainer) {
+    listContainer.addEventListener("click", (e) => {
+      const btn = e.target instanceof Element ? e.target.closest("button[data-action]") : null;
+      if (!btn || !sesiDialogAktif) return;
+      sesiDialogAktif.tanganiKlikDaftar(btn);
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      sesiDialogAktif?.tutup(true);
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        sesiDialogAktif?.tutup(true);
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (!sesiDialogAktif) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      sesiDialogAktif.tutup(true);
+    }
+  });
+
+  const syncJaringanGlobal = () => {
+    sesiDialogAktif?.sinkronkanStatusJaringan();
+  };
+  window.addEventListener("online", syncJaringanGlobal);
+  window.addEventListener("offline", syncJaringanGlobal);
+}
+
 /**
  * Membuat pengelola kategori generik yang dapat dipakai untuk "kategoriKegiatan" maupun "kategoriDokumen".
  * @param {{
  *   namaKoleksiKategori: string,
  *   namaKoleksiPemakai: string,
  *   labelItemPemakai?: string,
- *   daftarBawaan?: Array<{id: string, nama: string, warna: string, urutan: number}>
+ *   daftarBawaan?: Array<{id: string, nama: string, warna: string, urutan: number}>,
+ *   pakaiFolderDrive?: boolean
  * }} konfigurasi
  */
 export function buatManajerKategori(konfigurasi) {
@@ -90,7 +185,8 @@ export function buatManajerKategori(konfigurasi) {
     namaKoleksiKategori,
     namaKoleksiPemakai,
     labelItemPemakai = "kegiatan",
-    daftarBawaan = []
+    daftarBawaan = [],
+    pakaiFolderDrive = false
   } = konfigurasi;
 
   let unsubscribeSnapshot = null;
@@ -133,13 +229,18 @@ export function buatManajerKategori(konfigurasi) {
       daftarBawaan.forEach((item, idx) => {
         const docId = item.id || `bawaan-${idx + 1}`;
         const ref = doc(db, namaKoleksiKategori, docId);
-        batch.set(ref, {
+        const payload = {
           nama: item.nama,
           warna: normalisasiWarnaKategori(item.warna),
           urutan: Number.isFinite(item.urutan) ? item.urutan : idx + 1,
           createdAt: sekarang,
           updatedAt: sekarang
-        });
+        };
+        if (pakaiFolderDrive) {
+          payload.folderId = "";
+          payload.folderSinkron = false;
+        }
+        batch.set(ref, payload);
       });
       await batch.commit();
       sudahCekSeedSesiIni = true;
@@ -176,14 +277,19 @@ export function buatManajerKategori(konfigurasi) {
         const hasil = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() || {};
-          hasil.push({
+          const entri = {
             id: docSnap.id,
             nama: String(data.nama || "").trim(),
             warna: normalisasiWarnaKategori(data.warna),
             urutan: Number.isFinite(Number(data.urutan)) ? Number(data.urutan) : 9999,
             createdAt: data.createdAt || "",
             updatedAt: data.updatedAt || ""
-          });
+          };
+          if (pakaiFolderDrive) {
+            entri.folderId = String(data.folderId || "").trim();
+            entri.folderSinkron = Boolean(entri.folderId) && data.folderSinkron === true;
+          }
+          hasil.push(entri);
         });
 
         kategoriList = urutkanDaftarKategori(hasil);
@@ -227,6 +333,13 @@ export function buatManajerKategori(konfigurasi) {
     return kategoriList.map((k) => ({ ...k }));
   }
 
+  function ambilKategoriById(id) {
+    const targetId = String(id || "").trim();
+    if (!targetId) return null;
+    const ketemu = kategoriList.find((k) => k.id === targetId);
+    return ketemu ? { ...ketemu } : null;
+  }
+
   /**
    * Mencari info nama dan warna kategori berdasarkan kategoriId (Aturan #7).
    * Jika kosong atau tidak ditemukan, kembalikan "Tanpa Kategori".
@@ -245,6 +358,8 @@ export function buatManajerKategori(konfigurasi) {
       id: ketemu.id,
       nama: ketemu.nama,
       warna: ketemu.warna,
+      folderId: ketemu.folderId || "",
+      folderSinkron: Boolean(ketemu.folderSinkron),
       tetap: false
     };
   }
@@ -272,7 +387,8 @@ export function buatManajerKategori(konfigurasi) {
 
   /**
    * Menambahkan kategori baru (tetap diizinkan saat offline lewat cache Firestore).
-   * @param {{ nama: string, warna: string }} input
+   * @param {{ nama: string, warna: string, folderId?: string, folderSinkron?: boolean }} input
+   * @returns {Promise<{ id: string, nama: string, warna: string }>}
    */
   async function tambahKategori(input) {
     const nama = validasiNamaKategori(input?.nama, null);
@@ -283,17 +399,24 @@ export function buatManajerKategori(konfigurasi) {
     );
     const sekarang = new Date().toISOString();
     const db = getFirestoreDb();
-    await addDoc(collection(db, namaKoleksiKategori), {
+    const payload = {
       nama,
       warna,
       urutan: urutanMaks + 1,
       createdAt: sekarang,
       updatedAt: sekarang
-    });
+    };
+    if (pakaiFolderDrive) {
+      payload.folderId = String(input?.folderId || "").trim();
+      payload.folderSinkron = Boolean(payload.folderId) && input?.folderSinkron === true;
+    }
+    const docRef = await addDoc(collection(db, namaKoleksiKategori), payload);
+    return { id: docRef.id, nama, warna };
   }
 
   /**
    * Mengubah nama dan warna kategori yang sudah ada (tetap diizinkan saat offline).
+   * Mengembalikan info apakah nama kategori benar-benar berubah (warna & urutan tidak menyentuh Drive).
    * @param {string} id
    * @param {{ nama: string, warna: string }} input
    */
@@ -302,8 +425,11 @@ export function buatManajerKategori(konfigurasi) {
     if (!targetId) {
       throw new Error('"Tanpa Kategori" bersifat tetap dan tidak dapat diubah.');
     }
+    const sebelumnya = ambilKategoriById(targetId);
     const nama = validasiNamaKategori(input?.nama, targetId);
     const warna = normalisasiWarnaKategori(input?.warna);
+    const namaBerubah = sebelumnya ? sebelumnya.nama !== nama : true;
+
     const sekarang = new Date().toISOString();
     const db = getFirestoreDb();
     await updateDoc(doc(db, namaKoleksiKategori, targetId), {
@@ -311,10 +437,38 @@ export function buatManajerKategori(konfigurasi) {
       warna,
       updatedAt: sekarang
     });
+
+    return {
+      id: targetId,
+      nama,
+      warna,
+      namaBerubah,
+      sebelumnya
+    };
   }
 
   /**
-   * Menggeser urutan kategori naik (-1) atau turun (+1) dengan writeBatch.
+   * Memperbarui metadata sinkronisasi folder Drive pada kategoriDokumen.
+   * @param {string} id
+   * @param {{ folderId?: string, folderSinkron: boolean }} dataFolder
+   */
+  async function perbaruiStatusFolderKategori(id, dataFolder) {
+    if (!pakaiFolderDrive) return;
+    const targetId = String(id || "").trim();
+    if (!targetId) return;
+    const patch = {
+      folderSinkron: Boolean(dataFolder.folderSinkron),
+      updatedAt: new Date().toISOString()
+    };
+    if (typeof dataFolder.folderId === "string") {
+      patch.folderId = dataFolder.folderId.trim();
+    }
+    const db = getFirestoreDb();
+    await updateDoc(doc(db, namaKoleksiKategori, targetId), patch);
+  }
+
+  /**
+   * Menggeser urutan kategori naik (-1) atau turun (+1) dengan writeBatch (tidak menyentuh Drive).
    * @param {string} id
    * @param {"up" | "down"} arah
    */
@@ -383,6 +537,8 @@ export function buatManajerKategori(konfigurasi) {
       );
     }
 
+    const snapshotSebelumHapus = ambilKategoriById(targetId);
+
     let jumlahServer = 0;
     try {
       jumlahServer = await hitungPemakaiDariServer(targetId);
@@ -405,19 +561,23 @@ export function buatManajerKategori(konfigurasi) {
 
     const db = getFirestoreDb();
     await deleteDoc(doc(db, namaKoleksiKategori, targetId));
+    return snapshotSebelumHapus;
   }
 
   return {
     namaKoleksiKategori,
     namaKoleksiPemakai,
     labelItemPemakai,
+    pakaiFolderDrive,
     subscribe,
     unsubscribe,
     onChange,
     getDaftarKategori,
+    ambilKategoriById,
     cariInfoKategori,
     tambahKategori,
     ubahKategori,
+    perbaruiStatusFolderKategori,
     geserUrutanKategori,
     hitungPemakaiDariServer,
     hapusKategoriAman
@@ -426,26 +586,34 @@ export function buatManajerKategori(konfigurasi) {
 
 /**
  * Mengikat antarmuka modal/lembar "Kelola Kategori" yang generik dan responsif
- * (lembar penuh di HP <600px, dialog di tablet & desktop).
+ * (dipakai bersama oleh Kelola Kategori Kegiatan dan Kelola Kategori Dokumen).
  * @param {{
  *   manajer: ReturnType<typeof buatManajerKategori>,
  *   hitungPemakaiLokal: (kategoriId: string) => number,
  *   onLihatItemKategori: (kategoriId: string) => void,
- *   judulDialog?: string
+ *   judulDialog?: string,
+ *   opsiDrive?: {
+ *     onSetelahTambahKategori?: (katBaru: {id: string, nama: string, warna: string}) => Promise<{peringatan?: string} | void>,
+ *     onSetelahUbahNamaKategori?: (hasilUbah: {id: string, nama: string, sebelumnya: any}) => Promise<{peringatan?: string, folder404?: boolean} | void>,
+ *     onSinkronkanFolder?: (kat: any) => Promise<{pesanSukses?: string, folder404?: boolean, pesanGalat?: string} | void>,
+ *     onBuatUlangFolderDanPindahkan?: (kat: any) => Promise<{pesanSukses?: string} | void>,
+ *     onBuangFolderBekasKeSampah?: (infoFolder: {nama: string, folderId: string}) => Promise<void>
+ *   }
  * }} opsi
  */
 export function inisialisasiDialogKelolaKategori(opsi) {
+  pasangListenerDomModalKategoriSekali();
+
   const {
     manajer,
     hitungPemakaiLokal,
     onLihatItemKategori,
-    judulDialog = "Kelola Kategori Kegiatan"
+    judulDialog = "Kelola Kategori Kegiatan",
+    opsiDrive = null
   } = opsi;
 
   const modal = document.getElementById("kategori-manage-modal");
   const titleEl = document.getElementById("kategori-manage-title");
-  const closeBtn = document.getElementById("kategori-manage-close-btn");
-  const form = document.getElementById("kategori-form");
   const formHeading = document.getElementById("kategori-form-heading");
   const inputId = document.getElementById("kategori-edit-id");
   const inputNama = document.getElementById("kategori-nama-input");
@@ -463,16 +631,24 @@ export function inisialisasiDialogKelolaKategori(opsi) {
   let cacheHitunganServer = new Map();
   let sedangMemuatHitunganServer = false;
 
+  // State khusus alur Google Drive (kategoriDokumen):
+  // - tawaranBuatUlang404: kategori yang foldernya 404 saat ubah nama / sinkronisasi
+  // - tawaranSampahFolderTerhapus: folder Drive bekas kategori kosong yang baru saja dihapus
+  let tawaranBuatUlang404 = null;
+  let tawaranSampahFolderTerhapus = null;
+  let konfirmasiSampahTerbuka = false;
+
   function tampilkanPesan(pesan, tipe = "danger") {
     if (!alertBox || !alertText) return;
     if (!pesan) {
       alertText.textContent = "";
       alertBox.hidden = true;
-      alertBox.classList.remove("alert-box-warning");
+      alertBox.classList.remove("alert-box-warning", "alert-box-success");
       return;
     }
     alertText.textContent = pesan;
     alertBox.classList.toggle("alert-box-warning", tipe === "warning");
+    alertBox.classList.toggle("alert-box-success", tipe === "success");
     alertBox.hidden = false;
   }
 
@@ -549,7 +725,7 @@ export function inisialisasiDialogKelolaKategori(opsi) {
             const jml = await manajer.hitungPemakaiDariServer(kat.id);
             cacheHitunganServer.set(kat.id, jml);
           } catch (_e) {
-            // Abaikan kegagalan per item, gunakan hitungan lokal sebagai cadangan tampilan
+            // Gunakan hitungan lokal sebagai cadangan tampilan
           }
         })
       );
@@ -561,6 +737,58 @@ export function inisialisasiDialogKelolaKategori(opsi) {
     }
   }
 
+  function renderPanelTawaranDriveAtas() {
+    const blok = [];
+
+    if (tawaranBuatUlang404) {
+      const kat = manajer.ambilKategoriById(tawaranBuatUlang404.id) || tawaranBuatUlang404;
+      blok.push(`
+        <li class="kategori-drive-callout kategori-drive-callout-warning">
+          <div class="kategori-drive-callout-text">
+            <strong>Folder Drive tidak ditemukan (404) untuk kategori "${escapeHtml(kat.nama)}".</strong>
+            <span>Folder lama mungkin telah dihapus di Google Drive. Anda dapat membuat ulang folder kategori ini dan memindahkan dokumen kategori ini ke dalamnya.</span>
+          </div>
+          <div class="kategori-drive-callout-actions">
+            <button type="button" class="btn-secondary btn-sm-touch" data-action="dismiss-404">Tutup</button>
+            <button type="button" class="btn-primary btn-sm-touch" data-action="recreate-folder-404" data-id="${escapeHtml(kat.id)}">
+              Buat ulang folder &amp; pindahkan dokumen
+            </button>
+          </div>
+        </li>
+      `);
+    }
+
+    if (tawaranSampahFolderTerhapus && tawaranSampahFolderTerhapus.folderId) {
+      const info = tawaranSampahFolderTerhapus;
+      blok.push(`
+        <li class="kategori-drive-callout">
+          <div class="kategori-drive-callout-text">
+            <strong>Kategori "${escapeHtml(info.nama)}" dihapus dari aplikasi.</strong>
+            <span>Folder Google Drive kategori ini <strong>tidak dihapus otomatis</strong> agar berkas lain yang mungkin Anda taruh manual di dalamnya tetap aman.</span>
+          </div>
+          ${
+            konfirmasiSampahTerbuka
+              ? `<div class="kategori-drive-trash-warning" role="alert">
+                  <p><strong>Peringatan:</strong> Memindahkan folder "${escapeHtml(info.nama)}" ke Sampah Google Drive juga akan memindahkan seluruh isi di dalam folder tersebut ke Sampah Drive. Lanjutkan?</p>
+                  <div class="kategori-drive-callout-actions">
+                    <button type="button" class="btn-secondary btn-sm-touch" data-action="cancel-trash-folder">Batal</button>
+                    <button type="button" class="btn-danger btn-sm-touch" data-action="confirm-trash-folder">Ya, Pindahkan ke Sampah Drive</button>
+                  </div>
+                </div>`
+              : `<div class="kategori-drive-callout-actions">
+                  <button type="button" class="btn-secondary btn-sm-touch" data-action="keep-drive-folder">Biarkan Folder di Drive</button>
+                  <button type="button" class="btn-danger-outline btn-sm-touch" data-action="ask-trash-folder">
+                    Pindahkan folder ke sampah Drive
+                  </button>
+                </div>`
+          }
+        </li>
+      `);
+    }
+
+    return blok.join("");
+  }
+
   function renderDaftarKategori() {
     if (!listContainer) return;
     const daftar = manajer.getDaftarKategori();
@@ -568,6 +796,8 @@ export function inisialisasiDialogKelolaKategori(opsi) {
     const sedangOffline = !navigator.onLine;
     const jumlahTanpaKategori =
       typeof hitungPemakaiLokal === "function" ? hitungPemakaiLokal("") : 0;
+
+    const panelTawaran = manajer.pakaiFolderDrive ? renderPanelTawaranDriveAtas() : "";
 
     const barisKategori = daftar
       .map((kat, index) => {
@@ -585,15 +815,35 @@ export function inisialisasiDialogKelolaKategori(opsi) {
           keteranganHapus = `Hapus kategori ${kat.nama}`;
         }
 
+        const belumSinkronDrive = manajer.pakaiFolderDrive && (!kat.folderId || !kat.folderSinkron);
+
         return `
           <li class="kategori-item" data-id="${escapeHtml(kat.id)}">
             <div class="kategori-item-main">
-              <span class="cat-badge cat-color-${escapeHtml(kat.warna)}">
-                <span class="cat-dot cat-dot-${escapeHtml(kat.warna)}" aria-hidden="true"></span>
-                <span>${escapeHtml(kat.nama)}</span>
-              </span>
+              <div class="kategori-badges-inline">
+                <span class="cat-badge cat-color-${escapeHtml(kat.warna)}">
+                  <span class="cat-dot cat-dot-${escapeHtml(kat.warna)}" aria-hidden="true"></span>
+                  <span>${escapeHtml(kat.nama)}</span>
+                </span>
+                ${
+                  belumSinkronDrive
+                    ? `<span class="sync-warning-badge" title="Folder kategori ini di Google Drive belum dibuat atau namanya belum tersinkron">Folder belum sinkron</span>`
+                    : ""
+                }
+              </div>
               <span class="kategori-count-text">Dipakai ${jumlah} ${escapeHtml(labelItem)}</span>
             </div>
+
+            ${
+              belumSinkronDrive && opsiDrive?.onSinkronkanFolder
+                ? `<div class="kategori-sync-row">
+                    <span>Subfolder Google Drive belum sinkron dengan kategori ini.</span>
+                    <button type="button" class="btn-secondary btn-sm-touch" data-action="sync-folder" data-id="${escapeHtml(kat.id)}" ${sedangOffline ? "disabled" : ""}>
+                      Sinkronkan folder
+                    </button>
+                  </div>`
+                : ""
+            }
 
             ${
               jumlah > 0
@@ -685,14 +935,287 @@ export function inisialisasiDialogKelolaKategori(opsi) {
       </li>
     `;
 
-    listContainer.innerHTML = barisKategori + barisTanpaKategori;
+    listContainer.innerHTML = panelTawaran + barisKategori + barisTanpaKategori;
   }
+
+  async function tanganiSubmitForm() {
+    tampilkanPesan("");
+    const idSedangEdit = inputId ? inputId.value.trim() : "";
+    const namaInput = inputNama ? inputNama.value : "";
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      if (idSedangEdit) {
+        const hasilUbah = await manajer.ubahKategori(idSedangEdit, {
+          nama: namaInput,
+          warna: warnaTerpilih
+        });
+        resetFormKeTambah();
+
+        if (hasilUbah.namaBerubah && opsiDrive?.onSetelahUbahNamaKategori) {
+          const responDrive = await opsiDrive.onSetelahUbahNamaKategori(hasilUbah);
+          if (responDrive?.folder404) {
+            tawaranBuatUlang404 = { id: hasilUbah.id, nama: hasilUbah.nama };
+          }
+          if (responDrive?.peringatan) {
+            tampilkanPesan(responDrive.peringatan, "warning");
+          }
+        }
+      } else {
+        const katBaru = await manajer.tambahKategori({
+          nama: namaInput,
+          warna: warnaTerpilih
+        });
+        resetFormKeTambah();
+
+        if (opsiDrive?.onSetelahTambahKategori) {
+          const responDrive = await opsiDrive.onSetelahTambahKategori(katBaru);
+          if (responDrive?.peringatan) {
+            tampilkanPesan(responDrive.peringatan, "warning");
+          }
+        }
+      }
+      renderDaftarKategori();
+    } catch (err) {
+      tampilkanPesan(err instanceof Error ? err.message : formatPesanGalatFirestore(err));
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  async function tanganiKlikDaftar(btn) {
+    const aksi = btn.getAttribute("data-action");
+    const id = btn.getAttribute("data-id") || "";
+
+    if (aksi === "filter") {
+      tutup(false);
+      if (typeof onLihatItemKategori === "function") {
+        onLihatItemKategori(id);
+      }
+      return;
+    }
+
+    if (aksi === "filter-uncategorized") {
+      tutup(false);
+      if (typeof onLihatItemKategori === "function") {
+        onLihatItemKategori("__TANPA_KATEGORI__");
+      }
+      return;
+    }
+
+    if (aksi === "dismiss-404") {
+      tawaranBuatUlang404 = null;
+      renderDaftarKategori();
+      return;
+    }
+
+    if (aksi === "recreate-folder-404" && opsiDrive?.onBuatUlangFolderDanPindahkan) {
+      const kat = manajer.ambilKategoriById(id) || tawaranBuatUlang404;
+      if (!kat) return;
+      btn.disabled = true;
+      const teksAsli = btn.textContent;
+      btn.textContent = "Membuat ulang...";
+      tampilkanPesan("");
+      try {
+        const hasil = await opsiDrive.onBuatUlangFolderDanPindahkan(kat);
+        tawaranBuatUlang404 = null;
+        if (hasil?.pesanSukses) {
+          tampilkanPesan(hasil.pesanSukses, "success");
+        }
+      } catch (err) {
+        tampilkanPesan(err instanceof Error ? err.message : "Gagal membuat ulang folder kategori di Google Drive.");
+      } finally {
+        if (document.contains(btn)) {
+          btn.disabled = false;
+          btn.textContent = teksAsli;
+        }
+        renderDaftarKategori();
+      }
+      return;
+    }
+
+    if (aksi === "keep-drive-folder") {
+      tawaranSampahFolderTerhapus = null;
+      konfirmasiSampahTerbuka = false;
+      renderDaftarKategori();
+      return;
+    }
+
+    if (aksi === "ask-trash-folder") {
+      konfirmasiSampahTerbuka = true;
+      renderDaftarKategori();
+      return;
+    }
+
+    if (aksi === "cancel-trash-folder") {
+      konfirmasiSampahTerbuka = false;
+      renderDaftarKategori();
+      return;
+    }
+
+    if (aksi === "confirm-trash-folder" && opsiDrive?.onBuangFolderBekasKeSampah && tawaranSampahFolderTerhapus) {
+      btn.disabled = true;
+      const teksAsli = btn.textContent;
+      btn.textContent = "Memindahkan...";
+      tampilkanPesan("");
+      try {
+        await opsiDrive.onBuangFolderBekasKeSampah(tawaranSampahFolderTerhapus);
+        const namaLama = tawaranSampahFolderTerhapus.nama;
+        tawaranSampahFolderTerhapus = null;
+        konfirmasiSampahTerbuka = false;
+        tampilkanPesan(`Folder "${namaLama}" telah dipindahkan ke Sampah Google Drive.`, "success");
+      } catch (err) {
+        tampilkanPesan(err instanceof Error ? err.message : "Gagal memindahkan folder ke Sampah Google Drive.");
+      } finally {
+        if (document.contains(btn)) {
+          btn.disabled = false;
+          btn.textContent = teksAsli;
+        }
+        renderDaftarKategori();
+      }
+      return;
+    }
+
+    if (aksi === "sync-folder" && opsiDrive?.onSinkronkanFolder) {
+      const kat = manajer.ambilKategoriById(id);
+      if (!kat) return;
+      btn.disabled = true;
+      const teksAsli = btn.textContent;
+      btn.textContent = "Menyinkronkan...";
+      tampilkanPesan("");
+      try {
+        const hasil = await opsiDrive.onSinkronkanFolder(kat);
+        if (hasil?.folder404) {
+          tawaranBuatUlang404 = { id: kat.id, nama: kat.nama };
+        }
+        if (hasil?.pesanGalat) {
+          tampilkanPesan(hasil.pesanGalat, "warning");
+        } else if (hasil?.pesanSukses) {
+          tampilkanPesan(hasil.pesanSukses, "success");
+        }
+      } catch (err) {
+        tampilkanPesan(err instanceof Error ? err.message : "Gagal menyinkronkan folder Drive.");
+      } finally {
+        if (document.contains(btn)) {
+          btn.disabled = false;
+          btn.textContent = teksAsli;
+        }
+        renderDaftarKategori();
+      }
+      return;
+    }
+
+    if (aksi === "edit") {
+      const kat = manajer.getDaftarKategori().find((k) => k.id === id);
+      if (kat) mulaiModeUbah(kat);
+      return;
+    }
+
+    if (aksi === "up" || aksi === "down") {
+      tampilkanPesan("");
+      btn.disabled = true;
+      try {
+        await manajer.geserUrutanKategori(id, aksi);
+      } catch (err) {
+        tampilkanPesan(formatPesanGalatFirestore(err));
+      } finally {
+        btn.disabled = false;
+      }
+      return;
+    }
+
+    if (aksi === "delete") {
+      tampilkanPesan("");
+      if (!navigator.onLine) {
+        tampilkanPesan(
+          "Tidak dapat menghapus kategori saat offline. Sambungkan ke internet terlebih dahulu."
+        );
+        renderDaftarKategori();
+        return;
+      }
+
+      btn.disabled = true;
+      const labelAwal = btn.textContent;
+      btn.textContent = "Memeriksa...";
+      try {
+        const dihapus = await manajer.hapusKategoriAman(id);
+        cacheHitunganServer.delete(id);
+        if (inputId && inputId.value === id) {
+          resetFormKeTambah();
+        }
+        if (tawaranBuatUlang404 && tawaranBuatUlang404.id === id) {
+          tawaranBuatUlang404 = null;
+        }
+
+        if (manajer.pakaiFolderDrive && dihapus?.folderId) {
+          tawaranSampahFolderTerhapus = {
+            nama: dihapus.nama,
+            folderId: dihapus.folderId
+          };
+          konfirmasiSampahTerbuka = false;
+        } else if (manajer.pakaiFolderDrive) {
+          tampilkanPesan(`Kategori "${dihapus?.nama || ""}" berhasil dihapus.`, "success");
+        }
+
+        renderDaftarKategori();
+      } catch (err) {
+        if (err && typeof err === "object" && typeof err.jumlahPemakai === "number") {
+          cacheHitunganServer.set(id, err.jumlahPemakai);
+        }
+        tampilkanPesan(err instanceof Error ? err.message : formatPesanGalatFirestore(err));
+        renderDaftarKategori();
+      } finally {
+        if (document.contains(btn)) {
+          btn.textContent = labelAwal;
+        }
+      }
+    }
+  }
+
+  function sinkronkanStatusJaringan() {
+    if (!terbuka) return;
+    if (!navigator.onLine) {
+      tampilkanPesan(
+        "Mode luring: Anda tetap dapat menambah atau mengubah kategori, tetapi penghapusan memerlukan internet.",
+        "warning"
+      );
+    } else {
+      tampilkanPesan("");
+      segarkanHitunganServerSemua();
+    }
+    renderDaftarKategori();
+  }
+
+  const objekSesiIni = {
+    perbaruiPenghitungKarakter,
+    pilihWarna: (kode) => {
+      warnaTerpilih = normalisasiWarnaKategori(kode);
+      renderPilihanWarna();
+    },
+    batalkanModeUbah: () => {
+      tampilkanPesan("");
+      resetFormKeTambah();
+    },
+    tanganiSubmitForm,
+    tanganiKlikDaftar,
+    sinkronkanStatusJaringan,
+    tutup
+  };
 
   function buka() {
     if (!modal) return;
+    if (sesiDialogAktif && sesiDialogAktif !== objekSesiIni) {
+      sesiDialogAktif.tutup(false);
+    }
+
+    sesiDialogAktif = objekSesiIni;
     fokusSebelumnya = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     terbuka = true;
     cacheHitunganServer.clear();
+    tawaranBuatUlang404 = null;
+    tawaranSampahFolderTerhapus = null;
+    konfirmasiSampahTerbuka = false;
+
     if (titleEl) titleEl.textContent = judulDialog;
     tampilkanPesan(
       !navigator.onLine
@@ -716,7 +1239,13 @@ export function inisialisasiDialogKelolaKategori(opsi) {
   function tutup(kembalikanFokus = true) {
     if (!modal || !terbuka) return;
     terbuka = false;
+    if (sesiDialogAktif === objekSesiIni) {
+      sesiDialogAktif = null;
+    }
     modal.hidden = true;
+    tawaranBuatUlang404 = null;
+    tawaranSampahFolderTerhapus = null;
+    konfirmasiSampahTerbuka = false;
     tampilkanPesan("");
     resetFormKeTambah();
 
@@ -725,175 +1254,6 @@ export function inisialisasiDialogKelolaKategori(opsi) {
     }
     fokusSebelumnya = null;
   }
-
-  // Event listeners pada form & daftar kategori
-  if (inputNama) {
-    inputNama.addEventListener("input", perbaruiPenghitungKarakter);
-  }
-
-  if (swatchContainer) {
-    swatchContainer.addEventListener("click", (e) => {
-      const btn = e.target instanceof Element ? e.target.closest(".color-swatch-btn[data-warna]") : null;
-      if (!btn) return;
-      const dipilih = btn.getAttribute("data-warna");
-      if (dipilih) {
-        warnaTerpilih = normalisasiWarnaKategori(dipilih);
-        renderPilihanWarna();
-      }
-    });
-  }
-
-  if (cancelEditBtn) {
-    cancelEditBtn.addEventListener("click", () => {
-      tampilkanPesan("");
-      resetFormKeTambah();
-    });
-  }
-
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      tampilkanPesan("");
-      const idSedangEdit = inputId ? inputId.value.trim() : "";
-      const namaInput = inputNama ? inputNama.value : "";
-
-      if (submitBtn) submitBtn.disabled = true;
-      try {
-        if (idSedangEdit) {
-          await manajer.ubahKategori(idSedangEdit, {
-            nama: namaInput,
-            warna: warnaTerpilih
-          });
-        } else {
-          await manajer.tambahKategori({
-            nama: namaInput,
-            warna: warnaTerpilih
-          });
-        }
-        resetFormKeTambah();
-        renderDaftarKategori();
-      } catch (err) {
-        tampilkanPesan(formatPesanGalatFirestore(err));
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
-  }
-
-  if (listContainer) {
-    listContainer.addEventListener("click", async (e) => {
-      const btn = e.target instanceof Element ? e.target.closest("button[data-action]") : null;
-      if (!btn) return;
-
-      const aksi = btn.getAttribute("data-action");
-      const id = btn.getAttribute("data-id") || "";
-
-      if (aksi === "filter") {
-        tutup(false);
-        if (typeof onLihatItemKategori === "function") {
-          onLihatItemKategori(id);
-        }
-        return;
-      }
-
-      if (aksi === "filter-uncategorized") {
-        tutup(false);
-        if (typeof onLihatItemKategori === "function") {
-          onLihatItemKategori("__TANPA_KATEGORI__");
-        }
-        return;
-      }
-
-      if (aksi === "edit") {
-        const kat = manajer.getDaftarKategori().find((k) => k.id === id);
-        if (kat) mulaiModeUbah(kat);
-        return;
-      }
-
-      if (aksi === "up" || aksi === "down") {
-        tampilkanPesan("");
-        btn.disabled = true;
-        try {
-          await manajer.geserUrutanKategori(id, aksi);
-        } catch (err) {
-          tampilkanPesan(formatPesanGalatFirestore(err));
-        } finally {
-          btn.disabled = false;
-        }
-        return;
-      }
-
-      if (aksi === "delete") {
-        tampilkanPesan("");
-        if (!navigator.onLine) {
-          tampilkanPesan(
-            "Tidak dapat menghapus kategori saat offline. Sambungkan ke internet terlebih dahulu."
-          );
-          renderDaftarKategori();
-          return;
-        }
-
-        btn.disabled = true;
-        const labelAwal = btn.textContent;
-        btn.textContent = "Memeriksa...";
-        try {
-          await manajer.hapusKategoriAman(id);
-          cacheHitunganServer.delete(id);
-          if (inputId && inputId.value === id) {
-            resetFormKeTambah();
-          }
-          renderDaftarKategori();
-        } catch (err) {
-          if (err && typeof err === "object" && typeof err.jumlahPemakai === "number") {
-            cacheHitunganServer.set(id, err.jumlahPemakai);
-          }
-          tampilkanPesan(err instanceof Error ? err.message : formatPesanGalatFirestore(err));
-          renderDaftarKategori();
-        } finally {
-          if (document.contains(btn)) {
-            btn.textContent = labelAwal;
-          }
-        }
-      }
-    });
-  }
-
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => tutup(true));
-  }
-
-  if (modal) {
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        tutup(true);
-      }
-    });
-  }
-
-  document.addEventListener("keydown", (e) => {
-    if (!terbuka) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      tutup(true);
-    }
-  });
-
-  const syncJaringan = () => {
-    if (!terbuka) return;
-    if (!navigator.onLine) {
-      tampilkanPesan(
-        "Mode luring: Anda tetap dapat menambah atau mengubah kategori, tetapi penghapusan memerlukan internet.",
-        "warning"
-      );
-    } else {
-      tampilkanPesan("");
-      segarkanHitunganServerSemua();
-    }
-    renderDaftarKategori();
-  };
-
-  window.addEventListener("online", syncJaringan);
-  window.addEventListener("offline", syncJaringan);
 
   manajer.onChange(() => {
     if (terbuka) {
