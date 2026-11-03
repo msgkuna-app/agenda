@@ -672,7 +672,7 @@ async function tanganiPeriksaPembaruanSw() {
   try {
     const reg = await periksaPembaruan();
     if (reg && reg.waiting && navigator.serviceWorker.controller) {
-      setStatusCekPembaruan("Versi baru AKSARA tersedia.");
+      setStatusCekPembaruan("Versi baru Agenda & Arsip tersedia.");
       return;
     }
 
