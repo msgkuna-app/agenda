@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Agenda & Arsip",
+  "short_name": "Agenda",
+  "description": "Aplikasi web pribadi Agenda & Arsip untuk pengelolaan kegiatan, jadwal, dan arsip dokumen.",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "theme_color": "#1e40af",
+  "background_color": "#f8fafc",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Agenda &amp; Arsip</title>
+    <meta name="description" content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan." />
+    <meta name="theme-color" content="#1e40af" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Agenda" />
+    <meta property="og:title" content="Agenda &amp; Arsip" />
+    <meta property="og:description" content="Aplikasi web pribadi Agenda &amp; Arsip untuk pengelolaan kegiatan, jadwal, dokumen Google Drive, catatan, dan laporan." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Skrip sinkron awal sebelum stylesheet untuk mencegah kilasan warna tema & ukuran sidebar -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var prefTema = "system";
+        try {
+          var t = localStorage.getItem("agenda_arsip_tema");
+          if (t === "light" || t === "dark" || t === "system") prefTema = t;
+        } catch (_e) {}
+
+        var gelapSistem =
+          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var efektif = prefTema === "system" ? (gelapSistem ? "dark" : "light") : prefTema;
+
+        if (prefTema === "light" || prefTema === "dark") {
+          root.setAttribute("data-theme", prefTema);
+        } else {
+          root.removeAttribute("data-theme");
+        }
+        root.style.colorScheme = efektif;
+
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
+        }
+
+        var statusSidebar = null;
+        try {
+          var s = localStorage.getItem("agenda_arsip_sidebar");
+          if (s === "expanded" || s === "collapsed") statusSidebar = s;
+        } catch (_e2) {}
+
+        if (!statusSidebar) {
+          statusSidebar =
+            window.matchMedia && window.matchMedia("(min-width: 1024.02px)").matches
+              ? "expanded"
+              : "collapsed";
+        }
+        root.setAttribute("data-sidebar", statusSidebar);
+      })();
+    </script>
+
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <a href="#main-content" class="skip-link">Langsung ke konten utama</a>
+
+    <!-- 1. Layar Memeriksa Sesi Masuk (tampil pertama kali sebelum status auth diketahui) -->
+    <main id="screen-checking" class="centered-screen" aria-live="polite">
+      <div class="session-card">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="session-status-text">Memeriksa sesi masuk...</p>
+      </div>
+    </main>
+
+    <!-- 2. Layar Galat Konfigurasi Firebase (jika placeholder belum diganti di js/firebase-config.js) -->
+    <main id="screen-config-error" class="centered-screen" hidden>
+      <section class="config-error-card" aria-labelledby="config-error-heading">
+        <div class="config-error-header">
+          <div class="config-error-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <h1 id="config-error-heading" class="config-error-title">Konfigurasi Firebase Belum Diisi</h1>
+          </div>
+        </div>
+        <p class="config-error-desc">
+          Berkas <code class="inline-code">public/js/firebase-config.js</code> masih berisi nilai penanda
+          <code class="inline-code">ISI_DARI_FIREBASE_CONSOLE</code>. Aplikasi ini tidak menggunakan mode demo atau data palsu.
+        </p>
+        <ol class="config-steps">
+          <li>Buka <strong>Firebase Console</strong> pada proyek Anda, lalu masuk ke <strong>Project settings &rarr; General</strong>.</li>
+          <li>Pada bagian <strong>Your apps</strong>, salin objek <code>firebaseConfig</code> dari aplikasi Web Anda.</li>
+          <li>Buka berkas <code>public/js/firebase-config.js</code> dan ganti seluruh nilai <code>"ISI_DARI_FIREBASE_CONSOLE"</code> dengan nilai asli proyek Anda.</li>
+          <li>Pastikan penyedia masuk <strong>Google</strong> sudah aktif di menu <strong>Authentication &rarr; Sign-in method</strong> untuk akun pemilik <code id="authorized-owner-email">msgkuna.app@gmail.com</code>.</li>
+          <li>Muat ulang halaman ini setelah menyimpan perubahan.</li>
+        </ol>
+      </section>
+    </main>
+
+    <!-- 3. Layar Login (satu-satunya tampilan saat pengguna belum masuk) -->
+    <main id="screen-login" class="centered-screen" hidden>
+      <section class="auth-card" aria-labelledby="login-heading">
+        <div class="brand-emblem" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="17" rx="2.5" />
+            <line x1="8" y1="2.5" x2="8" y2="6" />
+            <line x1="16" y1="2.5" x2="16" y2="6" />
+            <line x1="3" y1="9.5" x2="21" y2="9.5" />
+            <line x1="8" y1="14" x2="16" y2="14" />
+            <line x1="8" y1="17.5" x2="13" y2="17.5" />
+          </svg>
+        </div>
+
+        <div class="auth-header-group">
+          <h1 id="login-heading" class="auth-title">Agenda &amp; Arsip</h1>
+          <p class="auth-subtitle">
+            Ruang kerja pribadi untuk mengelola kegiatan, jadwal, catatan, dan arsip dokumen Google Drive.
+          </p>
+        </div>
+
+        <div id="login-error-box" class="alert-box" role="alert" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span id="login-error-text"></span>
+        </div>
+
+        <button type="button" id="google-login-btn" class="btn-google">
+          <span class="google-icon-wrap" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.86c2.26-2.09 3.56-5.17 3.56-8.8z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-2.98c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.27 14.31c-.24-.72-.38-1.49-.38-2.31s.14-1.59.38-2.31V6.6H1.29C.47 8.23 0 10.06 0 12s.47 3.77 1.29 5.4l3.98-3.09z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.6l3.98 3.09c.95-2.85 3.6-4.94 6.73-4.94z"/>
+            </svg>
+          </span>
+          <span class="btn-google-label">Masuk dengan Google</span>
+        </button>
+
+        <div class="auth-theme-footer">
+          <span class="auth-theme-label">Tema tampilan</span>
+          <div class="theme-switcher" role="group" aria-label="Pemilih tema tampilan">
+            <button type="button" class="theme-choice-btn" data-theme-choice="light" aria-label="Tema Terang" title="Tema Terang" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+              </svg>
+            </button>
+            <button type="button" class="theme-choice-btn" data-theme-choice="dark" aria-label="Tema Gelap" title="Tema Gelap" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            </button>
+            <button type="button" class="theme-choice-btn" data-theme-choice="system" aria-label="Ikuti Sistem" title="Ikuti Sistem" aria-pressed="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 4. Pembungkus Utama Aplikasi (Hanya tampil setelah pengguna pemilik berhasil login) -->
+    <div id="app-shell" class="app-shell" hidden>
+      <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+
+      <aside id="app-sidebar" class="app-sidebar" aria-label="Navigasi utama">
+        <div class="sidebar-top">
+          <div class="sidebar-brand">
+            <span class="sidebar-brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="17" rx="2.5" />
+                <line x1="8" y1="2.5" x2="8" y2="6" />
+                <line x1="16" y1="2.5" x2="16" y2="6" />
+                <line x1="3" y1="9.5" x2="21" y2="9.5" />
+              </svg>
+            </span>
+            <span class="sidebar-brand-title">Agenda &amp; Arsip</span>
+          </div>
+
+          <button
+            type="button"
+            id="sidebar-collapse-btn"
+            class="icon-btn sidebar-collapse-btn"
+            aria-expanded="true"
+            aria-label="Ciutkan bilah sisi"
+            title="Ciutkan bilah sisi"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            id="sidebar-mobile-close-btn"
+            class="icon-btn sidebar-mobile-close-btn"
+            aria-label="Tutup menu navigasi"
+            title="Tutup menu navigasi"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Menu bagian aplikasi">
+          <ul id="sidebar-nav-list" class="nav-list"></ul>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="theme-switcher" role="group" aria-label="Pemilih tema">
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="light"
+              data-tooltip="Tema Terang"
+              aria-label="Tema Terang"
+              title="Tema Terang"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="dark"
+              data-tooltip="Tema Gelap"
+              aria-label="Tema Gelap"
+              title="Tema Gelap"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="theme-choice-btn"
+              data-theme-choice="system"
+              data-tooltip="Ikuti Sistem"
+              aria-label="Ikuti Sistem"
+              title="Ikuti Sistem"
+              aria-pressed="true"
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="account-row">
+            <div class="account-profile">
+              <span class="account-avatar" aria-hidden="true">
+                <img id="sidebar-user-photo" alt="" referrerpolicy="no-referrer" hidden />
+                <span id="sidebar-user-initials">AA</span>
+              </span>
+              <div class="account-meta">
+                <span id="sidebar-user-name" class="account-name">Pengguna</span>
+                <span id="sidebar-user-email" class="account-email"></span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="sidebar-logout-btn"
+              class="icon-btn logout-btn"
+              data-tooltip="Keluar"
+              aria-label="Keluar"
+              title="Keluar"
+            >
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                <line x1="12" y1="2" x2="12" y2="12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Tooltip eksternal untuk ikon sidebar saat diciutkan -->
+      <div id="sidebar-tooltip" class="sidebar-tooltip" role="tooltip" hidden></div>
+
+      <div class="app-workspace">
+        <header class="app-header">
+          <div class="header-left">
+            <button
+              type="button"
+              id="mobile-menu-btn"
+              class="icon-btn mobile-menu-btn"
+              aria-controls="app-sidebar"
+              aria-expanded="false"
+              aria-label="Buka menu navigasi"
+              title="Buka menu navigasi"
+            >
+              <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+            <h1 id="header-page-title" class="header-page-title">Dashboard</h1>
+          </div>
+
+          <div class="header-right">
+            <span id="header-date-text" class="header-date"></span>
+            <button type="button" id="pwa-install-btn" class="btn-install-pwa" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Pasang Aplikasi</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Pita luring (offline) -->
+        <div id="offline-banner" class="status-banner" role="status" hidden>
+          <span>Tidak ada koneksi internet. Menampilkan data tersimpan di perangkat.</span>
+        </div>
+
+        <!-- Pita token Google Drive kedaluwarsa (>50 menit) -->
+        <div id="token-expired-banner" class="status-banner" role="status" hidden>
+          <span id="token-expired-text">Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Masuk ulang diperlukan sebelum mengakses berkas Drive.</span>
+          <button type="button" id="relogin-drive-btn" class="btn-banner-action">Masuk ulang</button>
+        </div>
+
+        <main id="main-content" class="app-main" tabindex="-1">
+          <div id="main-sections-container"></div>
+        </main>
+      </div>
+    </div>
+
+    <!-- Dialog Panduan Pasang PWA di iOS Safari -->
+    <div
+      id="ios-install-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ios-install-title"
+      hidden
+    >
+      <div class="modal-dialog">
+        <h2 id="ios-install-title" class="modal-title">Pasang di iPhone / iPad</h2>
+        <ol class="ios-guide-steps">
+          <li>Ketuk tombol <strong>Bagikan (Share)</strong> pada bilah Safari.</li>
+          <li>Gulir ke bawah lalu pilih <strong>Tambahkan ke Layar Utama (Add to Home Screen)</strong>.</li>
+        </ol>
+        <div class="modal-actions">
+          <button type="button" id="ios-install-close-btn" class="btn-secondary">Tutup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dialog Konfirmasi Keluar -->
+    <div
+      id="logout-confirm-modal"
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="logout-modal-title"
+      aria-describedby="logout-modal-desc"
+      hidden
+    >
+      <div class="modal-dialog">
+        <h2 id="logout-modal-title" class="modal-title">Keluar dari aplikasi?</h2>
+        <p id="logout-modal-desc" class="modal-desc">
+          Sesi masuk dan akses sementara Google Drive di peramban ini akan diakhiri.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="logout-cancel-btn" class="btn-secondary">Batal</button>
+          <button type="button" id="logout-confirm-btn" class="btn-danger">Keluar</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
