@@ -4,6 +4,8 @@
  * kategori [teks bebas pendek], tag [array], kegiatanId [opsional], disematkan [boolean],
  * tanggal [YYYY-MM-DD], createdAt, updatedAt; serta templat, docId, tautan untuk "gdoc"
  * tanpa menyimpan isi dokumen Google Docs).
+ * Dilengkapi bilah alat ringkas satu baris, panel filter tersembunyi bawaan (melipat di
+ * desktop/tablet, lembar bawah di HP), dan chip filter aktif yang dapat dihapus satu per satu.
  */
 import {
   getFirestoreDb,
@@ -45,6 +47,8 @@ const IKON_SEMAT = svgIkon('<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 1
 const IKON_KALENDER = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 15);
 const IKON_TAUTAN = svgIkon('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', 15);
 const IKON_TAB_BARU = svgIkon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>', 15);
+const IKON_FILTER = svgIkon('<line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>', 17);
+const IKON_TUTUP = svgIkon('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>', 18);
 
 let unsubscribeSnapshotCatatan = null;
 let daftarCatatan = [];
@@ -55,6 +59,7 @@ const listenersPerubahanCatatan = new Set();
 let kataKunciCari = "";
 let filterJenis = "ALL";
 let urutanTanggal = "desc";
+let panelFilterTerbuka = false;
 
 let singkatModalTerbuka = false;
 let gdocModalTerbuka = false;
@@ -67,9 +72,40 @@ let itemCatatanGdocHapus = null;
 let fokusSebelumModalCatatan = null;
 let judulOtomatisGdocTerakhir = "";
 let pembukaDetailKegiatanEksternal = null;
+let timerSorotCatatan = null;
 
 export function daftarkanPembukaDetailKegiatanCatatan(fn) {
   pembukaDetailKegiatanEksternal = typeof fn === "function" ? fn : null;
+}
+
+export function sorotCatatanDiHalaman(catatanId) {
+  const targetId = String(catatanId || "").trim();
+  if (!targetId) return;
+
+  const tampilDiFilter = ambilCatatanTersaring().some((c) => c.id === targetId);
+  if (!tampilDiFilter && daftarCatatan.some((c) => c.id === targetId)) {
+    aturUlangSemuaFilterCatatan();
+  }
+
+  requestAnimationFrame(() => {
+    const region = document.getElementById("catatan-list-region");
+    if (!region) return;
+    region.querySelectorAll(".catatan-card.is-highlighted").forEach((el) => {
+      el.classList.remove("is-highlighted");
+    });
+    const kartu = Array.from(region.querySelectorAll(".catatan-card[data-id]")).find(
+      (el) => el.getAttribute("data-id") === targetId
+    );
+    if (!(kartu instanceof HTMLElement)) return;
+
+    kartu.classList.add("is-highlighted");
+    kartu.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (timerSorotCatatan !== null) window.clearTimeout(timerSorotCatatan);
+    timerSorotCatatan = window.setTimeout(() => {
+      kartu.classList.remove("is-highlighted");
+      timerSorotCatatan = null;
+    }, 2200);
+  });
 }
 
 export function getDaftarCatatan() {
@@ -242,36 +278,168 @@ function pastikanKerangkaHalamanCatatan() {
         <div id="catatan-page-feedback-actions" class="catatan-feedback-actions"></div>
       </div>
     </div>
-    <div id="catatan-toolbar" class="filter-card">
-      <div class="search-field-wrap">
-        <label for="catatan-search-input" class="sr-only">Cari catatan</label>
-        ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
-        <input type="search" id="catatan-search-input" class="form-input input-with-icon" placeholder="Cari judul, isi catatan singkat, atau tag..." autocomplete="off" />
-      </div>
-      <div class="filter-controls-grid catatan-filter-grid">
-        <div class="filter-control-item">
-          <label for="catatan-filter-jenis" class="filter-label">Jenis Catatan</label>
-          <select id="catatan-filter-jenis" class="form-select">
-            <option value="ALL">Semua Jenis</option>
-            <option value="singkat">Catatan Singkat</option>
-            <option value="gdoc">Catatan Google Docs</option>
+    <div id="catatan-toolbar" class="filter-card filter-toolbar-shell">
+      <div class="compact-toolbar-row">
+        <div class="search-field-wrap compact-search-wrap">
+          <label for="catatan-search-input" class="sr-only">Cari catatan</label>
+          ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
+          <input type="search" id="catatan-search-input" class="form-input input-with-icon" placeholder="Cari judul, isi catatan singkat, atau tag..." autocomplete="off" />
+        </div>
+        <button
+          type="button"
+          id="catatan-filter-toggle-btn"
+          class="btn-secondary btn-filter-toggle"
+          aria-expanded="false"
+          aria-controls="catatan-filter-panel"
+        >
+          ${IKON_FILTER}
+          <span class="btn-filter-label">Filter</span>
+          <span id="catatan-filter-count-badge" class="filter-count-badge" hidden>0</span>
+        </button>
+        <div class="compact-sort-wrap">
+          <label for="catatan-sort-tanggal" class="sr-only">Urutan Tanggal</label>
+          <select id="catatan-sort-tanggal" class="form-select compact-sort-select" aria-label="Urutan tanggal catatan" title="Urutan tanggal (tersemat selalu di atas)">
+            <option value="desc">Terbaru &rarr; Terlama</option>
+            <option value="asc">Terlama &rarr; Terbaru</option>
           </select>
         </div>
-        <div class="filter-control-item">
-          <label for="catatan-sort-tanggal" class="filter-label">Urutan Tanggal</label>
-          <select id="catatan-sort-tanggal" class="form-select">
-            <option value="desc">Terbaru &rarr; Terlama (Tersemat di Atas)</option>
-            <option value="asc">Terlama &rarr; Terbaru (Tersemat di Atas)</option>
-          </select>
+      </div>
+
+      <div id="catatan-filter-scrim" class="filter-sheet-scrim" hidden></div>
+
+      <div id="catatan-filter-panel" class="filter-collapsible" role="region" aria-label="Filter catatan">
+        <div class="filter-collapsible-inner">
+          <div class="filter-sheet-header">
+            <h3 class="filter-sheet-title">Filter Catatan</h3>
+            <button type="button" id="catatan-filter-sheet-close-btn" class="icon-btn" aria-label="Tutup panel filter" title="Tutup">
+              ${IKON_TUTUP}
+            </button>
+          </div>
+          <div class="filter-controls-grid filter-controls-1col-wide">
+            <div class="filter-control-item">
+              <label for="catatan-filter-jenis" class="filter-label">Jenis Catatan</label>
+              <select id="catatan-filter-jenis" class="form-select">
+                <option value="ALL">Semua Jenis</option>
+                <option value="singkat">Catatan Singkat</option>
+                <option value="gdoc">Catatan Google Docs</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-panel-actions-desktop">
+            <button type="button" id="catatan-filter-reset-desktop-btn" class="btn-link-filter">Atur ulang</button>
+            <button type="button" id="catatan-filter-done-btn" class="btn-secondary btn-sm-touch">Selesai</button>
+          </div>
+          <div class="filter-sheet-actions-mobile">
+            <button type="button" id="catatan-filter-reset-sheet-btn" class="btn-secondary">Atur ulang</button>
+            <button type="button" id="catatan-filter-apply-sheet-btn" class="btn-primary">Terapkan</button>
+          </div>
         </div>
       </div>
+
+      <div id="catatan-filter-chips-row" class="active-chips-row" hidden>
+        <div id="catatan-filter-chips-list" class="filter-chips-list"></div>
+        <button type="button" id="btn-reset-filter-catatan" class="btn-link-filter">Hapus semua</button>
+      </div>
+
       <div id="catatan-active-filter-bar" class="active-filter-bar" hidden>
         <span id="catatan-result-summary" class="result-summary-text"></span>
-        <button type="button" id="btn-reset-filter-catatan" class="btn-link-filter">Atur ulang filter</button>
       </div>
     </div>
     <div id="catatan-list-region" aria-live="polite"></div>
   </div>`;
+
+  sinkronkanPanelFilterCatatan(false);
+}
+
+function sinkronkanPanelFilterCatatan(kembalikanFokusKeTombol = false) {
+  const btnToggle = document.getElementById("catatan-filter-toggle-btn");
+  const panel = document.getElementById("catatan-filter-panel");
+  const scrim = document.getElementById("catatan-filter-scrim");
+  if (!btnToggle || !panel) return;
+
+  btnToggle.setAttribute("aria-expanded", panelFilterTerbuka ? "true" : "false");
+  btnToggle.classList.toggle("is-open", panelFilterTerbuka);
+  panel.classList.toggle("is-open", panelFilterTerbuka);
+  panel.setAttribute("aria-hidden", panelFilterTerbuka ? "false" : "true");
+  if ("inert" in panel) {
+    panel.inert = !panelFilterTerbuka;
+  }
+  if (scrim) {
+    scrim.hidden = !panelFilterTerbuka;
+  }
+
+  if (!panelFilterTerbuka && kembalikanFokusKeTombol) {
+    btnToggle.focus();
+  }
+}
+
+function aturBukaPanelFilterCatatan(buka, kembalikanFokus = false) {
+  panelFilterTerbuka = Boolean(buka);
+  sinkronkanPanelFilterCatatan(kembalikanFokus);
+}
+
+function aturUlangSemuaFilterCatatan() {
+  kataKunciCari = "";
+  filterJenis = "ALL";
+  const searchInput = document.getElementById("catatan-search-input");
+  const jenisSelect = document.getElementById("catatan-filter-jenis");
+  if (searchInput instanceof HTMLInputElement) searchInput.value = "";
+  if (jenisSelect instanceof HTMLSelectElement) jenisSelect.value = "ALL";
+  renderDaftarCatatan();
+}
+
+function perbaruiLencanaDanChipFilterCatatan() {
+  const badge = document.getElementById("catatan-filter-count-badge");
+  const btnToggle = document.getElementById("catatan-filter-toggle-btn");
+  const chipsRow = document.getElementById("catatan-filter-chips-row");
+  const chipsList = document.getElementById("catatan-filter-chips-list");
+  const btnResetDesktop = document.getElementById("catatan-filter-reset-desktop-btn");
+
+  let jumlahFilterPanel = 0;
+  const daftarChip = [];
+
+  if (filterJenis !== "ALL") {
+    jumlahFilterPanel += 1;
+    const labelJenis = filterJenis === JENIS_CATATAN_GDOC ? "Catatan Google Docs" : "Catatan Singkat";
+    daftarChip.push({
+      key: "jenis",
+      label: `Jenis: ${labelJenis}`
+    });
+  }
+  if (kataKunciCari.trim() !== "") {
+    daftarChip.push({
+      key: "cari",
+      label: `Cari: "${kataKunciCari.trim()}"`
+    });
+  }
+
+  if (badge) {
+    badge.textContent = String(jumlahFilterPanel);
+    badge.hidden = jumlahFilterPanel === 0;
+  }
+  if (btnToggle) {
+    btnToggle.classList.toggle("has-active-filter", jumlahFilterPanel > 0);
+  }
+  if (btnResetDesktop) {
+    btnResetDesktop.hidden = jumlahFilterPanel === 0 && kataKunciCari.trim() === "";
+  }
+
+  if (chipsRow && chipsList) {
+    if (daftarChip.length > 0) {
+      chipsList.innerHTML = daftarChip
+        .map(
+          (chip) => `<button type="button" class="active-filter-chip" data-remove-catatan-filter="${escapeHtml(chip.key)}" aria-label="Hapus filter ${escapeHtml(chip.label)}" title="Hapus filter ${escapeHtml(chip.label)}">
+            <span class="active-filter-chip-text">${escapeHtml(chip.label)}</span>
+            <span class="active-filter-chip-x" aria-hidden="true">&times;</span>
+          </button>`
+        )
+        .join("");
+      chipsRow.hidden = false;
+    } else {
+      chipsList.innerHTML = "";
+      chipsRow.hidden = true;
+    }
+  }
 }
 
 function perbaruiOpsiKegiatanDiModal() {
@@ -312,6 +480,7 @@ function renderDaftarCatatan() {
   const region = document.getElementById("catatan-list-region");
   const bar = document.getElementById("catatan-active-filter-bar");
   const sum = document.getElementById("catatan-result-summary");
+  perbaruiLencanaDanChipFilterCatatan();
   if (!region) return;
 
   if (!sudahDimuatPertamaKali) {
@@ -328,8 +497,6 @@ function renderDaftarCatatan() {
       sum.textContent = adaFilter
         ? `Menampilkan ${hasil.length} dari ${daftarCatatan.length} catatan`
         : `Total ${daftarCatatan.length} catatan tercatat`;
-      const btnReset = document.getElementById("btn-reset-filter-catatan");
-      if (btnReset) btnReset.hidden = !adaFilter;
     } else {
       bar.hidden = true;
     }
@@ -699,11 +866,44 @@ export function initHalamanCatatan() {
     renderDaftarCatatan();
   });
 
+  // Tombol buka/tutup panel filter & aksi lembar bawah HP
+  document.getElementById("catatan-filter-toggle-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterCatatan(!panelFilterTerbuka, false);
+  });
+  document.getElementById("catatan-filter-done-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterCatatan(false, true);
+  });
+  document.getElementById("catatan-filter-apply-sheet-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterCatatan(false, true);
+  });
+  document.getElementById("catatan-filter-sheet-close-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterCatatan(false, true);
+  });
+  document.getElementById("catatan-filter-scrim")?.addEventListener("click", () => {
+    aturBukaPanelFilterCatatan(false, true);
+  });
+  document.getElementById("catatan-filter-reset-desktop-btn")?.addEventListener("click", () => {
+    aturUlangSemuaFilterCatatan();
+  });
+  document.getElementById("catatan-filter-reset-sheet-btn")?.addEventListener("click", () => {
+    aturUlangSemuaFilterCatatan();
+  });
   document.getElementById("btn-reset-filter-catatan")?.addEventListener("click", () => {
-    kataKunciCari = "";
-    filterJenis = "ALL";
-    if (searchInput instanceof HTMLInputElement) searchInput.value = "";
-    if (jenisSelect instanceof HTMLSelectElement) jenisSelect.value = "ALL";
+    aturUlangSemuaFilterCatatan();
+  });
+
+  // Hapus chip filter satu per satu
+  document.getElementById("catatan-filter-chips-list")?.addEventListener("click", (e) => {
+    const chipBtn = e.target instanceof Element ? e.target.closest("button[data-remove-catatan-filter]") : null;
+    if (!chipBtn) return;
+    const kunci = chipBtn.getAttribute("data-remove-catatan-filter");
+    if (kunci === "jenis") {
+      filterJenis = "ALL";
+      if (jenisSelect instanceof HTMLSelectElement) jenisSelect.value = "ALL";
+    } else if (kunci === "cari") {
+      kataKunciCari = "";
+      if (searchInput instanceof HTMLInputElement) searchInput.value = "";
+    }
     renderDaftarCatatan();
   });
 
@@ -950,6 +1150,13 @@ export function initHalamanCatatan() {
     else if (hapusSingkatModalTerbuka) { e.preventDefault(); e.stopImmediatePropagation(); tutupDialogHapusSingkat(true); }
     else if (gdocModalTerbuka) { e.preventDefault(); e.stopImmediatePropagation(); tutupModalBuatCatatanGdoc(true); }
     else if (singkatModalTerbuka) { e.preventDefault(); e.stopImmediatePropagation(); tutupModalCatatanSingkat(true); }
+    else if (panelFilterTerbuka && !document.getElementById("section-catatan")?.hidden) {
+      const adaDialogTerbuka = document.querySelector(".modal-overlay:not([hidden])");
+      if (!adaDialogTerbuka && document.documentElement.getAttribute("data-drawer") !== "open") {
+        e.preventDefault();
+        aturBukaPanelFilterCatatan(false, true);
+      }
+    }
   }, true);
 
   window.addEventListener("online", perbaruiStatusJaringanCatatan);
@@ -1012,9 +1219,14 @@ export function unsubscribeCatatan() {
     try { unsubscribeSnapshotCatatan(); } catch (_e) {}
     unsubscribeSnapshotCatatan = null;
   }
+  if (timerSorotCatatan !== null) {
+    window.clearTimeout(timerSorotCatatan);
+    timerSorotCatatan = null;
+  }
   daftarCatatan = [];
   sudahDimuatPertamaKali = false;
   sedangMembuatGdoc = false;
+  aturBukaPanelFilterCatatan(false, false);
   tutupModalCatatanSingkat(false);
   tutupModalBuatCatatanGdoc(false);
   tutupDialogHapusSingkat(false);

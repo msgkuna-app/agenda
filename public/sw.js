@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v2.0.0";
+const VERSION = "agenda-arsip-v2.1.2";
 
 const APP_SHELL = [
   "/",
@@ -28,10 +28,7 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting()),
+    caches.open(VERSION).then((cache) => cache.addAll(APP_SHELL)),
   );
 });
 
@@ -48,6 +45,12 @@ self.addEventListener("activate", (event) => {
       )
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

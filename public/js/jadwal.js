@@ -333,9 +333,7 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
     region.innerHTML = `<div class="agenda-range-banner"><span class="agenda-range-text">Rentang 30 hari ke depan: <strong>${escapeHtml(keteranganRentang)}</strong></span></div>
     <div class="empty-stage-card">
       <div class="empty-stage-icon" aria-hidden="true">${svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 24)}</div>
-      <h3 class="empty-stage-title">Belum Ada Agenda 30 Hari ke Depan</h3>
-      <p class="empty-stage-desc">Tidak ada kegiatan terjadwal mulai hari ini hingga ${escapeHtml(formatTanggalLengkapIndonesia(strAkhir))}.</p>
-      <button type="button" class="btn-primary" data-action="tambah-kegiatan-tanggal" data-tanggal="${escapeHtml(strAwal)}">Tambah kegiatan</button>
+      <p class="empty-stage-desc">Belum ada agenda. Gunakan tombol Tambah kegiatan di atas.</p>
     </div>`;
     return;
   }
@@ -354,7 +352,6 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
           <h3 class="agenda-day-title">${escapeHtml(penandaRelatif)}${escapeHtml(formatTanggalLengkapIndonesia(tgl))}</h3>
           <span class="agenda-day-count">${daftarItem.length} kegiatan</span>
         </div>
-        <button type="button" class="btn-secondary btn-sm-touch" data-action="tambah-kegiatan-tanggal" data-tanggal="${escapeHtml(tgl)}">+ Tambah kegiatan</button>
       </div>
       <div class="kegiatan-list-grid">${daftarItem.map((item) => renderKartuItemJadwal(item)).join("")}</div>
     </section>`;

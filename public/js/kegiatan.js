@@ -1,9 +1,10 @@
 /**
  * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Ekspor Minimal Fase 2 + Integrasi Catatan Fase 4)
- * Mencakup daftar kegiatan, pencarian (judul, catatan, lokasi), filter kategori & status,
- * pengurutan tanggal, tambah, ubah, hapus dengan konfirmasi, ubah status cepat,
- * observer tunggal bagi modul jadwal.js dan Dashboard, serta tampilan catatan terkait
- * beserta tombol "Tambah catatan" dan "Buat notulensi" di rincian kegiatan.
+ * Mencakup daftar kegiatan, pencarian (judul, catatan, lokasi), filter kategori & status
+ * dengan panel filter tersembunyi bawaan (melipat di desktop/tablet, lembar bawah di HP),
+ * chip filter aktif yang dapat dihapus satu per satu, pengurutan tanggal, tambah, ubah,
+ * hapus dengan konfirmasi, ubah status cepat, observer tunggal bagi modul jadwal.js dan Dashboard,
+ * serta tampilan catatan terkait di rincian kegiatan.
  */
 import {
   getFirestoreDb,
@@ -47,6 +48,8 @@ const IKON_LOKASI_META = svgIkon('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 
 const IKON_CATATAN_META = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 15);
 const IKON_GDOC_MINI = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/>', 16);
 const IKON_TAB_BARU = svgIkon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>', 14);
+const IKON_FILTER = svgIkon('<line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>', 17);
+const IKON_TUTUP = svgIkon('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>', 18);
 
 export const manajerKategoriKegiatan = buatManajerKategori({
   namaKoleksiKategori: "kategoriKegiatan",
@@ -66,6 +69,7 @@ let kataKunciCari = "";
 let filterKategoriId = "ALL";
 let filterStatus = "ALL";
 let urutanTanggal = "asc";
+let panelFilterTerbuka = false;
 
 let formModalTerbuka = false;
 let hapusModalTerbuka = false;
@@ -165,41 +169,188 @@ function pastikanKerangkaHalamanKegiatan() {
       </div>
     </div>
     <div id="kegiatan-page-error" class="alert-box" role="alert" hidden>${svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18)}<span id="kegiatan-page-error-text"></span></div>
-    <div id="kegiatan-toolbar" class="filter-card">
-      <div class="search-field-wrap">
-        <label for="kegiatan-search-input" class="sr-only">Cari kegiatan</label>
-        ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
-        <input type="search" id="kegiatan-search-input" class="form-input input-with-icon" placeholder="Cari judul, catatan, atau lokasi..." autocomplete="off" />
-      </div>
-      <div class="filter-controls-grid">
-        <div class="filter-control-item">
-          <label for="kegiatan-filter-kategori" class="filter-label">Kategori</label>
-          <select id="kegiatan-filter-kategori" class="form-select"><option value="ALL">Semua Kategori</option></select>
+    <div id="kegiatan-toolbar" class="filter-card filter-toolbar-shell">
+      <div class="compact-toolbar-row">
+        <div class="search-field-wrap compact-search-wrap">
+          <label for="kegiatan-search-input" class="sr-only">Cari kegiatan</label>
+          ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
+          <input type="search" id="kegiatan-search-input" class="form-input input-with-icon" placeholder="Cari judul, catatan, atau lokasi..." autocomplete="off" />
         </div>
-        <div class="filter-control-item">
-          <label for="kegiatan-filter-status" class="filter-label">Status</label>
-          <select id="kegiatan-filter-status" class="form-select">
-            <option value="ALL">Semua Status</option>
-            <option value="Rencana">Rencana</option>
-            <option value="Berjalan">Berjalan</option>
-            <option value="Selesai">Selesai</option>
-          </select>
-        </div>
-        <div class="filter-control-item">
-          <label for="kegiatan-sort-tanggal" class="filter-label">Urutan Tanggal</label>
-          <select id="kegiatan-sort-tanggal" class="form-select">
-            <option value="asc">Tanggal Terlama &rarr; Terbaru</option>
-            <option value="desc">Tanggal Terbaru &rarr; Terlama</option>
+        <button
+          type="button"
+          id="kegiatan-filter-toggle-btn"
+          class="btn-secondary btn-filter-toggle"
+          aria-expanded="false"
+          aria-controls="kegiatan-filter-panel"
+        >
+          ${IKON_FILTER}
+          <span class="btn-filter-label">Filter</span>
+          <span id="kegiatan-filter-count-badge" class="filter-count-badge" hidden>0</span>
+        </button>
+        <div class="compact-sort-wrap">
+          <label for="kegiatan-sort-tanggal" class="sr-only">Urutan Tanggal</label>
+          <select id="kegiatan-sort-tanggal" class="form-select compact-sort-select" aria-label="Urutan tanggal kegiatan" title="Urutan tanggal">
+            <option value="asc">Terlama &rarr; Terbaru</option>
+            <option value="desc">Terbaru &rarr; Terlama</option>
           </select>
         </div>
       </div>
+
+      <div id="kegiatan-filter-scrim" class="filter-sheet-scrim" hidden></div>
+
+      <div id="kegiatan-filter-panel" class="filter-collapsible" role="region" aria-label="Filter kegiatan">
+        <div class="filter-collapsible-inner">
+          <div class="filter-sheet-header">
+            <h3 class="filter-sheet-title">Filter Kegiatan</h3>
+            <button type="button" id="kegiatan-filter-sheet-close-btn" class="icon-btn" aria-label="Tutup panel filter" title="Tutup">
+              ${IKON_TUTUP}
+            </button>
+          </div>
+          <div class="filter-controls-grid filter-controls-2col">
+            <div class="filter-control-item">
+              <label for="kegiatan-filter-kategori" class="filter-label">Kategori</label>
+              <select id="kegiatan-filter-kategori" class="form-select"><option value="ALL">Semua Kategori</option></select>
+            </div>
+            <div class="filter-control-item">
+              <label for="kegiatan-filter-status" class="filter-label">Status</label>
+              <select id="kegiatan-filter-status" class="form-select">
+                <option value="ALL">Semua Status</option>
+                <option value="Rencana">Rencana</option>
+                <option value="Berjalan">Berjalan</option>
+                <option value="Selesai">Selesai</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-panel-actions-desktop">
+            <button type="button" id="kegiatan-filter-reset-desktop-btn" class="btn-link-filter">Atur ulang</button>
+            <button type="button" id="kegiatan-filter-done-btn" class="btn-secondary btn-sm-touch">Selesai</button>
+          </div>
+          <div class="filter-sheet-actions-mobile">
+            <button type="button" id="kegiatan-filter-reset-sheet-btn" class="btn-secondary">Atur ulang</button>
+            <button type="button" id="kegiatan-filter-apply-sheet-btn" class="btn-primary">Terapkan</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="kegiatan-filter-chips-row" class="active-chips-row" hidden>
+        <div id="kegiatan-filter-chips-list" class="filter-chips-list"></div>
+        <button type="button" id="btn-reset-filter-kegiatan" class="btn-link-filter">Hapus semua</button>
+      </div>
+
       <div id="kegiatan-active-filter-bar" class="active-filter-bar" hidden>
         <span id="kegiatan-result-summary" class="result-summary-text"></span>
-        <button type="button" id="btn-reset-filter-kegiatan" class="btn-link-filter">Atur ulang filter</button>
       </div>
     </div>
     <div id="kegiatan-list-region" aria-live="polite"></div>
   </div>`;
+
+  sinkronkanPanelFilterKegiatan(false);
+}
+
+function sinkronkanPanelFilterKegiatan(kembalikanFokusKeTombol = false) {
+  const btnToggle = document.getElementById("kegiatan-filter-toggle-btn");
+  const panel = document.getElementById("kegiatan-filter-panel");
+  const scrim = document.getElementById("kegiatan-filter-scrim");
+  if (!btnToggle || !panel) return;
+
+  btnToggle.setAttribute("aria-expanded", panelFilterTerbuka ? "true" : "false");
+  btnToggle.classList.toggle("is-open", panelFilterTerbuka);
+  panel.classList.toggle("is-open", panelFilterTerbuka);
+  panel.setAttribute("aria-hidden", panelFilterTerbuka ? "false" : "true");
+  if ("inert" in panel) {
+    panel.inert = !panelFilterTerbuka;
+  }
+  if (scrim) {
+    scrim.hidden = !panelFilterTerbuka;
+  }
+
+  if (!panelFilterTerbuka && kembalikanFokusKeTombol) {
+    btnToggle.focus();
+  }
+}
+
+function aturBukaPanelFilterKegiatan(buka, kembalikanFokus = false) {
+  panelFilterTerbuka = Boolean(buka);
+  sinkronkanPanelFilterKegiatan(kembalikanFokus);
+}
+
+function aturUlangSemuaFilterKegiatan() {
+  kataKunciCari = "";
+  filterKategoriId = "ALL";
+  filterStatus = "ALL";
+  const searchInput = document.getElementById("kegiatan-search-input");
+  const filterKatSelect = document.getElementById("kegiatan-filter-kategori");
+  const filterStatusSelect = document.getElementById("kegiatan-filter-status");
+  if (searchInput instanceof HTMLInputElement) searchInput.value = "";
+  if (filterKatSelect instanceof HTMLSelectElement) filterKatSelect.value = "ALL";
+  if (filterStatusSelect instanceof HTMLSelectElement) filterStatusSelect.value = "ALL";
+  renderDaftarKegiatan();
+}
+
+function cariNamaKategoriFilterKegiatan(katId) {
+  if (katId === "__TANPA_KATEGORI__") return TANPA_KATEGORI_INFO.nama;
+  const info = manajerKategoriKegiatan.cariInfoKategori(katId);
+  return info ? info.nama : "Kategori";
+}
+
+function perbaruiLencanaDanChipFilterKegiatan() {
+  const badge = document.getElementById("kegiatan-filter-count-badge");
+  const btnToggle = document.getElementById("kegiatan-filter-toggle-btn");
+  const chipsRow = document.getElementById("kegiatan-filter-chips-row");
+  const chipsList = document.getElementById("kegiatan-filter-chips-list");
+  const btnResetDesktop = document.getElementById("kegiatan-filter-reset-desktop-btn");
+
+  let jumlahFilterPanel = 0;
+  const daftarChip = [];
+
+  if (filterKategoriId !== "ALL") {
+    jumlahFilterPanel += 1;
+    daftarChip.push({
+      key: "kategori",
+      label: `Kategori: ${cariNamaKategoriFilterKegiatan(filterKategoriId)}`
+    });
+  }
+  if (filterStatus !== "ALL") {
+    jumlahFilterPanel += 1;
+    daftarChip.push({
+      key: "status",
+      label: `Status: ${filterStatus}`
+    });
+  }
+  if (kataKunciCari.trim() !== "") {
+    daftarChip.push({
+      key: "cari",
+      label: `Cari: "${kataKunciCari.trim()}"`
+    });
+  }
+
+  if (badge) {
+    badge.textContent = String(jumlahFilterPanel);
+    badge.hidden = jumlahFilterPanel === 0;
+  }
+  if (btnToggle) {
+    btnToggle.classList.toggle("has-active-filter", jumlahFilterPanel > 0);
+  }
+  if (btnResetDesktop) {
+    btnResetDesktop.hidden = jumlahFilterPanel === 0 && kataKunciCari.trim() === "";
+  }
+
+  if (chipsRow && chipsList) {
+    if (daftarChip.length > 0) {
+      chipsList.innerHTML = daftarChip
+        .map(
+          (chip) => `<button type="button" class="active-filter-chip" data-remove-kegiatan-filter="${escapeHtml(chip.key)}" aria-label="Hapus filter ${escapeHtml(chip.label)}" title="Hapus filter ${escapeHtml(chip.label)}">
+            <span class="active-filter-chip-text">${escapeHtml(chip.label)}</span>
+            <span class="active-filter-chip-x" aria-hidden="true">&times;</span>
+          </button>`
+        )
+        .join("");
+      chipsRow.hidden = false;
+    } else {
+      chipsList.innerHTML = "";
+      chipsRow.hidden = true;
+    }
+  }
 }
 
 function perbaruiDropdownKategori() {
@@ -280,6 +431,7 @@ function renderDaftarKegiatan() {
   const region = document.getElementById("kegiatan-list-region");
   const barFilterAktif = document.getElementById("kegiatan-active-filter-bar");
   const ringkasanEl = document.getElementById("kegiatan-result-summary");
+  perbaruiLencanaDanChipFilterKegiatan();
   if (!region) return;
 
   if (!sudahDimuatPertamaKali) {
@@ -296,8 +448,6 @@ function renderDaftarKegiatan() {
       ringkasanEl.textContent = adaFilter
         ? `Menampilkan ${hasil.length} dari ${daftarKegiatan.length} kegiatan`
         : `Total ${daftarKegiatan.length} kegiatan tercatat`;
-      const btnReset = document.getElementById("btn-reset-filter-kegiatan");
-      if (btnReset) btnReset.hidden = !adaFilter;
     } else {
       barFilterAktif.hidden = true;
     }
@@ -618,6 +768,7 @@ export function terapkanFilterKategoriKegiatan(targetKategoriId) {
   kataKunciCari = "";
   filterStatus = "ALL";
   filterKategoriId = targetKategoriId || "ALL";
+  aturBukaPanelFilterKegiatan(false, false);
 
   const searchInput = document.getElementById("kegiatan-search-input");
   const statusSelect = document.getElementById("kegiatan-filter-status");
@@ -636,6 +787,7 @@ export function terapkanFilterStatusKegiatan(targetStatus) {
   kataKunciCari = "";
   filterKategoriId = "ALL";
   filterStatus = DAFTAR_STATUS_KEGIATAN.includes(targetStatus) ? targetStatus : "ALL";
+  aturBukaPanelFilterKegiatan(false, false);
 
   const searchInput = document.getElementById("kegiatan-search-input");
   const statusSelect = document.getElementById("kegiatan-filter-status");
@@ -782,18 +934,49 @@ export function initHalamanKegiatan() {
     });
   }
 
-  const btnResetFilter = document.getElementById("btn-reset-filter-kegiatan");
-  if (btnResetFilter) {
-    btnResetFilter.addEventListener("click", () => {
-      kataKunciCari = "";
+  // Tombol buka/tutup panel filter & aksi lembar bawah HP
+  document.getElementById("kegiatan-filter-toggle-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterKegiatan(!panelFilterTerbuka, false);
+  });
+  document.getElementById("kegiatan-filter-done-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterKegiatan(false, true);
+  });
+  document.getElementById("kegiatan-filter-apply-sheet-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterKegiatan(false, true);
+  });
+  document.getElementById("kegiatan-filter-sheet-close-btn")?.addEventListener("click", () => {
+    aturBukaPanelFilterKegiatan(false, true);
+  });
+  document.getElementById("kegiatan-filter-scrim")?.addEventListener("click", () => {
+    aturBukaPanelFilterKegiatan(false, true);
+  });
+  document.getElementById("kegiatan-filter-reset-desktop-btn")?.addEventListener("click", () => {
+    aturUlangSemuaFilterKegiatan();
+  });
+  document.getElementById("kegiatan-filter-reset-sheet-btn")?.addEventListener("click", () => {
+    aturUlangSemuaFilterKegiatan();
+  });
+  document.getElementById("btn-reset-filter-kegiatan")?.addEventListener("click", () => {
+    aturUlangSemuaFilterKegiatan();
+  });
+
+  // Hapus chip filter satu per satu
+  document.getElementById("kegiatan-filter-chips-list")?.addEventListener("click", (e) => {
+    const chipBtn = e.target instanceof Element ? e.target.closest("button[data-remove-kegiatan-filter]") : null;
+    if (!chipBtn) return;
+    const kunci = chipBtn.getAttribute("data-remove-kegiatan-filter");
+    if (kunci === "kategori") {
       filterKategoriId = "ALL";
-      filterStatus = "ALL";
-      if (searchInput instanceof HTMLInputElement) searchInput.value = "";
       if (filterKatSelect instanceof HTMLSelectElement) filterKatSelect.value = "ALL";
+    } else if (kunci === "status") {
+      filterStatus = "ALL";
       if (filterStatusSelect instanceof HTMLSelectElement) filterStatusSelect.value = "ALL";
-      renderDaftarKegiatan();
-    });
-  }
+    } else if (kunci === "cari") {
+      kataKunciCari = "";
+      if (searchInput instanceof HTMLInputElement) searchInput.value = "";
+    }
+    renderDaftarKegiatan();
+  });
 
   const listRegion = document.getElementById("kegiatan-list-region");
   if (listRegion) {
@@ -927,6 +1110,12 @@ export function initHalamanKegiatan() {
     } else if (formModalTerbuka) {
       e.preventDefault();
       tutupModalFormKegiatan(true);
+    } else if (panelFilterTerbuka && !document.getElementById("section-kegiatan")?.hidden) {
+      const adaDialogTerbuka = document.querySelector(".modal-overlay:not([hidden])");
+      if (!adaDialogTerbuka && document.documentElement.getAttribute("data-drawer") !== "open") {
+        e.preventDefault();
+        aturBukaPanelFilterKegiatan(false, true);
+      }
     }
   });
 }
@@ -1002,6 +1191,7 @@ export function unsubscribeKegiatan() {
   idKegiatanDetailAktif = "";
   idKegiatanTerakhirDiklik = "";
 
+  aturBukaPanelFilterKegiatan(false, false);
   tutupModalFormKegiatan(false);
   tutupDialogHapusKegiatan(false);
   dialogKelolaKategoriCtrl?.tutup(false);

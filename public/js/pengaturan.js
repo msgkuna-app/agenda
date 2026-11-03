@@ -52,6 +52,7 @@ import {
 } from "./catatan.js";
 import { getDaftarLaporan } from "./laporan.js";
 import { formatPesanGalatDrive } from "./drive.js";
+import { periksaPembaruan } from "./app.js";
 
 const VERSI_CADANGAN_SW = "agenda-arsip-v2.0.0";
 const BATAS_OPERASI_BATCH = 500;
@@ -287,6 +288,7 @@ function pastikanKerangkaHalamanPengaturan() {
               <dd id="settings-sw-state">Memeriksa Service Worker...</dd>
             </div>
           </dl>
+          <p id="settings-update-status" class="field-hint-text" role="status" aria-live="polite" hidden></p>
         </div>
         <div class="dash-card-footer">
           <button type="button" id="btn-settings-check-update" class="btn-secondary settings-full-btn-mobile">
@@ -500,10 +502,10 @@ export function segarkanTampilanPengaturan() {
   // B4. Informasi Aplikasi & Service Worker
   const checkUpdateBtn = document.getElementById("btn-settings-check-update");
   if (checkUpdateBtn instanceof HTMLButtonElement && !checkUpdateBtn.hasAttribute("data-busy")) {
-    checkUpdateBtn.disabled = !online;
+    checkUpdateBtn.disabled = false;
     checkUpdateBtn.title = online
       ? "Periksa versi terbaru Service Worker"
-      : "Pemeriksaan pembaruan memerlukan koneksi internet";
+      : "Tidak dapat memeriksa saat offline";
   }
 
   const swStateEl = document.getElementById("settings-sw-state");
@@ -634,49 +636,60 @@ async function tanganiSinkronkanSemuaFolder() {
   }
 }
 
+function setStatusCekPembaruan(pesan) {
+  const statusEl = document.getElementById("settings-update-status");
+  if (!statusEl) return;
+  const bersih = String(pesan || "").trim();
+  statusEl.textContent = bersih;
+  statusEl.hidden = !bersih;
+}
+
 async function tanganiPeriksaPembaruanSw() {
+  setUmpanBalikPengaturan("");
+
   if (!navigator.onLine) {
-    tampilkanToast("Pemeriksaan pembaruan memerlukan koneksi internet.", "warning");
+    setStatusCekPembaruan("Tidak dapat memeriksa saat offline");
+    tampilkanToast("Tidak dapat memeriksa saat offline", "warning");
     return;
   }
+
   if (!("serviceWorker" in navigator)) {
-    setUmpanBalikPengaturan("Peramban ini tidak mendukung Service Worker.", "warning");
+    setStatusCekPembaruan("Peramban ini tidak mendukung Service Worker.");
     return;
   }
 
   const btn = document.getElementById("btn-settings-check-update");
+  const spanBtn = btn ? btn.querySelector("span") : null;
+  const labelAwal = spanBtn ? spanBtn.textContent : "Periksa pembaruan";
+
   if (btn instanceof HTMLButtonElement) {
     btn.disabled = true;
     btn.setAttribute("data-busy", "true");
   }
-  setUmpanBalikPengaturan("");
+  if (spanBtn) spanBtn.textContent = "Memeriksa...";
+  setStatusCekPembaruan("Memeriksa...");
 
   try {
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) {
-      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-      versiAplikasiTerbaca = "";
-      await perbaruiInfoVersiSwDiDom();
-      tampilkanToast("Service Worker berhasil didaftarkan.", "success");
+    const reg = await periksaPembaruan();
+    if (reg && reg.waiting && navigator.serviceWorker.controller) {
+      setStatusCekPembaruan("Versi baru AKSARA tersedia.");
       return;
     }
 
-    await reg.update();
-    versiAplikasiTerbaca = "";
-    const versiTerbaru = await perbaruiInfoVersiSwDiDom();
-
-    if (reg.waiting) {
-      tampilkanToast("Pembaruan ditemukan dan sedang diaktifkan. Memuat ulang...", "success");
-      window.setTimeout(() => window.location.reload(), 900);
-      return;
-    }
-
-    tampilkanToast(`Aplikasi sudah memakai versi terbaru (${versiTerbaru || VERSI_CADANGAN_SW}).`, "success");
+    setStatusCekPembaruan("Aplikasi sudah versi terbaru");
+    tampilkanToast("Aplikasi sudah versi terbaru", "success");
   } catch (_err) {
-    setUmpanBalikPengaturan("Gagal memeriksa pembaruan Service Worker. Periksa koneksi internet Anda.", "warning");
+    if (!navigator.onLine) {
+      setStatusCekPembaruan("Tidak dapat memeriksa saat offline");
+      tampilkanToast("Tidak dapat memeriksa saat offline", "warning");
+    } else {
+      setStatusCekPembaruan("Gagal memeriksa pembaruan. Coba lagi beberapa saat.");
+    }
   } finally {
+    if (spanBtn) spanBtn.textContent = labelAwal;
     if (btn instanceof HTMLButtonElement) {
       btn.removeAttribute("data-busy");
+      btn.disabled = false;
     }
     segarkanTampilanPengaturan();
   }
@@ -1262,6 +1275,7 @@ export function initHalamanPengaturan() {
 export function resetHalamanPengaturanSaatKeluar() {
   batalkanPratinjauImpor();
   setUmpanBalikPengaturan("");
+  setStatusCekPembaruan("");
   const summaryBox = document.getElementById("settings-import-summary-box");
   if (summaryBox) {
     summaryBox.hidden = true;

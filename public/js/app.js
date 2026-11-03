@@ -26,7 +26,6 @@ import {
 } from "./sidebar.js";
 import { hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import {
-  DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,
   initHalamanKegiatan,
   subscribeKegiatan,
@@ -35,7 +34,6 @@ import {
   isKegiatanSudahDimuat,
   onPerubahanKegiatan,
   bukaModalFormKegiatan,
-  terapkanFilterStatusKegiatan,
   kelasBadgeStatus,
   daftarkanPembukaDetailKegiatan,
 } from "./kegiatan.js";
@@ -64,9 +62,16 @@ import {
   infoJenisBerkasMime,
 } from "./dokumen.js";
 import {
+  JENIS_CATATAN_GDOC,
   initHalamanCatatan,
   subscribeCatatan,
   unsubscribeCatatan,
+  getDaftarCatatan,
+  isCatatanSudahDimuat,
+  onPerubahanCatatan,
+  formatTanggalCatatan,
+  tautanAmanGoogleDocs,
+  sorotCatatanDiHalaman,
   perbaruiStatusJaringanCatatan,
   daftarkanPembukaDetailKegiatanCatatan,
 } from "./catatan.js";
@@ -110,12 +115,21 @@ const NAMA_BULAN = [
 const svgIkon = (isi, uk = 18, tebal = 2) =>
   `<svg viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
+const KUNCI_TUNDA_UPDATE_SW = "agenda_arsip_update_ditunda";
+const INTERVAL_CEK_UPDATE_SW_MS = 60 * 60 * 1000;
+
 let dataUnsubscribers = [];
 let tokenCheckIntervalId = null;
 let logoutDialogOpen = false;
 let focusBeforeModal = null;
 let dashboardSudahDiikat = false;
 let statusOnlineTerakhir = navigator.onLine;
+let swRegistration = null;
+let registrasiSwDipantau = null;
+let swUpdateMenunggu = false;
+let swUpdateIntervalId = null;
+let sedangMuatUlangSw = false;
+let spandukSwSudahDiikat = false;
 
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
@@ -150,6 +164,8 @@ function tampilkanLayarUtama(namaLayar) {
     tutupDrawerMobile(false);
     tutupDialogKeluar(false);
   }
+
+  perbaruiVisibilitasSpandukSw();
 }
 
 function setPesanGalatLogin(pesan) {
@@ -171,11 +187,21 @@ function perbaruiTanggalHeader() {
     : isoLokal;
 }
 
+function renderStatusKosongKartuDashboard(ikonSvg, pesan) {
+  return `<div class="dash-empty-box">
+    <span class="dash-empty-icon" aria-hidden="true">${ikonSvg}</span>
+    <p class="dash-empty-text">${escapeHtml(pesan)}</p>
+  </div>`;
+}
+
 function pastikanKerangkaDashboard() {
   const panel = document.getElementById("section-dashboard");
   if (!panel || panel.querySelector("#dashboard-cards-grid")) return;
 
-  panel.innerHTML = `<div class="page-stack">
+  // Urutan DOM mengikuti urutan bacaan alami di HP (<600px):
+  // 1. Catatan, 2. Kegiatan hari ini, 3. 7 hari ke depan, 4. Dokumen terbaru.
+  // Pada >=600px, CSS Grid dengan grid-template-areas menyusunnya menjadi 2 kolom x 2 baris.
+  panel.innerHTML = `<div class="page-stack dashboard-container">
     <div class="section-header-bar">
       <div class="section-heading-group">
         <h2 class="section-heading-title">Ringkasan Hari Ini</h2>
@@ -187,7 +213,21 @@ function pastikanKerangkaDashboard() {
       </div>
     </div>
     <div id="dashboard-cards-grid" class="dashboard-cards-grid">
-      <section class="dash-card" aria-labelledby="dash-title-hari-ini">
+      <section class="dash-card dash-area-catatan" aria-labelledby="dash-title-catatan">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-catatan" class="dash-card-title">Catatan</h3>
+            <span class="dash-card-caption">Tersemat &amp; terbaru diperbarui</span>
+          </div>
+          <span id="dash-count-catatan" class="dash-metric-number">0</span>
+        </div>
+        <div id="dash-body-catatan" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="buka-catatan">Lihat semua</button>
+        </div>
+      </section>
+
+      <section class="dash-card dash-area-hari-ini" aria-labelledby="dash-title-hari-ini">
         <div class="dash-card-header">
           <div class="dash-card-heading-group">
             <h3 id="dash-title-hari-ini" class="dash-card-title">Kegiatan hari ini</h3>
@@ -202,7 +242,7 @@ function pastikanKerangkaDashboard() {
         </div>
       </section>
 
-      <section class="dash-card" aria-labelledby="dash-title-7hari">
+      <section class="dash-card dash-area-7hari" aria-labelledby="dash-title-7hari">
         <div class="dash-card-header">
           <div class="dash-card-heading-group">
             <h3 id="dash-title-7hari" class="dash-card-title">7 hari ke depan</h3>
@@ -216,21 +256,7 @@ function pastikanKerangkaDashboard() {
         </div>
       </section>
 
-      <section class="dash-card" aria-labelledby="dash-title-status">
-        <div class="dash-card-header">
-          <div class="dash-card-heading-group">
-            <h3 id="dash-title-status" class="dash-card-title">Ringkasan status</h3>
-            <span id="dash-meta-status" class="dash-card-caption">Semua kegiatan tercatat</span>
-          </div>
-          <span id="dash-count-total" class="dash-metric-number">0</span>
-        </div>
-        <div id="dash-body-status" class="dash-card-body" aria-live="polite"></div>
-        <div class="dash-card-footer">
-          <button type="button" class="btn-link-filter" data-dash-action="semua-kegiatan">Kelola semua kegiatan</button>
-        </div>
-      </section>
-
-      <section class="dash-card" aria-labelledby="dash-title-dokumen">
+      <section class="dash-card dash-area-dokumen" aria-labelledby="dash-title-dokumen">
         <div class="dash-card-header">
           <div class="dash-card-heading-group">
             <h3 id="dash-title-dokumen" class="dash-card-title">Dokumen terbaru</h3>
@@ -261,7 +287,7 @@ function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
 
   return `<li class="dash-activity-item${item.status === "Selesai" ? " is-completed" : ""}">
     <div class="dash-activity-main">
-      <button type="button" class="dash-activity-title-btn" data-dash-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
+      <button type="button" class="dash-activity-title-btn" data-dash-action="detail-kegiatan" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.judul)}">${escapeHtml(item.judul)}</button>
       <div class="dash-activity-meta">
         <span class="dash-activity-time">${escapeHtml(infoSub)}</span>
         <span class="dash-meta-sep" aria-hidden="true">•</span>
@@ -293,7 +319,10 @@ function renderKartuDokumenDashboard() {
   if (countDokumen) countDokumen.textContent = String(semuaDokumen.length);
 
   if (semuaDokumen.length === 0) {
-    bodyDokumen.innerHTML = `<p class="dash-empty-text">Belum ada dokumen yang diunggah ke Google Drive.</p>`;
+    bodyDokumen.innerHTML = renderStatusKosongKartuDashboard(
+      svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', 20),
+      "Belum ada dokumen yang diunggah ke Google Drive."
+    );
     return;
   }
 
@@ -343,7 +372,122 @@ function renderKartuDokumenDashboard() {
   const sisa = semuaDokumen.length - limaTerbaru.length;
   bodyDokumen.innerHTML = `<ul class="dash-doc-list">${htmlItem}</ul>${
     sisa > 0
-      ? `<p class="dash-more-note">+${sisa} dokumen lainnya di Arsip Dokumen</p>`
+      ? `<div class="dash-more-row">
+          <span class="dash-more-note">+${sisa} dokumen lainnya</span>
+          <button type="button" class="btn-link-filter" data-dash-action="buka-dokumen">Lihat semua (${semuaDokumen.length}) &rarr;</button>
+        </div>`
+      : ""
+  }`;
+}
+
+function buatCuplikanPolosCatatan(isiMentah, maksKarakter = 80) {
+  const tanpaTag = String(isiMentah || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!tanpaTag) return "";
+  if (tanpaTag.length <= maksKarakter) return tanpaTag;
+  return `${tanpaTag.slice(0, maksKarakter).trimEnd()}…`;
+}
+
+function renderKartuCatatanDashboard() {
+  const bodyCatatan = document.getElementById("dash-body-catatan");
+  const countCatatan = document.getElementById("dash-count-catatan");
+  if (!bodyCatatan) return;
+
+  if (!isCatatanSudahDimuat()) {
+    if (countCatatan) countCatatan.textContent = "0";
+    bodyCatatan.innerHTML = `<div class="skeleton-stack" role="status" aria-label="Memuat daftar catatan"><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-60"></div></div>`;
+    return;
+  }
+
+  const semuaCatatan = getDaftarCatatan();
+  if (countCatatan) countCatatan.textContent = String(semuaCatatan.length);
+
+  const ikonSingkat = svgIkon(
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+    16,
+  );
+  const ikonGdoc = svgIkon(
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/><line x1="8" y1="19" x2="12" y2="19"/>',
+    16,
+  );
+  const ikonPinKecil = svgIkon(
+    '<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>',
+    13,
+  );
+
+  if (semuaCatatan.length === 0) {
+    bodyCatatan.innerHTML = `<div class="dash-empty-box">
+      <span class="dash-empty-icon" aria-hidden="true">${svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20)}</span>
+      <p class="dash-empty-text">Belum ada catatan.</p>
+      <button type="button" class="btn-link-filter" data-dash-action="buat-catatan">Buat catatan</button>
+    </div>`;
+    return;
+  }
+
+  const petaKegiatan = new Map(
+    getDaftarKegiatan().map((k) => [k.id, k.judul || ""]),
+  );
+
+  const limaCatatan = [...semuaCatatan]
+    .sort((a, b) => {
+      const pinDiff = (b.disematkan ? 1 : 0) - (a.disematkan ? 1 : 0);
+      if (pinDiff !== 0) return pinDiff;
+      const updA = String(a.updatedAt || a.createdAt || "");
+      const updB = String(b.updatedAt || b.createdAt || "");
+      if (updA !== updB) return updB.localeCompare(updA);
+      const tglA = String(a.tanggal || "");
+      const tglB = String(b.tanggal || "");
+      if (tglA !== tglB) return tglB.localeCompare(tglA);
+      return String(a.judul || "").localeCompare(String(b.judul || ""), "id", {
+        sensitivity: "base",
+      });
+    })
+    .slice(0, 5);
+
+  const htmlItem = limaCatatan
+    .map((cat) => {
+      const adalahGdoc = cat.jenis === JENIS_CATATAN_GDOC;
+      const judul = cat.judul || "Tanpa judul";
+      const tanggalStr = formatTanggalCatatan(cat.tanggal);
+      const namaKegiatan = cat.kegiatanId
+        ? petaKegiatan.get(cat.kegiatanId) || ""
+        : "";
+      const cuplikan = !adalahGdoc ? buatCuplikanPolosCatatan(cat.isi, 80) : "";
+
+      const isiDalam = `<span class="dash-note-type-icon ${adalahGdoc ? "catatan-icon-gdoc" : "catatan-icon-singkat"}" title="${adalahGdoc ? "Google Docs" : "Catatan Singkat"}" aria-hidden="true">${adalahGdoc ? ikonGdoc : ikonSingkat}</span>
+        <span class="dash-note-main">
+          <span class="dash-note-title-row">
+            <span class="dash-note-title">${escapeHtml(judul)}</span>
+            ${cat.disematkan ? `<span class="dash-note-pin" title="Catatan disematkan" aria-label="Catatan disematkan">${ikonPinKecil}</span>` : ""}
+          </span>
+          <span class="dash-activity-meta">
+            <span>${escapeHtml(tanggalStr)}</span>
+            ${namaKegiatan ? `<span class="dash-meta-sep" aria-hidden="true">•</span><span class="dash-note-kegiatan">${escapeHtml(namaKegiatan)}</span>` : ""}
+          </span>
+          ${cuplikan ? `<span class="dash-note-snippet">${escapeHtml(cuplikan)}</span>` : ""}
+        </span>`;
+
+      if (adalahGdoc) {
+        const urlDocs = tautanAmanGoogleDocs(cat);
+        if (urlDocs && urlDocs !== "#") {
+          return `<li class="dash-note-item">
+            <a href="${escapeHtml(urlDocs)}" target="_blank" rel="noopener" class="dash-note-trigger" title="Buka ${escapeHtml(judul)} di Google Docs">${isiDalam}</a>
+          </li>`;
+        }
+      }
+
+      return `<li class="dash-note-item">
+        <button type="button" class="dash-note-trigger" data-dash-action="buka-catatan-item" data-id="${escapeHtml(cat.id)}" title="Buka catatan: ${escapeHtml(judul)}">${isiDalam}</button>
+      </li>`;
+    })
+    .join("");
+
+  const sisa = semuaCatatan.length - limaCatatan.length;
+  bodyCatatan.innerHTML = `<ul class="dash-note-list">${htmlItem}</ul>${
+    sisa > 0
+      ? `<div class="dash-more-row"><span class="dash-more-note">+${sisa} catatan lainnya</span></div>`
       : ""
   }`;
 }
@@ -357,7 +501,7 @@ function renderDashboard() {
 
   const subtitleEl = document.getElementById("dashboard-subtitle-tanggal");
   if (subtitleEl) {
-    subtitleEl.textContent = `Ikhtisar jadwal, status kegiatan, dan arsip dokumen Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
+    subtitleEl.textContent = `Ikhtisar jadwal, catatan, dan arsip dokumen Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
   }
 
   const metaHariIniEl = document.getElementById("dash-meta-hari-ini");
@@ -367,21 +511,19 @@ function renderDashboard() {
   if (meta7HariEl)
     meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
 
+  renderKartuCatatanDashboard();
   renderKartuDokumenDashboard();
 
   const bodyHariIni = document.getElementById("dash-body-hari-ini");
   const body7Hari = document.getElementById("dash-body-7hari");
-  const bodyStatus = document.getElementById("dash-body-status");
   const countHariIni = document.getElementById("dash-count-hari-ini");
   const count7Hari = document.getElementById("dash-count-7hari");
-  const countTotal = document.getElementById("dash-count-total");
-  if (!bodyHariIni || !body7Hari || !bodyStatus) return;
+  if (!bodyHariIni || !body7Hari) return;
 
   if (!isKegiatanSudahDimuat()) {
     const muatHtml = `<div class="skeleton-stack" role="status" aria-label="Memuat data kegiatan"><div class="skeleton-line skeleton-w-80"></div><div class="skeleton-line skeleton-w-50"></div></div>`;
     bodyHariIni.innerHTML = muatHtml;
     body7Hari.innerHTML = muatHtml;
-    bodyStatus.innerHTML = muatHtml;
     return;
   }
 
@@ -403,20 +545,14 @@ function renderDashboard() {
     ),
   );
 
-  const hitunganStatus = { Rencana: 0, Berjalan: 0, Selesai: 0 };
-  semuaKegiatan.forEach((item) => {
-    const st = DAFTAR_STATUS_KEGIATAN.includes(item.status)
-      ? item.status
-      : "Rencana";
-    hitunganStatus[st] += 1;
-  });
-
   if (countHariIni) countHariIni.textContent = String(kegiatanHariIni.length);
   if (count7Hari) count7Hari.textContent = String(kegiatan7Hari.length);
-  if (countTotal) countTotal.textContent = String(semuaKegiatan.length);
 
   if (kegiatanHariIni.length === 0) {
-    bodyHariIni.innerHTML = `<p class="dash-empty-text">Belum ada kegiatan yang dijadwalkan untuk hari ini.</p>`;
+    bodyHariIni.innerHTML = renderStatusKosongKartuDashboard(
+      svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 20),
+      "Belum ada kegiatan yang dijadwalkan untuk hari ini."
+    );
   } else {
     const maks = 5;
     const sisa = kegiatanHariIni.length - maks;
@@ -425,11 +561,21 @@ function renderDashboard() {
       .map((item) => renderBarisKegiatanDashboard(item, false))
       .join(
         "",
-      )}</ul>${sisa > 0 ? `<p class="dash-more-note">+${sisa} kegiatan lainnya hari ini</p>` : ""}`;
+      )}</ul>${
+      sisa > 0
+        ? `<div class="dash-more-row">
+            <span class="dash-more-note">+${sisa} kegiatan lainnya hari ini</span>
+            <button type="button" class="btn-link-filter" data-dash-action="jadwal-hari-ini">Lihat semua (${kegiatanHariIni.length}) &rarr;</button>
+          </div>`
+        : ""
+    }`;
   }
 
   if (kegiatan7Hari.length === 0) {
-    body7Hari.innerHTML = `<p class="dash-empty-text">Tidak ada kegiatan terjadwal untuk 7 hari ke depan (besok hingga ${escapeHtml(formatTanggalRingkasIndonesia(strTujuhHari))}).</p>`;
+    body7Hari.innerHTML = renderStatusKosongKartuDashboard(
+      svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 20),
+      `Tidak ada kegiatan terjadwal untuk 7 hari ke depan (besok hingga ${formatTanggalRingkasIndonesia(strTujuhHari)}).`
+    );
   } else {
     const maks7 = 5;
     const sisa7 = kegiatan7Hari.length - maks7;
@@ -438,23 +584,15 @@ function renderDashboard() {
       .map((item) => renderBarisKegiatanDashboard(item, true))
       .join(
         "",
-      )}</ul>${sisa7 > 0 ? `<p class="dash-more-note">+${sisa7} kegiatan lainnya dalam 7 hari ke depan</p>` : ""}`;
+      )}</ul>${
+      sisa7 > 0
+        ? `<div class="dash-more-row">
+            <span class="dash-more-note">+${sisa7} kegiatan lainnya</span>
+            <button type="button" class="btn-link-filter" data-dash-action="buka-jadwal">Lihat semua (${kegiatan7Hari.length}) &rarr;</button>
+          </div>`
+        : ""
+    }`;
   }
-
-  const totalSemua = semuaKegiatan.length;
-  bodyStatus.innerHTML = `<ul class="dash-status-list">${DAFTAR_STATUS_KEGIATAN.map(
-    (st) => {
-      const jumlah = hitunganStatus[st] || 0;
-      const persen =
-        totalSemua > 0 ? Math.round((jumlah / totalSemua) * 100) : 0;
-      return `<li class="dash-status-row">
-      <button type="button" class="dash-status-btn" data-dash-action="filter-status" data-status="${escapeHtml(st)}" title="Lihat kegiatan berstatus ${escapeHtml(st)}">
-        <span class="${kelasBadgeStatus(st)}">${escapeHtml(st)}</span>
-        <span class="dash-status-numbers"><strong class="dash-status-count">${jumlah}</strong><span class="dash-status-pct">(${persen}%)</span></span>
-      </button>
-    </li>`;
-    },
-  ).join("")}</ul>`;
 }
 
 function initHalamanDashboard() {
@@ -484,12 +622,17 @@ function initHalamanDashboard() {
       if (aksi === "tambah-hari-ini") bukaModalFormKegiatan(null, hariIni());
       else if (aksi === "jadwal-hari-ini") bukaJadwalPadaTanggal(hariIni());
       else if (aksi === "buka-jadwal") pindahKeBagian("jadwal");
-      else if (aksi === "semua-kegiatan") terapkanFilterStatusKegiatan("ALL");
-      else if (aksi === "filter-status")
-        terapkanFilterStatusKegiatan(
-          btnAksi.getAttribute("data-status") || "ALL",
-        );
-      else if (aksi === "detail-kegiatan") {
+      else if (aksi === "buka-catatan") pindahKeBagian("catatan");
+      else if (aksi === "buat-catatan") {
+        pindahKeBagian("catatan");
+        requestAnimationFrame(() => {
+          document.getElementById("btn-tambah-catatan-singkat")?.focus();
+        });
+      } else if (aksi === "buka-catatan-item") {
+        const id = btnAksi.getAttribute("data-id") || "";
+        pindahKeBagian("catatan");
+        if (id) sorotCatatanDiHalaman(id);
+      } else if (aksi === "detail-kegiatan") {
         const id = btnAksi.getAttribute("data-id") || "";
         if (id) bukaDialogDetailKegiatan(id);
       } else if (aksi === "unggah-dokumen") {
@@ -503,6 +646,7 @@ function initHalamanDashboard() {
 
   onPerubahanKegiatan(() => renderDashboard());
   onPerubahanDokumen(() => renderKartuDokumenDashboard());
+  onPerubahanCatatan(() => renderKartuCatatanDashboard());
   renderDashboard();
 }
 
@@ -784,13 +928,224 @@ function initPwaInstallPrompt() {
   }
 }
 
+function apakahUpdateSwDitunda() {
+  try {
+    return sessionStorage.getItem(KUNCI_TUNDA_UPDATE_SW) === "1";
+  } catch (_err) {
+    return false;
+  }
+}
+
+function simpanPenandaTundaUpdateSw() {
+  try {
+    sessionStorage.setItem(KUNCI_TUNDA_UPDATE_SW, "1");
+  } catch (_err) {}
+}
+
+function hapusPenandaTundaUpdateSw() {
+  try {
+    sessionStorage.removeItem(KUNCI_TUNDA_UPDATE_SW);
+  } catch (_err) {}
+}
+
+function apakahLayarAplikasiAktif() {
+  const layarApp = document.getElementById("app-shell");
+  return Boolean(layarApp && !layarApp.hidden);
+}
+
+function perbaruiVisibilitasSpandukSw() {
+  const spanduk = document.getElementById("sw-update-banner");
+  if (!spanduk) return;
+
+  const tampil =
+    swUpdateMenunggu &&
+    apakahLayarAplikasiAktif() &&
+    !apakahUpdateSwDitunda();
+
+  spanduk.hidden = !tampil;
+  if (tampil) {
+    document.documentElement.setAttribute("data-sw-banner", "visible");
+  } else {
+    document.documentElement.removeAttribute("data-sw-banner");
+  }
+}
+
+function tandaiPembaruanSwMenunggu() {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+    return;
+  }
+  swUpdateMenunggu = true;
+  perbaruiVisibilitasSpandukSw();
+}
+
+function pantauWorkerInstalling(workerBaru) {
+  if (!workerBaru) return;
+  workerBaru.addEventListener("statechange", () => {
+    if (
+      workerBaru.state === "installed" &&
+      navigator.serviceWorker.controller
+    ) {
+      tandaiPembaruanSwMenunggu();
+    }
+  });
+}
+
+function ikatRegistrasiServiceWorker(registration) {
+  if (!registration) return;
+  swRegistration = registration;
+
+  if (registration.waiting && navigator.serviceWorker.controller) {
+    tandaiPembaruanSwMenunggu();
+  }
+
+  if (registrasiSwDipantau === registration) return;
+  registrasiSwDipantau = registration;
+
+  if (registration.installing) {
+    pantauWorkerInstalling(registration.installing);
+  }
+
+  registration.addEventListener("updatefound", () => {
+    pantauWorkerInstalling(registration.installing);
+  });
+}
+
+async function periksaPembaruanSwBerkala() {
+  if (!swRegistration) return;
+  try {
+    await swRegistration.update();
+    if (swRegistration.waiting && navigator.serviceWorker.controller) {
+      tandaiPembaruanSwMenunggu();
+    }
+  } catch (_err) {
+    // Abaikan galat saat offline atau sambungan terputus
+  }
+}
+
+function ikatTombolSpandukSw() {
+  if (spandukSwSudahDiikat) return;
+  spandukSwSudahDiikat = true;
+
+  const btnMuatUlang = document.getElementById("sw-update-reload-btn");
+  const btnNanti = document.getElementById("sw-update-later-btn");
+
+  if (btnMuatUlang) {
+    btnMuatUlang.addEventListener("click", () => {
+      if (!("serviceWorker" in navigator) || sedangMuatUlangSw) return;
+      const waitingWorker = swRegistration && swRegistration.waiting;
+      if (!waitingWorker) {
+        swUpdateMenunggu = false;
+        perbaruiVisibilitasSpandukSw();
+        return;
+      }
+
+      sedangMuatUlangSw = true;
+      if (btnMuatUlang instanceof HTMLButtonElement) {
+        btnMuatUlang.disabled = true;
+        btnMuatUlang.textContent = "Memuat ulang...";
+      }
+      if (btnNanti instanceof HTMLButtonElement) {
+        btnNanti.disabled = true;
+      }
+
+      let sudahReload = false;
+      navigator.serviceWorker.addEventListener(
+        "controllerchange",
+        () => {
+          if (sudahReload) return;
+          sudahReload = true;
+          location.reload();
+        },
+        { once: true },
+      );
+
+      waitingWorker.postMessage({ type: "SKIP_WAITING" });
+    });
+  }
+
+  if (btnNanti) {
+    btnNanti.addEventListener("click", () => {
+      simpanPenandaTundaUpdateSw();
+      perbaruiVisibilitasSpandukSw();
+    });
+  }
+}
+
+export async function periksaPembaruan() {
+  if (!("serviceWorker" in navigator)) {
+    return null;
+  }
+
+  let registration =
+    swRegistration || (await navigator.serviceWorker.getRegistration());
+  if (!registration) {
+    registration = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+    });
+  }
+  ikatRegistrasiServiceWorker(registration);
+
+  const hasilUpdate = await registration.update();
+  const regAktif = hasilUpdate || registration;
+  ikatRegistrasiServiceWorker(regAktif);
+
+  if (regAktif.installing) {
+    await new Promise((resolve) => {
+      const workerBaru = regAktif.installing;
+      if (
+        !workerBaru ||
+        workerBaru.state === "installed" ||
+        workerBaru.state === "redundant"
+      ) {
+        resolve();
+        return;
+      }
+      const saatStatusBerubah = () => {
+        if (
+          workerBaru.state === "installed" ||
+          workerBaru.state === "redundant"
+        ) {
+          workerBaru.removeEventListener("statechange", saatStatusBerubah);
+          resolve();
+        }
+      };
+      workerBaru.addEventListener("statechange", saatStatusBerubah);
+    });
+  }
+
+  if (regAktif.waiting && navigator.serviceWorker.controller) {
+    hapusPenandaTundaUpdateSw();
+    tandaiPembaruanSwMenunggu();
+  }
+
+  return regAktif;
+}
+
 function daftarkanServiceWorker() {
+  ikatTombolSpandukSw();
   if (!("serviceWorker" in navigator)) return;
+
   window.addEventListener("load", async () => {
     try {
-      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      const registration = await navigator.serviceWorker.register("/sw.js", {
+        scope: "/",
+      });
+      ikatRegistrasiServiceWorker(registration);
+
+      if (swUpdateIntervalId !== null) {
+        window.clearInterval(swUpdateIntervalId);
+      }
+      swUpdateIntervalId = window.setInterval(() => {
+        periksaPembaruanSwBerkala();
+      }, INTERVAL_CEK_UPDATE_SW_MS);
     } catch (err) {
       console.warn("Pendaftaran Service Worker gagal:", err);
+    }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      periksaPembaruanSwBerkala();
     }
   });
 }

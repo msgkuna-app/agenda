@@ -288,10 +288,11 @@ function renderKerangkaBagianAwal() {
             class="nav-link${item.id === activeSectionId ? " is-active" : ""}"
             data-section="${escapeHtml(item.id)}"
             data-tooltip="${escapeHtml(item.label)}"
+            title="${escapeHtml(item.label)}"
             ${item.id === activeSectionId ? 'aria-current="page"' : ""}
           >
             <span class="nav-icon">${item.svg}</span>
-            <span class="nav-label">${escapeHtml(item.label)}</span>
+            <span class="nav-label" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
           </button>
         </li>
       `
@@ -363,7 +364,8 @@ function initTooltipSidebar() {
 }
 
 /**
- * Memperbarui informasi profil pengguna di bagian bawah sidebar.
+ * Memperbarui informasi profil pengguna di bagian bawah sidebar, lengkap dengan atribut title
+ * dan tooltip saat sidebar diciutkan agar nama/email panjang tetap dapat dibaca penuh.
  * @param {import("https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js").User | null} user
  */
 export function perbaruiInfoAkunSidebar(user) {
@@ -371,6 +373,9 @@ export function perbaruiInfoAkunSidebar(user) {
   const initialsEl = document.getElementById("sidebar-user-initials");
   const nameEl = document.getElementById("sidebar-user-name");
   const emailEl = document.getElementById("sidebar-user-email");
+  const profileEl =
+    document.getElementById("sidebar-account-profile") ||
+    document.querySelector(".account-profile");
 
   if (!user) {
     if (imgEl) {
@@ -381,8 +386,18 @@ export function perbaruiInfoAkunSidebar(user) {
       initialsEl.textContent = "AA";
       initialsEl.hidden = false;
     }
-    if (nameEl) nameEl.textContent = "Pengguna";
-    if (emailEl) emailEl.textContent = "";
+    if (nameEl) {
+      nameEl.textContent = "Pengguna";
+      nameEl.setAttribute("title", "Pengguna");
+    }
+    if (emailEl) {
+      emailEl.textContent = "";
+      emailEl.removeAttribute("title");
+    }
+    if (profileEl) {
+      profileEl.setAttribute("title", "Pengguna");
+      profileEl.removeAttribute("data-tooltip");
+    }
     return;
   }
 
@@ -393,9 +408,24 @@ export function perbaruiInfoAkunSidebar(user) {
     bagian.length >= 2
       ? `${bagian[0][0]}${bagian[1][0]}`.toUpperCase()
       : nama.slice(0, 2).toUpperCase() || "AA";
+  const ringkasAkun = email ? `${nama} (${email})` : nama;
 
-  if (nameEl) nameEl.textContent = nama;
-  if (emailEl) emailEl.textContent = email;
+  if (nameEl) {
+    nameEl.textContent = nama;
+    nameEl.setAttribute("title", nama);
+  }
+  if (emailEl) {
+    emailEl.textContent = email;
+    if (email) {
+      emailEl.setAttribute("title", email);
+    } else {
+      emailEl.removeAttribute("title");
+    }
+  }
+  if (profileEl) {
+    profileEl.setAttribute("title", ringkasAkun);
+    profileEl.setAttribute("data-tooltip", ringkasAkun);
+  }
   if (initialsEl) initialsEl.textContent = inisial;
 
   if (imgEl && user.photoURL) {

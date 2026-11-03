@@ -1,5 +1,6 @@
 /* ==========================================================================
    Agenda & Arsip — Sistem Desain Fondasi (Fase 0) s.d. Fase 6 (Pengaturan & App Shell)
+   + Perapian Tampilan: Merek Sidebar, Grid Dashboard 2x2, & Panel Filter Ringkas
    Seluruh komponen memakai CSS Custom Properties tanpa warna hardcoded langsung.
    Skala jarak kelipatan 4px, satu aksen biru, font sistem, WCAG AA, <= 200ms.
    ========================================================================== */
@@ -584,7 +585,7 @@ button:disabled {
 }
 
 /* ==========================================================================
-   Bagian A1, A2, A3: Pola App Shell (Root 100dvh, Sidebar Diam, Konten Scroll)
+   Bagian A1, A2, A3 + MASALAH 1: Pola App Shell & Merek Sidebar Tidak Terpotong
    ========================================================================== */
 .app-shell {
   display: flex;
@@ -653,7 +654,8 @@ html[data-drawer="open"] .app-sidebar {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  flex: 1 1 auto;
   min-width: 0;
   padding-left: var(--space-1);
 }
@@ -668,10 +670,32 @@ html[data-drawer="open"] .app-sidebar {
   justify-content: center;
   flex-shrink: 0;
 }
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .sidebar-brand-title {
-  font-size: var(--text-base);
+  font-size: clamp(0.875rem, 0.82rem + 0.22vw, 0.96875rem);
   font-weight: 700;
-  letter-spacing: -0.01em;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--color-text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+}
+.sidebar-brand-subtitle {
+  font-size: clamp(0.6875rem, 0.66rem + 0.1vw, 0.75rem);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -735,6 +759,7 @@ html[data-drawer="open"] .app-sidebar {
   gap: var(--space-3);
   text-align: left;
   white-space: nowrap;
+  min-width: 0;
   transition:
     background-color var(--duration-fast) var(--ease-standard),
     color var(--duration-fast) var(--ease-standard);
@@ -757,6 +782,7 @@ html[data-drawer="open"] .app-sidebar {
   flex-shrink: 0;
 }
 .nav-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -804,6 +830,7 @@ html[data-drawer="open"] .app-sidebar {
   background: var(--cat-amber-dot);
 }
 .network-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -844,13 +871,16 @@ html[data-drawer="open"] .app-sidebar {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  min-width: 0;
+  width: 100%;
 }
 .account-profile {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
+  overflow: hidden;
 }
 .account-avatar {
   width: 2.25rem;
@@ -876,6 +906,8 @@ html[data-drawer="open"] .app-sidebar {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
 }
 .account-name {
   font-size: var(--text-sm);
@@ -894,6 +926,7 @@ html[data-drawer="open"] .app-sidebar {
 }
 .logout-btn {
   color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 .logout-btn:hover:not(:disabled) {
   background: var(--color-danger-bg);
@@ -1040,7 +1073,7 @@ html[data-drawer="open"] .app-sidebar {
 .app-main {
   flex: 1 0 auto;
   width: 100%;
-  max-width: 72rem;
+  max-width: 75rem; /* 1200px terpusat untuk layar sangat lebar */
   margin: 0 auto;
   padding: var(--space-6) var(--space-4)
     calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
@@ -1248,7 +1281,10 @@ html[data-drawer="open"] .app-sidebar {
   border-color: var(--color-focus-ring);
 }
 
-/* Halaman Kegiatan, Filter, dan Kartu Kegiatan (Fase 1) */
+/* ==========================================================================
+   Halaman Daftar & MASALAH 3: Bilah Alat Ringkas, Panel Filter Melipat /
+   Lembar Bawah HP, Lencana Jumlah Filter, dan Chip Filter Aktif
+   ========================================================================== */
 .page-stack {
   display: flex;
   flex-direction: column;
@@ -1308,6 +1344,11 @@ html[data-drawer="open"] .app-sidebar {
   flex-direction: column;
   gap: var(--space-3);
 }
+.filter-toolbar-shell {
+  padding: var(--space-3) var(--space-4);
+  gap: 0;
+}
+
 .search-field-wrap {
   position: relative;
   width: 100%;
@@ -1324,6 +1365,221 @@ html[data-drawer="open"] .app-sidebar {
   padding-left: var(--space-10);
 }
 
+/* Bilah alat ringkas satu baris: Pencarian fleksibel + Tombol Filter + Pengurutan */
+.compact-toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+@media (min-width: 600px) {
+  .compact-toolbar-row {
+    gap: var(--space-3);
+  }
+}
+.compact-search-wrap {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: auto;
+}
+.compact-search-wrap .input-with-icon {
+  padding-left: 2.25rem;
+  padding-right: var(--space-2);
+}
+
+.btn-filter-toggle {
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+}
+.btn-filter-toggle.is-open,
+.btn-filter-toggle.has-active-filter {
+  background: var(--color-bg-active);
+  border-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+.filter-count-badge {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.compact-sort-wrap {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.compact-sort-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+@media (min-width: 600px) {
+  .compact-sort-group {
+    gap: var(--space-2);
+  }
+}
+.compact-sort-select,
+.compact-sort-dir-select {
+  width: auto;
+  max-width: 100%;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* Responsif layar ekstra sempit HP: jaga satu baris tetap muat tanpa scroll horizontal */
+@media (max-width: 479.98px) {
+  .filter-toolbar-shell {
+    padding: var(--space-3);
+  }
+  .btn-filter-toggle {
+    padding: var(--space-2);
+    gap: var(--space-1);
+  }
+  .btn-filter-label {
+    font-size: var(--text-xs);
+  }
+  .compact-sort-select {
+    max-width: 6.75rem;
+  }
+  .compact-sort-group .compact-sort-select {
+    max-width: 5.5rem;
+  }
+  .compact-sort-dir-select {
+    max-width: 4.5rem;
+  }
+}
+@media (max-width: 359.98px) {
+  .btn-filter-label {
+    display: none;
+  }
+}
+
+/* Panel Filter: Melipat halus di Desktop/Tablet (>=600px), Lembar Bawah di HP (<600px) */
+.filter-sheet-scrim {
+  display: none;
+}
+.filter-sheet-header,
+.filter-sheet-actions-mobile {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .filter-collapsible {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      grid-template-rows var(--duration-normal) var(--ease-standard),
+      opacity var(--duration-fast) var(--ease-standard);
+  }
+  .filter-collapsible.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .filter-collapsible-inner {
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .filter-collapsible.is-open .filter-collapsible-inner {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+  .filter-panel-actions-desktop {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 599.98px) {
+  .filter-sheet-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 135;
+    background: var(--color-bg-scrim);
+  }
+  .filter-collapsible {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 140;
+    max-height: 85dvh;
+    overflow-y: auto;
+    background: var(--color-bg-surface);
+    border-top: 1px solid var(--color-border-strong);
+    border-top-left-radius: var(--radius-xl);
+    border-top-right-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-4) var(--space-4)
+      calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+    transform: translateY(105%);
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform var(--duration-normal) var(--ease-standard),
+      visibility var(--duration-normal) var(--ease-standard);
+  }
+  .filter-collapsible.is-open {
+    transform: translateY(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .filter-collapsible-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .filter-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .filter-sheet-title {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .filter-panel-actions-desktop {
+    display: none;
+  }
+  .filter-sheet-actions-mobile {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
 .filter-controls-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1332,6 +1588,12 @@ html[data-drawer="open"] .app-sidebar {
 @media (min-width: 680px) {
   .filter-controls-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .filter-controls-grid.filter-controls-2col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .filter-controls-grid.filter-controls-1col-wide {
+    grid-template-columns: minmax(0, 22rem);
   }
 }
 .filter-control-item {
@@ -1345,6 +1607,61 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-text-muted);
 }
 
+/* Baris Chip Filter Aktif di bawah bilah alat (terbungkus tanpa scroll horizontal) */
+.active-chips-row {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.filter-chips-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.active-filter-chip {
+  min-height: var(--touch-min);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-active);
+  border: 1px solid var(--cat-biru-border);
+  color: var(--color-accent-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+.active-filter-chip:hover:not(:disabled) {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+.active-filter-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.active-filter-chip-x {
+  font-size: var(--text-base);
+  line-height: 1;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .active-filter-bar {
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
@@ -1353,6 +1670,9 @@ html[data-drawer="open"] .app-sidebar {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+.filter-toolbar-shell .active-filter-bar {
+  margin-top: var(--space-2);
 }
 .result-summary-text {
   margin: 0;
@@ -1571,26 +1891,56 @@ html[data-drawer="open"] .app-sidebar {
   background: var(--cat-netral-dot);
 }
 
-/* Fase 2: Dashboard (1 Kolom HP, 2 Kolom Tablet, 3 Kolom Desktop) */
+/* ==========================================================================
+   MASALAH 2: Dashboard Grid Seimbang dengan grid-template-areas
+   - HP (<600px): 1 kolom (catatan, hari-ini, tujuh-hari, dokumen)
+   - Tablet & Desktop (>=600px): 2 kolom x 2 baris
+     Baris 1: hari-ini | tujuh-hari
+     Baris 2: catatan  | dokumen
+   ========================================================================== */
+.dashboard-container {
+  width: 100%;
+  max-width: 75rem; /* 1200px terpusat */
+  margin: 0 auto;
+}
+
 .dashboard-cards-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "catatan"
+    "hari-ini"
+    "tujuh-hari"
+    "dokumen";
   gap: var(--space-4);
   align-items: stretch;
 }
+
+.dash-area-catatan {
+  grid-area: catatan;
+}
+.dash-area-hari-ini {
+  grid-area: hari-ini;
+}
+.dash-area-7hari {
+  grid-area: tujuh-hari;
+}
+.dash-area-dokumen {
+  grid-area: dokumen;
+}
+
 @media (min-width: 600px) {
   .dashboard-cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "hari-ini tujuh-hari"
+      "catatan dokumen";
     gap: var(--space-5);
-  }
-}
-@media (min-width: 1024.02px) {
-  .dashboard-cards-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 .dash-card {
+  height: 100%;
   padding: var(--space-5);
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border);
@@ -1640,6 +1990,7 @@ html[data-drawer="open"] .app-sidebar {
   min-width: 0;
 }
 .dash-card-footer {
+  margin-top: auto;
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border);
   display: flex;
@@ -1657,15 +2008,41 @@ html[data-drawer="open"] .app-sidebar {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
+.dash-empty-box {
+  flex: 1 1 auto;
+  min-height: 7.5rem;
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px dashed var(--color-border-strong);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+}
+.dash-empty-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-accent-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .dash-empty-text {
   margin: 0;
-  padding: var(--space-3) 0;
-  font-size: var(--text-sm);
+  max-width: 34ch;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
 .dash-activity-list,
-.dash-status-list,
+.dash-note-list,
 .dash-doc-list {
   list-style: none;
   margin: 0;
@@ -1735,6 +2112,15 @@ html[data-drawer="open"] .app-sidebar {
   gap: var(--space-1);
   min-width: 0;
 }
+.dash-more-row {
+  margin-top: auto;
+  padding-top: var(--space-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 .dash-more-note {
   margin: 0;
   font-size: var(--text-xs);
@@ -1767,40 +2153,88 @@ html[data-drawer="open"] .app-sidebar {
   white-space: nowrap;
 }
 
-.dash-status-row {
+.dash-note-item {
   border-bottom: 1px solid var(--color-border);
 }
-.dash-status-row:last-child {
+.dash-note-item:last-child {
   border-bottom: none;
 }
-.dash-status-btn {
+.dash-note-trigger {
   width: 100%;
   min-height: var(--touch-min);
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-1);
   border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  text-align: left;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: var(--space-3);
+  min-width: 0;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.dash-status-btn:hover {
+.dash-note-trigger:hover {
   background: var(--color-bg-subtle);
 }
-.dash-status-numbers {
+.dash-note-trigger:hover .dash-note-title {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.dash-note-type-icon {
+  width: 2rem;
+  height: 2rem;
+  margin-top: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dash-note-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.dash-note-title-row {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
-  font-variant-numeric: tabular-nums;
+  min-width: 0;
 }
-.dash-status-count {
-  font-size: var(--text-base);
-  font-weight: 700;
+.dash-note-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
-.dash-status-pct {
+.dash-note-pin {
+  color: var(--color-accent-text);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.dash-note-kegiatan {
+  color: var(--color-accent-text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.dash-note-snippet {
   font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 /* Fase 2: Halaman Jadwal (Kalender Bulanan & Daftar Agenda 30 Hari) */
@@ -3022,6 +3456,7 @@ html[data-drawer="open"] .app-sidebar {
 /* ==========================================================================
    Bagian A1 & A3: Responsif Tablet (600px - 1024px) & Desktop (>1024px)
    Sidebar: position: relative (TANPA position: sticky), height: 100%, flex-shrink: 0
+   Saat diciutkan: logo/monogram rapi di tengah, tanpa teks terpotong
    ========================================================================== */
 @media (min-width: 600px) {
   .mobile-menu-btn,
@@ -3055,15 +3490,20 @@ html[data-drawer="open"] .app-sidebar {
   }
   html[data-sidebar="collapsed"] .sidebar-top {
     flex-direction: column;
+    align-items: center;
     justify-content: center;
     padding: var(--space-2) var(--space-1);
     gap: var(--space-1);
   }
   html[data-sidebar="collapsed"] .sidebar-brand {
+    flex: 0 0 auto;
+    width: 100%;
     padding-left: 0;
     justify-content: center;
   }
+  html[data-sidebar="collapsed"] .sidebar-brand-text,
   html[data-sidebar="collapsed"] .sidebar-brand-title,
+  html[data-sidebar="collapsed"] .sidebar-brand-subtitle,
   html[data-sidebar="collapsed"] .nav-label,
   html[data-sidebar="collapsed"] .account-meta,
   html[data-sidebar="collapsed"] .network-label {
@@ -3096,6 +3536,7 @@ html[data-drawer="open"] .app-sidebar {
     gap: var(--space-2);
   }
   html[data-sidebar="collapsed"] .account-profile {
+    flex: 0 0 auto;
     justify-content: center;
   }
   html[data-sidebar="collapsed"] .sidebar-collapse-btn svg {
@@ -3156,6 +3597,10 @@ html[data-drawer="open"] .app-sidebar {
 .catatan-card.is-pinned {
   border-color: var(--cat-biru-border);
   background: var(--color-bg-surface);
+}
+.catatan-card.is-highlighted {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft), var(--shadow-md);
 }
 
 .catatan-card-top {
@@ -3480,7 +3925,7 @@ html[data-drawer="open"] .app-sidebar {
 }
 
 /* ==========================================================================
-   Fase 5: Laporan (Google Sheets & Unduh CSV Cadangan)
+   Fase 5: Laporan (Google Sheets & Unduh CSV Cadangan) — TIDAK DIUBAH
    ========================================================================== */
 
 .laporan-filter-grid {
@@ -3809,4 +4254,89 @@ html[data-drawer="open"] .app-sidebar {
 }
 .toast-close-btn {
   color: currentColor;
+}
+
+/* Spanduk pembaruan aplikasi (Service Worker): melayang di bagian bawah layar,
+   menghormati safe-area, tidak menutupi sidebar/drawer maupun modal dialog */
+html[data-sw-banner="visible"] .app-main {
+  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.sw-update-banner {
+  position: fixed;
+  left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+  right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  max-width: 30rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  animation: masukSpandukSw var(--duration-normal) var(--ease-standard) both;
+}
+
+@media (min-width: 600px) {
+  .sw-update-banner {
+    left: calc(var(--sidebar-width-expanded) + var(--space-6));
+    right: calc(var(--space-6) + env(safe-area-inset-right, 0px));
+  }
+
+  html[data-sidebar="collapsed"] .sw-update-banner {
+    left: calc(var(--sidebar-width-collapsed) + var(--space-6));
+  }
+}
+
+html[data-drawer="open"] .sw-update-banner {
+  pointer-events: none;
+}
+
+.sw-update-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  flex: 1 1 11rem;
+  min-width: 0;
+}
+
+.sw-update-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sw-update-btn {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-4);
+}
+
+@keyframes masukSpandukSw {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-update-banner {
+    animation: none;
+  }
 }

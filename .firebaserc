@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "msgkuna-app-85dfb"
+  },
+  "targets": {
+    "msgkuna-app-85dfb": {
+      "hosting": {
+        "utama": [
+          "msgkuna"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
