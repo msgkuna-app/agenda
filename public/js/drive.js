@@ -1,5 +1,5 @@
 /**
- * Modul Operasi Google Drive API v3 & Struktur Folder Kategori (Fase 3)
+ * Modul Operasi Google Drive API v3 & Struktur Folder Kategori (Fase 3 + Fase 4 Google Docs)
  * Mematuhi Aturan #2, #7, #8, #10, #12:
  * - Seluruh operasi memakai ID (folderId, fileId), kecuali pencarian satu kali folder induk "Agenda-Arsip"
  *   jika belum tercatat di koleksi "pengaturan" (dokumen "drive").
@@ -19,6 +19,7 @@ import { getDriveAccessToken, isDriveTokenExpired } from "./auth.js";
 export const NAMA_FOLDER_INDUK = "Agenda-Arsip";
 export const NAMA_FOLDER_TANPA_KATEGORI = "Tanpa Kategori";
 export const MIME_TYPE_FOLDER_DRIVE = "application/vnd.google-apps.folder";
+export const MIME_TYPE_GOOGLE_DOCS = "application/vnd.google-apps.document";
 
 const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
@@ -68,7 +69,7 @@ function buatErrorDrive(status, pesanAsli, alasanKode = "") {
   if (!navigator.onLine) {
     pesan = "Tidak ada koneksi internet. Operasi Google Drive memerlukan sambungan aktif.";
   } else if (status === 401) {
-    pesan = "Sesi akses Google Drive telah kedaluwarsa atau tidak sah. Tekan tombol \"Masuk ulang\" di bagian atas halaman.";
+    pesan = "Sesi akses Google Drive telah kedaluwarsa atau tidak sah. Tekan tombol \"Masuk ulang\" untuk memperbarui sesi.";
   } else if (status === 403) {
     if (
       reasonLower.includes("accessnotconfigured") ||
@@ -105,6 +106,7 @@ function buatErrorDrive(status, pesanAsli, alasanKode = "") {
   err.isNotFound = status === 404;
   err.isForbidden = status === 403;
   err.isUnauthorized = status === 401;
+  err.isTokenExpired = status === 401;
   return err;
 }
 
@@ -132,7 +134,9 @@ export function formatPesanGalatDrive(err) {
  */
 function ambilTokenWajib() {
   if (!navigator.onLine) {
-    throw new Error("Tidak ada koneksi internet. Sambungkan perangkat Anda terlebih dahulu.");
+    const errOffline = new Error("Tidak ada koneksi internet. Sambungkan perangkat Anda terlebih dahulu.");
+    errOffline.isOffline = true;
+    throw errOffline;
   }
   if (isDriveTokenExpired()) {
     const err = new Error(
@@ -697,5 +701,84 @@ export function unggahBerkasMultipartKeDrive(konfigurasi) {
         }
       }
     }
+  };
+}
+
+/**
+ * Fase 4: Membuat dokumen Google Docs baru di dalam folder induk "Agenda-Arsip"
+ * dengan mengunggah HTML secara multipart untuk dikonversi otomatis oleh Google Drive API.
+ * Meminta field id,name,webViewLink sesuai spesifikasi.
+ * @param {{ judul: string, htmlKonten: string }} konfigurasi
+ * @returns {Promise<{ id: string, name: string, webViewLink: string, parentFolderId: string }>}
+ */
+export async function buatDokumenGoogleDocsDrive(konfigurasi) {
+  const token = ambilTokenWajib();
+  const rootFolderId = await pastikanFolderIndukDrive();
+
+  const namaBersih = String(konfigurasi?.judul || "").trim() || "Catatan Google Docs";
+  const htmlIsi = String(konfigurasi?.htmlKonten || "");
+
+  const metadata = {
+    name: namaBersih,
+    mimeType: MIME_TYPE_GOOGLE_DOCS,
+    parents: [rootFolderId]
+  };
+
+  const boundary = `-------AgendaArsipGdocBoundary${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  const bodyMultipart = new Blob(
+    [
+      `--${boundary}\r\n`,
+      `Content-Type: application/json; charset=UTF-8\r\n\r\n`,
+      `${JSON.stringify(metadata)}\r\n`,
+      `--${boundary}\r\n`,
+      `Content-Type: text/html; charset=UTF-8\r\n\r\n`,
+      htmlIsi,
+      `\r\n--${boundary}--`
+    ],
+    { type: `multipart/related; boundary=${boundary}` }
+  );
+
+  const params = new URLSearchParams({
+    uploadType: "multipart",
+    fields: "id,name,webViewLink"
+  });
+
+  let resp;
+  try {
+    resp = await fetch(`${DRIVE_UPLOAD_API}?${params.toString()}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`
+      },
+      body: bodyMultipart
+    });
+  } catch (_netErr) {
+    throw new Error(
+      !navigator.onLine
+        ? "Tidak ada koneksi internet. Pembuatan dokumen Google Docs memerlukan sambungan aktif."
+        : "Gagal menghubungi Google Drive saat membuat dokumen Google Docs. Periksa koneksi Anda."
+    );
+  }
+
+  if (!resp.ok) {
+    throw await uraiResponsGalatDrive(resp);
+  }
+
+  const hasil = await resp.json();
+  const docId = String(hasil?.id || "").trim();
+  if (!docId) {
+    throw new Error("Google Drive tidak mengembalikan ID dokumen Google Docs yang dibuat.");
+  }
+
+  const tautan =
+    String(hasil?.webViewLink || "").trim() ||
+    `https://docs.google.com/document/d/${encodeURIComponent(docId)}/edit`;
+
+  return {
+    id: docId,
+    name: String(hasil?.name || namaBersih),
+    webViewLink: tautan,
+    parentFolderId: rootFolderId
   };
 }

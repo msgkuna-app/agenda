@@ -1,8 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 3: Dokumen di Google Drive)
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 4: Catatan Singkat & Google Docs)
  * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard (termasuk kartu
- * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, dan Dokumen, pemantau kedaluwarsa token
- * Google Drive, konfirmasi keluar, dan Service Worker.
+ * 5 "Dokumen terbaru"), halaman Kegiatan, Jadwal, Dokumen, dan Catatan, pemantau kedaluwarsa
+ * token Google Drive, konfirmasi keluar, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -34,7 +34,8 @@ import {
   onPerubahanKegiatan,
   bukaModalFormKegiatan,
   terapkanFilterStatusKegiatan,
-  kelasBadgeStatus
+  kelasBadgeStatus,
+  daftarkanPembukaDetailKegiatan
 } from "./kegiatan.js";
 import {
   initHalamanJadwal,
@@ -59,6 +60,14 @@ import {
   formatUkuranBerkas,
   infoJenisBerkasMime
 } from "./dokumen.js";
+import {
+  initHalamanCatatan,
+  subscribeCatatan,
+  unsubscribeCatatan,
+  perbaruiStatusJaringanCatatan,
+  daftarkanPembukaDetailKegiatanCatatan
+} from "./catatan.js";
+import { resetCacheDrive } from "./drive.js";
 
 const NAMA_HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const NAMA_BULAN = [
@@ -78,6 +87,8 @@ let dashboardSudahDiikat = false;
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
   unsubscribeDokumen();
+  unsubscribeCatatan();
+  resetCacheDrive();
   resetHalamanJadwalSaatKeluar();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
@@ -437,6 +448,7 @@ function hentikanPemantauTokenDrive() {
 function perbaruiIndikatorJaringan() {
   const offlineBanner = document.getElementById("offline-banner");
   if (offlineBanner) offlineBanner.hidden = navigator.onLine;
+  perbaruiStatusJaringanCatatan();
 }
 
 function bukaDialogKeluar() {
@@ -646,9 +658,13 @@ function mulaiAplikasi() {
     onLogoutRequest: () => bukaDialogKeluar()
   });
 
+  daftarkanPembukaDetailKegiatan(bukaDialogDetailKegiatan);
+  daftarkanPembukaDetailKegiatanCatatan(bukaDialogDetailKegiatan);
+
   initHalamanKegiatan();
   initHalamanJadwal();
   initHalamanDokumen();
+  initHalamanCatatan();
   initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();
@@ -675,7 +691,8 @@ function mulaiAplikasi() {
 
       const unsubKegiatan = subscribeKegiatan();
       const unsubDokumen = subscribeDokumen();
-      dataUnsubscribers.push(unsubKegiatan, unsubDokumen);
+      const unsubCatatan = subscribeCatatan();
+      dataUnsubscribers.push(unsubKegiatan, unsubDokumen, unsubCatatan);
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

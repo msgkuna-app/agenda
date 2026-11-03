@@ -1,8 +1,9 @@
 /**
- * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Ekspor Minimal Fase 2)
+ * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Ekspor Minimal Fase 2 + Integrasi Catatan Fase 4)
  * Mencakup daftar kegiatan, pencarian (judul, catatan, lokasi), filter kategori & status,
  * pengurutan tanggal, tambah, ubah, hapus dengan konfirmasi, ubah status cepat,
- * serta observer tunggal bagi modul jadwal.js dan Dashboard tanpa langganan ganda.
+ * observer tunggal bagi modul jadwal.js dan Dashboard, serta tampilan catatan terkait
+ * beserta tombol "Tambah catatan" dan "Buat notulensi" di rincian kegiatan.
  */
 import {
   getFirestoreDb,
@@ -22,6 +23,15 @@ import {
 } from "./kategori.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import {
+  JENIS_CATATAN_GDOC,
+  getCatatanTerkaitKegiatan,
+  onPerubahanCatatan,
+  bukaModalCatatanSingkat,
+  bukaModalBuatCatatanGdoc,
+  formatTanggalCatatan,
+  tautanAmanGoogleDocs
+} from "./catatan.js";
 
 export const DAFTAR_STATUS_KEGIATAN = ["Rencana", "Berjalan", "Selesai"];
 
@@ -34,6 +44,9 @@ const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
 const IKON_KALENDER_META = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 15);
 const IKON_JAM_META = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);
 const IKON_LOKASI_META = svgIkon('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>', 15);
+const IKON_CATATAN_META = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 15);
+const IKON_GDOC_MINI = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/>', 16);
+const IKON_TAB_BARU = svgIkon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>', 14);
 
 export const manajerKategoriKegiatan = buatManajerKategori({
   namaKoleksiKategori: "kategoriKegiatan",
@@ -58,6 +71,15 @@ let formModalTerbuka = false;
 let hapusModalTerbuka = false;
 let idKegiatanAkanDihapus = null;
 let fokusSebelumModalKegiatan = null;
+
+// Fase 4: Penanda kegiatan yang sedang dibuka di #kegiatan-detail-modal
+let pembukaDetailKegiatanFn = null;
+let idKegiatanTerakhirDiklik = "";
+let idKegiatanDetailAktif = "";
+
+export function daftarkanPembukaDetailKegiatan(fn) {
+  pembukaDetailKegiatanFn = typeof fn === "function" ? fn : null;
+}
 
 export function getDaftarKegiatan() {
   return daftarKegiatan.map((item) => ({ ...item }));
@@ -295,6 +317,7 @@ function renderDaftarKegiatan() {
     return;
   }
 
+  const sedangOnline = navigator.onLine;
   const htmlKartu = hasil.map((item) => {
     const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
     const rentangWaktu = item.waktuMulai
@@ -303,6 +326,7 @@ function renderDaftarKegiatan() {
     const opsiStatusCepat = DAFTAR_STATUS_KEGIATAN.map(
       (st) => `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
     ).join("");
+    const catatanTerkait = getCatatanTerkaitKegiatan(item.id);
 
     return `<article class="kegiatan-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
       <div class="kegiatan-card-top">
@@ -315,14 +339,19 @@ function renderDaftarKegiatan() {
           <select id="quick-status-${escapeHtml(item.id)}" class="quick-status-select" data-action="quick-status" data-id="${escapeHtml(item.id)}" aria-label="Status kegiatan ${escapeHtml(item.judul)}">${opsiStatusCepat}</select>
         </div>
       </div>
-      <h3 class="kegiatan-card-title">${escapeHtml(item.judul)}</h3>
+      <h3 class="kegiatan-card-title">
+        <button type="button" class="event-title-trigger" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
+      </h3>
       <div class="kegiatan-meta-list">
         <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatTanggalTampilan(item.tanggal))}</span></span>
         ${rentangWaktu ? `<span class="kegiatan-meta-item">${IKON_JAM_META}<span>${escapeHtml(rentangWaktu)}</span></span>` : ""}
         ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI_META}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
+        ${catatanTerkait.length > 0 ? `<span class="kegiatan-meta-item">${IKON_CATATAN_META}<span>${catatanTerkait.length} catatan terkait</span></span>` : ""}
       </div>
       ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
-      <div class="kegiatan-card-footer">
+      <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
+        <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
+        <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet"' : ""}>Buat notulensi</button>
         <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan" data-id="${escapeHtml(item.id)}">Ubah</button>
         <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-kegiatan" data-id="${escapeHtml(item.id)}">Hapus</button>
       </div>
@@ -330,6 +359,111 @@ function renderDaftarKegiatan() {
   }).join("");
 
   region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>`;
+}
+
+/**
+ * Fase 4: Mengenali kegiatan yang sedang tampil pada dialog #kegiatan-detail-modal
+ * dan merender bagian Catatan Terkait beserta tombol "Tambah catatan" & "Buat notulensi".
+ */
+function deteksiKegiatanPadaModalDetail() {
+  const modal = document.getElementById("kegiatan-detail-modal");
+  const detailBody = document.getElementById("kegiatan-detail-body");
+  if (!modal || modal.hidden || !detailBody) return null;
+
+  const elDenganId = detailBody.querySelector("[data-id]");
+  if (elDenganId) {
+    const idDariDom = String(elDenganId.getAttribute("data-id") || "").trim();
+    const ditemukan = daftarKegiatan.find((k) => k.id === idDariDom);
+    if (ditemukan) return ditemukan;
+  }
+
+  const teksBody = String(detailBody.textContent || "");
+  for (const kandidatId of [idKegiatanDetailAktif, idKegiatanTerakhirDiklik]) {
+    if (!kandidatId) continue;
+    const item = daftarKegiatan.find((k) => k.id === kandidatId);
+    if (item && (!item.judul || teksBody.includes(item.judul))) {
+      return item;
+    }
+  }
+
+  const headingEl = detailBody.querySelector("h3, h4, .kegiatan-card-title");
+  if (headingEl) {
+    const teksJudul = String(headingEl.textContent || "").trim();
+    const cocok = daftarKegiatan.find((k) => k.judul.trim() === teksJudul);
+    if (cocok) return cocok;
+  }
+
+  return null;
+}
+
+function renderCatatanTerkaitDiDetailModal() {
+  const modal = document.getElementById("kegiatan-detail-modal");
+  const wadah = document.getElementById("kegiatan-detail-catatan-section");
+  if (!modal || !wadah) return;
+
+  if (modal.hidden) {
+    wadah.innerHTML = "";
+    return;
+  }
+
+  const kegiatan = deteksiKegiatanPadaModalDetail();
+  if (!kegiatan) {
+    wadah.innerHTML = "";
+    return;
+  }
+
+  idKegiatanDetailAktif = kegiatan.id;
+  const catatanTerkait = getCatatanTerkaitKegiatan(kegiatan.id);
+  const sedangOnline = navigator.onLine;
+
+  const daftarHtml = catatanTerkait.length === 0
+    ? `<p class="detail-catatan-empty">Belum ada catatan atau notulensi yang dikaitkan dengan kegiatan ini.</p>`
+    : `<ul class="detail-catatan-list">${catatanTerkait.map((c) => {
+        const gdoc = c.jenis === JENIS_CATATAN_GDOC;
+        const urlDocs = gdoc ? tautanAmanGoogleDocs(c) : "";
+        return `<li class="detail-catatan-item">
+          <div class="detail-catatan-main">
+            <div class="detail-catatan-title-row">
+              <span class="detail-catatan-icon" aria-hidden="true">${gdoc ? IKON_GDOC_MINI : IKON_CATATAN_META}</span>
+              <span class="detail-catatan-title">${escapeHtml(c.judul)}</span>
+              <span class="catatan-kind-badge ${gdoc ? "kind-gdoc" : "kind-singkat"}">${gdoc ? "Google Docs" : "Singkat"}</span>
+            </div>
+            <span class="detail-catatan-meta">${escapeHtml(formatTanggalCatatan(c.tanggal))}</span>
+            ${!gdoc && c.isi ? `<p class="detail-catatan-snippet">${escapeHtml(c.isi)}</p>` : ""}
+          </div>
+          <div class="detail-catatan-item-actions">
+            ${
+              gdoc
+                ? `<a href="${escapeHtml(urlDocs)}" target="_blank" rel="noopener" class="btn-secondary btn-sm-touch">${IKON_TAB_BARU}<span>Buka di Google Docs</span></a>`
+                : `<button type="button" class="btn-secondary btn-sm-touch" data-detail-catatan-action="edit-singkat" data-catatan-id="${escapeHtml(c.id)}">Lihat / Ubah</button>`
+            }
+          </div>
+        </li>`;
+      }).join("")}</ul>`;
+
+  wadah.innerHTML = `<section class="detail-catatan-box" aria-labelledby="detail-catatan-heading">
+    <div class="detail-catatan-header">
+      <div class="detail-catatan-heading-wrap">
+        <h3 id="detail-catatan-heading" class="sub-card-title">Catatan Terkait (${catatanTerkait.length})</h3>
+        <span class="field-hint-text">Catatan singkat dan notulensi Google Docs untuk kegiatan ini</span>
+      </div>
+      <div class="detail-catatan-actions">
+        <button type="button" class="btn-secondary btn-sm-touch" data-detail-catatan-action="tambah-catatan" data-kegiatan-id="${escapeHtml(kegiatan.id)}">+ Tambah catatan</button>
+        <button type="button" class="btn-primary btn-sm-touch" data-detail-catatan-action="buat-notulensi" data-kegiatan-id="${escapeHtml(kegiatan.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan Google Docs memerlukan sambungan aktif."' : ""}>${IKON_GDOC_MINI}<span>Buat notulensi</span></button>
+      </div>
+    </div>
+    ${daftarHtml}
+  </section>`;
+}
+
+function picuBuatNotulensiUntukKegiatan(kegiatan) {
+  if (!kegiatan) return;
+  bukaModalBuatCatatanGdoc({
+    templat: "notulensi",
+    kegiatanId: kegiatan.id,
+    tanggal: parseTanggal(kegiatan.tanggal) ? kegiatan.tanggal : hariIni(),
+    judul: `Notulensi - ${kegiatan.judul}`
+  });
 }
 
 function setPesanGalatFormKegiatan(pesan) {
@@ -534,6 +668,82 @@ export function initHalamanKegiatan() {
     beritahuPerubahanKegiatan();
   });
 
+  // Fase 4: Segarkan kartu kegiatan dan catatan terkait di modal rincian saat catatan berubah
+  onPerubahanCatatan(() => {
+    renderDaftarKegiatan();
+    renderCatatanTerkaitDiDetailModal();
+  });
+
+  // Tangkap ID kegiatan yang diklik sebelum dialog rincian dibuka oleh jadwal.js / dashboard
+  document.addEventListener(
+    "click",
+    (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target || target.closest("#kegiatan-detail-modal")) return;
+      const pembawaId = target.closest("[data-id], [data-kegiatan-id]");
+      if (!pembawaId) return;
+      const kandidat = String(
+        pembawaId.getAttribute("data-kegiatan-id") || pembawaId.getAttribute("data-id") || ""
+      ).trim();
+      if (kandidat && daftarKegiatan.some((k) => k.id === kandidat)) {
+        idKegiatanTerakhirDiklik = kandidat;
+      }
+    },
+    true
+  );
+
+  const detailModal = document.getElementById("kegiatan-detail-modal");
+  const detailBody = document.getElementById("kegiatan-detail-body");
+  const detailCatatanSection = document.getElementById("kegiatan-detail-catatan-section");
+
+  if (detailModal && typeof MutationObserver !== "undefined") {
+    const pengamatDetail = new MutationObserver(() => {
+      if (detailModal.hidden) {
+        idKegiatanDetailAktif = "";
+      }
+      renderCatatanTerkaitDiDetailModal();
+    });
+    pengamatDetail.observe(detailModal, { attributes: true, attributeFilter: ["hidden"] });
+    if (detailBody) {
+      pengamatDetail.observe(detailBody, { childList: true });
+    }
+  }
+
+  if (detailCatatanSection) {
+    detailCatatanSection.addEventListener("click", (e) => {
+      const btn = e.target instanceof Element ? e.target.closest("button[data-detail-catatan-action]") : null;
+      if (!btn) return;
+      const aksi = btn.getAttribute("data-detail-catatan-action");
+
+      if (aksi === "tambah-catatan") {
+        const kegId = btn.getAttribute("data-kegiatan-id") || idKegiatanDetailAktif;
+        const keg = daftarKegiatan.find((k) => k.id === kegId);
+        bukaModalCatatanSingkat(null, {
+          kegiatanId: keg ? keg.id : "",
+          tanggal: keg && parseTanggal(keg.tanggal) ? keg.tanggal : hariIni()
+        });
+      } else if (aksi === "buat-notulensi") {
+        const kegId = btn.getAttribute("data-kegiatan-id") || idKegiatanDetailAktif;
+        const keg = daftarKegiatan.find((k) => k.id === kegId);
+        if (keg) picuBuatNotulensiUntukKegiatan(keg);
+      } else if (aksi === "edit-singkat") {
+        const catId = btn.getAttribute("data-catatan-id") || "";
+        const kegId = idKegiatanDetailAktif;
+        const ditemukan = getCatatanTerkaitKegiatan(kegId).find((c) => c.id === catId);
+        if (ditemukan) bukaModalCatatanSingkat(ditemukan);
+      }
+    });
+  }
+
+  window.addEventListener("online", () => {
+    renderDaftarKegiatan();
+    renderCatatanTerkaitDiDetailModal();
+  });
+  window.addEventListener("offline", () => {
+    renderDaftarKegiatan();
+    renderCatatanTerkaitDiDetailModal();
+  });
+
   const btnKelolaKat = document.getElementById("btn-buka-kelola-kategori");
   if (btnKelolaKat) btnKelolaKat.addEventListener("click", () => dialogKelolaKategoriCtrl?.buka());
 
@@ -597,8 +807,19 @@ export function initHalamanKegiatan() {
       const item = daftarKegiatan.find((k) => k.id === id);
       if (!item) return;
 
-      if (aksi === "edit-kegiatan") bukaModalFormKegiatan(item);
-      else if (aksi === "delete-kegiatan") bukaDialogHapusKegiatan(item);
+      if (aksi === "detail-kegiatan") {
+        idKegiatanDetailAktif = item.id;
+        idKegiatanTerakhirDiklik = item.id;
+        if (typeof pembukaDetailKegiatanFn === "function") {
+          pembukaDetailKegiatanFn(item.id);
+        }
+      } else if (aksi === "buat-notulensi") {
+        picuBuatNotulensiUntukKegiatan(item);
+      } else if (aksi === "edit-kegiatan") {
+        bukaModalFormKegiatan(item);
+      } else if (aksi === "delete-kegiatan") {
+        bukaDialogHapusKegiatan(item);
+      }
     });
 
     listRegion.addEventListener("change", async (e) => {
@@ -754,6 +975,7 @@ export function subscribeKegiatan() {
       sudahDimuatPertamaKali = true;
       tampilkanGalatHalamanKegiatan("");
       renderDaftarKegiatan();
+      renderCatatanTerkaitDiDetailModal();
       dialogKelolaKategoriCtrl?.segarkanTampilan();
       beritahuPerubahanKegiatan();
     },
@@ -777,6 +999,8 @@ export function unsubscribeKegiatan() {
   manajerKategoriKegiatan.unsubscribe();
   daftarKegiatan = [];
   sudahDimuatPertamaKali = false;
+  idKegiatanDetailAktif = "";
+  idKegiatanTerakhirDiklik = "";
 
   tutupModalFormKegiatan(false);
   tutupDialogHapusKegiatan(false);
