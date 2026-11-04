@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Favicon sederhana ukuran kecil (grid kelipatan 16 unit = tajam di 32x32 & 16x16) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#0B5FA5" />
+
+  <!-- Dua penjepit atas berukuran tegas tanpa takik kecil -->
+  <rect x="144" y="48" width="48" height="80" rx="24" fill="#F4F8FC" />
+  <rect x="320" y="48" width="48" height="80" rx="24" fill="#F4F8FC" />
+
+  <!-- Badan kalender kontras tinggi untuk tab terang maupun gelap -->
+  <rect x="80" y="96" width="352" height="352" rx="64" fill="#F4F8FC" />
+
+  <!-- Garis pemisah header (tepat 2px pada ukuran 32x32) -->
+  <rect x="80" y="176" width="352" height="32" fill="#084A84" />
+
+  <!-- Tiga garis aksen tebal (Biru - Hijau - Oranye BPS) -->
+  <rect x="128" y="240" width="256" height="32" rx="16" fill="#007BC2" />
+  <rect x="128" y="304" width="192" height="32" rx="16" fill="#3B9428" />
+  <rect x="128" y="368" width="144" height="32" rx="16" fill="#D8720D" />
+</svg>
