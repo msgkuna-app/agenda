@@ -99,18 +99,18 @@ const GAYA_DASAR_DOKUMEN = `
     font-family: Arial, Helvetica, sans-serif;
     font-size: 11pt;
     line-height: 1.5;
-    color: #0f172a;
+    color: #203849;
   }
   h1 {
     font-size: 18pt;
     margin: 0 0 6pt 0;
-    color: #1e3a8a;
+    color: #005387;
   }
   h2 {
     font-size: 13pt;
     margin: 16pt 0 6pt 0;
-    color: #1e40af;
-    border-bottom: 1px solid #cbd5e1;
+    color: #0069a8;
+    border-bottom: 1px solid #c3d4e3;
     padding-bottom: 3pt;
   }
   p {
@@ -118,7 +118,7 @@ const GAYA_DASAR_DOKUMEN = `
   }
   .meta-subtitle {
     font-size: 10.5pt;
-    color: #475569;
+    color: #4b677c;
     margin-bottom: 14pt;
   }
   table {
@@ -127,21 +127,21 @@ const GAYA_DASAR_DOKUMEN = `
     margin: 8pt 0 14pt 0;
   }
   th, td {
-    border: 1px solid #94a3b8;
+    border: 1px solid #8aa4b8;
     padding: 6pt 8pt;
     vertical-align: top;
     text-align: left;
     font-size: 10.5pt;
   }
   th {
-    background-color: #eff6ff;
-    color: #1e3a8a;
+    background-color: #e5f3fc;
+    color: #005387;
     font-weight: bold;
   }
   .meta-table th {
     width: 28%;
-    background-color: #f8fafc;
-    color: #334155;
+    background-color: #f4f8fb;
+    color: #203849;
   }
   ul, ol {
     margin: 4pt 0 12pt 18pt;

@@ -41,7 +41,7 @@ export function terapkanTema(pilihan) {
 
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute("content", efektif === "dark" ? "#0f172a" : "#1e40af");
+    meta.setAttribute("content", efektif === "dark" ? "#162836" : "#0069a8");    
   }
 
   const semuaTombol = document.querySelectorAll(".theme-choice-btn[data-theme-choice]");

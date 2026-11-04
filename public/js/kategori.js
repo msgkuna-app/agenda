@@ -27,14 +27,14 @@ import { escapeHtml } from "./sidebar.js";
  * agar kontras terbaca jelas pada Tema Terang maupun Tema Gelap (Aturan #14).
  */
 export const PRESET_WARNA_KATEGORI = [
-  { id: "biru", label: "Biru Samudra" },
-  { id: "hijau", label: "Hijau Zamrud" },
-  { id: "amber", label: "Kuning Amber" },
+  { id: "biru", label: "Biru Statistik" },
+  { id: "hijau", label: "Hijau Sensus" },
+  { id: "amber", label: "Oranye Survei" },
   { id: "ungu", label: "Ungu Kecubung" },
   { id: "merah", label: "Merah Koral" },
-  { id: "sian", label: "Biru Sian" },
+  { id: "sian", label: "Toska Pesisir" },
   { id: "merahmuda", label: "Merah Muda" },
-  { id: "abu", label: "Abu Batu" }
+  { id: "abu", label: "Abu Seragam" }
 ];
 
 export const KATEGORI_KEGIATAN_BAWAAN = [
