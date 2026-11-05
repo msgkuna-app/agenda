@@ -87,6 +87,10 @@ import {
   resetHalamanPengaturanSaatKeluar,
 } from "./pengaturan.js";
 import { resetCacheDrive } from "./drive.js";
+import {
+  renderTimelineHarian,
+  bersihkanTimelineHarian,
+} from "./timeline-harian.js";
 
 const NAMA_HARI = [
   "Minggu",
@@ -117,6 +121,25 @@ const svgIkon = (isi, uk = 18, tebal = 2) =>
 
 const KUNCI_TUNDA_UPDATE_SW = "agenda_arsip_update_ditunda";
 const INTERVAL_CEK_UPDATE_SW_MS = 60 * 60 * 1000;
+const KUNCI_STORAGE_TAMPILAN_HARI_INI = "agenda_arsip_dashboard_hari_ini";
+
+function ambilPreferensiTampilanHariIni() {
+  try {
+    const tersimpan = localStorage.getItem(KUNCI_STORAGE_TAMPILAN_HARI_INI);
+    if (tersimpan === "daftar" || tersimpan === "timeline") {
+      return tersimpan;
+    }
+  } catch (_e) {}
+  return "timeline"; // Bawaan: "Timeline"
+}
+
+function simpanPreferensiTampilanHariIni(mode) {
+  try {
+    localStorage.setItem(KUNCI_STORAGE_TAMPILAN_HARI_INI, mode);
+  } catch (_e) {}
+}
+
+let modeTampilanHariIni = ambilPreferensiTampilanHariIni();
 
 let dataUnsubscribers = [];
 let tokenCheckIntervalId = null;
@@ -228,12 +251,36 @@ function pastikanKerangkaDashboard() {
       </section>
 
       <section class="dash-card dash-area-hari-ini" aria-labelledby="dash-title-hari-ini">
-        <div class="dash-card-header">
+        <div class="dash-card-header dash-card-header-hari-ini">
           <div class="dash-card-heading-group">
             <h3 id="dash-title-hari-ini" class="dash-card-title">Kegiatan hari ini</h3>
             <span id="dash-meta-hari-ini" class="dash-card-caption"></span>
           </div>
-          <span id="dash-count-hari-ini" class="dash-metric-number">0</span>
+          <div class="dash-header-controls-hari-ini">
+            <div class="segmented-control segmented-control-sm" role="group" aria-label="Tampilan kegiatan hari ini">
+              <button
+                type="button"
+                id="btn-dash-view-timeline"
+                class="segmented-btn${modeTampilanHariIni === "timeline" ? " is-active" : ""}"
+                data-dash-view="timeline"
+                aria-pressed="${modeTampilanHariIni === "timeline" ? "true" : "false"}"
+              >
+                ${svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15)}
+                <span>Timeline</span>
+              </button>
+              <button
+                type="button"
+                id="btn-dash-view-list"
+                class="segmented-btn${modeTampilanHariIni === "daftar" ? " is-active" : ""}"
+                data-dash-view="daftar"
+                aria-pressed="${modeTampilanHariIni === "daftar" ? "true" : "false"}"
+              >
+                ${svgIkon('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>', 15)}
+                <span>Daftar</span>
+              </button>
+            </div>
+            <span id="dash-count-hari-ini" class="dash-metric-number">0</span>
+          </div>
         </div>
         <div id="dash-body-hari-ini" class="dash-card-body" aria-live="polite"></div>
         <div class="dash-card-footer">
@@ -548,12 +595,33 @@ function renderDashboard() {
   if (countHariIni) countHariIni.textContent = String(kegiatanHariIni.length);
   if (count7Hari) count7Hari.textContent = String(kegiatan7Hari.length);
 
+  const btnViewTimeline = document.getElementById("btn-dash-view-timeline");
+  const btnViewList = document.getElementById("btn-dash-view-list");
+  if (btnViewTimeline && btnViewList) {
+    const isTimeline = modeTampilanHariIni === "timeline";
+    btnViewTimeline.classList.toggle("is-active", isTimeline);
+    btnViewTimeline.setAttribute("aria-pressed", isTimeline ? "true" : "false");
+    btnViewList.classList.toggle("is-active", !isTimeline);
+    btnViewList.setAttribute("aria-pressed", !isTimeline ? "true" : "false");
+  }
+
   if (kegiatanHariIni.length === 0) {
+    bersihkanTimelineHarian(bodyHariIni);
     bodyHariIni.innerHTML = renderStatusKosongKartuDashboard(
       svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 20),
       "Belum ada kegiatan yang dijadwalkan untuk hari ini."
     );
+  } else if (modeTampilanHariIni === "timeline") {
+    renderTimelineHarian(bodyHariIni, kegiatanHariIni, {
+      tanggal: strHariIni,
+      ambilWarna: (katId) => manajerKategoriKegiatan.cariInfoKategori(katId).warna,
+      ambilNamaKategori: (katId) => manajerKategoriKegiatan.cariInfoKategori(katId).nama,
+      saatKlik: (idKegiatan) => {
+        if (idKegiatan) bukaDialogDetailKegiatan(idKegiatan);
+      },
+    });
   } else {
+    bersihkanTimelineHarian(bodyHariIni);
     const maks = 5;
     const sisa = kegiatanHariIni.length - maks;
     bodyHariIni.innerHTML = `<ul class="dash-activity-list">${kegiatanHariIni
@@ -612,6 +680,17 @@ function initHalamanDashboard() {
       }
       if (targetEl.closest("#btn-dashboard-tambah-kegiatan")) {
         bukaModalFormKegiatan(null, hariIni());
+        return;
+      }
+
+      const btnViewSwitch = targetEl.closest("button[data-dash-view]");
+      if (btnViewSwitch) {
+        const viewMode = btnViewSwitch.getAttribute("data-dash-view");
+        if (viewMode === "timeline" || viewMode === "daftar") {
+          modeTampilanHariIni = viewMode;
+          simpanPreferensiTampilanHariIni(viewMode);
+          renderDashboard();
+        }
         return;
       }
 
