@@ -3,19 +3,368 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Isi dengan UID asli dari Firebase Console > Authentication > Users untuk proteksi ganda.
+    // Dibiarkan "ISI_UID_PEMILIK" maka verifikasi hanya memakai email.
+    function pemilikUid() {
+      return "BL9TbJXXSTSLIedPBMXPgNWohLM2";
+    }
+
     function isOwner() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email == "msgkuna.app@gmail.com";
+        && request.auth.token.email == "msgkuna.app@gmail.com"
+        && (pemilikUid() == "ISI_UID_PEMILIK" || pemilikUid() == "" || request.auth.uid == pemilikUid());
     }
 
-    match /kegiatan/{id}         { allow read, write: if isOwner(); }
-    match /kategoriKegiatan/{id} { allow read, write: if isOwner(); }
-    match /dokumen/{id}          { allow read, write: if isOwner(); }
-    match /kategoriDokumen/{id}  { allow read, write: if isOwner(); }
-    match /catatan/{id}          { allow read, write: if isOwner(); }
-    match /laporan/{id}          { allow read, write: if isOwner(); }
-    match /pengaturan/{id}       { allow read, write: if isOwner(); }
+    // =========================================================================
+    // PEMBANTU UMUM
+    // =========================================================================
+
+    // CREATE: field opsional, bila ada harus string dengan panjang <= maks
+    function strOps(d, f, maks) {
+      return !(f in d) || (d[f] is string && d[f].size() <= maks);
+    }
+
+    // UPDATE: hanya memeriksa field yang benar-benar berubah (u = affectedKeys)
+    function strUbah(d, u, f, maks) {
+      return !u.hasAny([f]) || (d[f] is string && d[f].size() <= maks);
+    }
+
+    function boolUbah(d, u, f) {
+      return !u.hasAny([f]) || d[f] is bool;
+    }
+
+    function angkaUbah(d, u, f) {
+      return !u.hasAny([f]) || (d[f] is number && d[f] >= 0);
+    }
+
+    function dihapusAtUbah(d, u) {
+      return !u.hasAny(['dihapusAt']) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50);
+    }
+
+    // =========================================================================
+    // KEGIATAN
+    // =========================================================================
+
+    function validKegiatan(d) {
+      return d.keys().hasOnly([
+        'judul', 'catatan', 'tanggal', 'waktuMulai', 'waktuSelesai',
+        'lokasi', 'kategoriId', 'status', 'createdAt', 'updatedAt', 'dihapusAt'
+      ])
+      && d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160
+      && d.tanggal is string && d.tanggal.size() == 10
+      && d.status is string && (d.status in ['Rencana', 'Berjalan', 'Selesai'])
+      && strOps(d, 'catatan', 5000)
+      && strOps(d, 'waktuMulai', 10)
+      && strOps(d, 'waktuSelesai', 10)
+      && strOps(d, 'lokasi', 140)
+      && strOps(d, 'kategoriId', 100)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50)
+      && (!('dihapusAt' in d) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50));
+    }
+
+    function validKegiatanUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly([
+        'judul', 'catatan', 'tanggal', 'waktuMulai', 'waktuSelesai',
+        'lokasi', 'kategoriId', 'status', 'createdAt', 'updatedAt', 'dihapusAt'
+      ])
+      && (!u.hasAny(['judul']) || (d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160))
+      && (!u.hasAny(['tanggal']) || (d.tanggal is string && d.tanggal.size() == 10))
+      && (!u.hasAny(['status']) || (d.status is string && (d.status in ['Rencana', 'Berjalan', 'Selesai'])))
+      && strUbah(d, u, 'catatan', 5000)
+      && strUbah(d, u, 'waktuMulai', 10)
+      && strUbah(d, u, 'waktuSelesai', 10)
+      && strUbah(d, u, 'lokasi', 140)
+      && strUbah(d, u, 'kategoriId', 100)
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50)
+      && dihapusAtUbah(d, u);
+    }
+
+    // =========================================================================
+    // KATEGORI KEGIATAN
+    // =========================================================================
+
+    function validKategoriKegiatan(d) {
+      return d.keys().hasOnly(['nama', 'warna', 'urutan', 'createdAt', 'updatedAt'])
+      && d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 40
+      && d.warna is string && d.warna.size() >= 1 && d.warna.size() <= 30
+      && d.urutan is number && d.urutan >= 0
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validKategoriKegiatanUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly(['nama', 'warna', 'urutan', 'createdAt', 'updatedAt'])
+      && (!u.hasAny(['nama']) || (d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 40))
+      && (!u.hasAny(['warna']) || (d.warna is string && d.warna.size() >= 1 && d.warna.size() <= 30))
+      && angkaUbah(d, u, 'urutan')
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50);
+    }
+
+    // =========================================================================
+    // KATEGORI DOKUMEN
+    // =========================================================================
+
+    function validKategoriDokumen(d) {
+      return d.keys().hasOnly(['nama', 'warna', 'urutan', 'folderId', 'folderSinkron', 'createdAt', 'updatedAt'])
+      && d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 40
+      && d.warna is string && d.warna.size() >= 1 && d.warna.size() <= 30
+      && d.urutan is number && d.urutan >= 0
+      && strOps(d, 'folderId', 100)
+      && (!('folderSinkron' in d) || d.folderSinkron is bool)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validKategoriDokumenUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly(['nama', 'warna', 'urutan', 'folderId', 'folderSinkron', 'createdAt', 'updatedAt'])
+      && (!u.hasAny(['nama']) || (d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 40))
+      && (!u.hasAny(['warna']) || (d.warna is string && d.warna.size() >= 1 && d.warna.size() <= 30))
+      && angkaUbah(d, u, 'urutan')
+      && strUbah(d, u, 'folderId', 100)
+      && boolUbah(d, u, 'folderSinkron')
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50);
+    }
+
+    // =========================================================================
+    // DOKUMEN
+    // =========================================================================
+
+    function validDokumen(d) {
+      return d.keys().hasOnly([
+        'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
+        'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
+        'createdAt', 'updatedAt'
+      ])
+      && d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160
+      && d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255
+      && strOps(d, 'driveFileId', 100)
+      && strOps(d, 'tautan', 1000)
+      && strOps(d, 'mimeType', 150)
+      && (!('ukuran' in d) || (d.ukuran is number && d.ukuran >= 0))
+      && strOps(d, 'kategoriId', 100)
+      && strOps(d, 'kegiatanId', 100)
+      && strOps(d, 'catatan', 5000)
+      && strOps(d, 'tanggalUnggah', 50)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validDokumenUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly([
+        'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
+        'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
+        'createdAt', 'updatedAt'
+      ])
+      && (!u.hasAny(['namaTampilan']) || (d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160))
+      && (!u.hasAny(['namaFile']) || (d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255))
+      && strUbah(d, u, 'driveFileId', 100)
+      && strUbah(d, u, 'tautan', 1000)
+      && strUbah(d, u, 'mimeType', 150)
+      && angkaUbah(d, u, 'ukuran')
+      && strUbah(d, u, 'kategoriId', 100)
+      && strUbah(d, u, 'kegiatanId', 100)
+      && strUbah(d, u, 'catatan', 5000)
+      && strUbah(d, u, 'tanggalUnggah', 50)
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50);
+    }
+
+    // =========================================================================
+    // CATATAN
+    // =========================================================================
+
+    function validCatatan(d) {
+      return d.keys().hasOnly([
+        'jenis', 'judul', 'isi', 'kategori', 'tag', 'kegiatanId',
+        'disematkan', 'tanggal', 'createdAt', 'updatedAt',
+        'templat', 'docId', 'tautan', 'dihapusAt', 'driveDiSampah'
+      ])
+      && d.jenis is string && (d.jenis == 'singkat' || d.jenis == 'gdoc')
+      && d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160
+      && d.tanggal is string && d.tanggal.size() == 10
+      && strOps(d, 'isi', 100000)
+      && strOps(d, 'kategori', 40)
+      && (!('tag' in d) || (d.tag is list && d.tag.size() <= 20))
+      && strOps(d, 'kegiatanId', 100)
+      && (!('disematkan' in d) || d.disematkan is bool)
+      && strOps(d, 'templat', 50)
+      && strOps(d, 'docId', 100)
+      && strOps(d, 'tautan', 1000)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50)
+      && (!('dihapusAt' in d) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50))
+      && (!('driveDiSampah' in d) || d.driveDiSampah is bool);
+    }
+
+    function validCatatanUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly([
+        'jenis', 'judul', 'isi', 'kategori', 'tag', 'kegiatanId',
+        'disematkan', 'tanggal', 'createdAt', 'updatedAt',
+        'templat', 'docId', 'tautan', 'dihapusAt', 'driveDiSampah'
+      ])
+      && (!u.hasAny(['jenis']) || (d.jenis is string && (d.jenis == 'singkat' || d.jenis == 'gdoc')))
+      && (!u.hasAny(['judul']) || (d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160))
+      && (!u.hasAny(['tanggal']) || (d.tanggal is string && d.tanggal.size() == 10))
+      && strUbah(d, u, 'isi', 100000)
+      && strUbah(d, u, 'kategori', 40)
+      && (!u.hasAny(['tag']) || (d.tag is list && d.tag.size() <= 20))
+      && strUbah(d, u, 'kegiatanId', 100)
+      && boolUbah(d, u, 'disematkan')
+      && strUbah(d, u, 'templat', 50)
+      && strUbah(d, u, 'docId', 100)
+      && strUbah(d, u, 'tautan', 1000)
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50)
+      && dihapusAtUbah(d, u)
+      && boolUbah(d, u, 'driveDiSampah');
+    }
+
+    // =========================================================================
+    // LAPORAN
+    // =========================================================================
+
+    function validLaporan(d) {
+      return d.keys().hasOnly([
+        'nama', 'jenis', 'jenisLabel', 'tautan', 'sheetId',
+        'rentangTanggal', 'tanggalDari', 'tanggalSampai', 'jumlahBaris',
+        'createdAt', 'updatedAt'
+      ])
+      && d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 200
+      && d.jenis is string && d.jenis.size() >= 1 && d.jenis.size() <= 50
+      && strOps(d, 'jenisLabel', 100)
+      && strOps(d, 'tautan', 1000)
+      && strOps(d, 'sheetId', 100)
+      && strOps(d, 'rentangTanggal', 100)
+      && strOps(d, 'tanggalDari', 15)
+      && strOps(d, 'tanggalSampai', 15)
+      && (!('jumlahBaris' in d) || (d.jumlahBaris is number && d.jumlahBaris >= 0))
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validLaporanUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly([
+        'nama', 'jenis', 'jenisLabel', 'tautan', 'sheetId',
+        'rentangTanggal', 'tanggalDari', 'tanggalSampai', 'jumlahBaris',
+        'createdAt', 'updatedAt'
+      ])
+      && strUbah(d, u, 'nama', 200)
+      && strUbah(d, u, 'jenis', 50)
+      && strUbah(d, u, 'jenisLabel', 100)
+      && strUbah(d, u, 'tautan', 1000)
+      && strUbah(d, u, 'sheetId', 100)
+      && strUbah(d, u, 'rentangTanggal', 100)
+      && strUbah(d, u, 'tanggalDari', 15)
+      && strUbah(d, u, 'tanggalSampai', 15)
+      && angkaUbah(d, u, 'jumlahBaris')
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50);
+    }
+
+    // =========================================================================
+    // PENGATURAN (dua dokumen: "cadangan" dan "drive")
+    // =========================================================================
+
+    function validPengaturanCadangan(d) {
+      return d.keys().hasOnly(['intervalHari', 'terakhirEksporAt', 'createdAt', 'updatedAt'])
+      && (!('intervalHari' in d) || (d.intervalHari is number && d.intervalHari >= 0 && d.intervalHari <= 365))
+      && strOps(d, 'terakhirEksporAt', 50)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validPengaturanDrive(d) {
+      return d.keys().hasOnly(['rootFolderId', 'uncategorizedFolderId', 'createdAt', 'updatedAt'])
+      && strOps(d, 'rootFolderId', 100)
+      && strOps(d, 'uncategorizedFolderId', 100)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validPengaturanUbah(id, d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return (id == 'cadangan'
+          && u.hasOnly(['intervalHari', 'terakhirEksporAt', 'createdAt', 'updatedAt'])
+          && (!u.hasAny(['intervalHari']) || (d.intervalHari is number && d.intervalHari >= 0 && d.intervalHari <= 365))
+          && strUbah(d, u, 'terakhirEksporAt', 50)
+          && strUbah(d, u, 'createdAt', 50)
+          && strUbah(d, u, 'updatedAt', 50))
+        || (id == 'drive'
+          && u.hasOnly(['rootFolderId', 'uncategorizedFolderId', 'createdAt', 'updatedAt'])
+          && strUbah(d, u, 'rootFolderId', 100)
+          && strUbah(d, u, 'uncategorizedFolderId', 100)
+          && strUbah(d, u, 'createdAt', 50)
+          && strUbah(d, u, 'updatedAt', 50));
+    }
+
+    // =========================================================================
+    // ATURAN PER KOLEKSI
+    // create  : dokumen baru divalidasi penuh
+    // update  : hanya field yang berubah yang divalidasi (aman untuk data lama)
+    // =========================================================================
+
+    match /kegiatan/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validKegiatan(request.resource.data);
+      allow update: if isOwner() && validKegiatanUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /kategoriKegiatan/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validKategoriKegiatan(request.resource.data);
+      allow update: if isOwner() && validKategoriKegiatanUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /dokumen/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validDokumen(request.resource.data);
+      allow update: if isOwner() && validDokumenUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /kategoriDokumen/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validKategoriDokumen(request.resource.data);
+      allow update: if isOwner() && validKategoriDokumenUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /catatan/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validCatatan(request.resource.data);
+      allow update: if isOwner() && validCatatanUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /laporan/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validLaporan(request.resource.data);
+      allow update: if isOwner() && validLaporanUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /pengaturan/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && (
+        (id == 'cadangan' && validPengaturanCadangan(request.resource.data)) ||
+        (id == 'drive' && validPengaturanDrive(request.resource.data))
+      );
+      allow update: if isOwner() && validPengaturanUbah(id, request.resource.data);
+      allow delete: if isOwner();
+    }
 
     match /{document=**} {
       allow read, write: if false;
