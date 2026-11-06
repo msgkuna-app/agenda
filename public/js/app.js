@@ -85,6 +85,13 @@ import {
   initHalamanPengaturan,
   segarkanTampilanPengaturan,
   resetHalamanPengaturanSaatKeluar,
+  muatPengaturanCadangan,
+  getStatusCadangan,
+  hitungSelisihHariCadangan,
+  tundaPengingatCadangan,
+  apakahSedangMenundaCadangan,
+  onPerubahanCadangan,
+  eksporSeluruhDataJson,
 } from "./pengaturan.js";
 import { resetCacheDrive } from "./drive.js";
 import {
@@ -284,6 +291,7 @@ function pastikanKerangkaDashboard() {
         <button type="button" id="btn-dashboard-tambah-kegiatan" class="btn-primary">${svgIkon('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>', 18, 2.2)}<span>Tambah kegiatan</span></button>
       </div>
     </div>
+    <div id="dashboard-backup-reminder-banner" class="backup-reminder-banner" role="status" hidden></div>
     <div id="dashboard-cards-grid" class="dashboard-cards-grid">
       <section class="dash-card dash-area-hari-ini" aria-labelledby="dash-title-hari-ini">
         <div class="dash-card-header dash-card-header-hari-ini">
@@ -588,8 +596,72 @@ function renderKartuCatatanDashboard() {
   }`;
 }
 
+function perbaruiBannerPengingatCadangan() {
+  const banner = document.getElementById("dashboard-backup-reminder-banner");
+  if (!banner) return;
+
+  const status = getStatusCadangan();
+
+  // 1. Pengingat tidak nonaktif
+  if (status.intervalHari === 0) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+
+  // 2. Data kegiatan, catatan, dan dokumen sudah dimuat dan total item minimal 1
+  if (!isKegiatanSudahDimuat() || !isDokumenSudahDimuat() || !isCatatanSudahDimuat()) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+  const totalItem =
+    getDaftarKegiatan().length +
+    getDaftarDokumen().length +
+    getDaftarCatatan().length;
+  if (totalItem < 1) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+
+  // 4. Pengguna tidak sedang menunda
+  if (apakahSedangMenundaCadangan()) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+    return;
+  }
+
+  // 3. Belum pernah ekspor ATAU selisih hari sejak ekspor terakhir >= intervalHari
+  let teksBanner = "";
+  if (!status.terakhirEksporAt) {
+    teksBanner = "Anda belum pernah mengekspor cadangan data.";
+  } else {
+    const selisihHari = hitungSelisihHariCadangan(status.terakhirEksporAt);
+    if (selisihHari === null || selisihHari < status.intervalHari) {
+      banner.hidden = true;
+      banner.innerHTML = "";
+      return;
+    }
+    teksBanner = `Cadangan terakhir ${selisihHari} hari lalu. Ekspor sekarang untuk mengamankan data Anda.`;
+  }
+
+  banner.innerHTML = `
+    <div class="backup-reminder-content">
+      <span class="backup-reminder-icon" aria-hidden="true">${svgIkon('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', 20)}</span>
+      <p class="backup-reminder-text">${escapeHtml(teksBanner)}</p>
+    </div>
+    <div class="backup-reminder-actions">
+      <button type="button" id="btn-backup-reminder-export" class="btn-primary btn-sm-touch">${svgIkon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>', 16)}<span>Ekspor sekarang</span></button>
+      <button type="button" id="btn-backup-reminder-snooze" class="btn-secondary btn-sm-touch">Ingatkan 3 hari lagi</button>
+    </div>
+  `;
+  banner.hidden = false;
+}
+
 function renderDashboard() {
   pastikanKerangkaDashboard();
+  perbaruiBannerPengingatCadangan();
 
   const strHariIni = hariIni();
   const strBesok = tambahHari(1);
@@ -732,6 +804,18 @@ function initHalamanDashboard() {
         return;
       }
 
+      if (targetEl.closest("#btn-backup-reminder-export")) {
+        eksporSeluruhDataJson();
+        return;
+      }
+
+      if (targetEl.closest("#btn-backup-reminder-snooze")) {
+        tundaPengingatCadangan(3);
+        perbaruiBannerPengingatCadangan();
+        tampilkanToast("Pengingat cadangan ditunda selama 3 hari.", "info");
+        return;
+      }
+
       const btnViewSwitch = targetEl.closest("button[data-dash-view]");
       if (btnViewSwitch) {
         const viewMode = btnViewSwitch.getAttribute("data-dash-view");
@@ -773,8 +857,15 @@ function initHalamanDashboard() {
   }
 
   onPerubahanKegiatan(() => renderDashboard());
-  onPerubahanDokumen(() => renderKartuDokumenDashboard());
-  onPerubahanCatatan(() => renderKartuCatatanDashboard());
+  onPerubahanDokumen(() => {
+    renderKartuDokumenDashboard();
+    perbaruiBannerPengingatCadangan();
+  });
+  onPerubahanCatatan(() => {
+    renderKartuCatatanDashboard();
+    perbaruiBannerPengingatCadangan();
+  });
+  onPerubahanCadangan(() => perbaruiBannerPengingatCadangan());
   renderDashboard();
 }
 
@@ -1354,6 +1445,7 @@ function mulaiAplikasi() {
         unsubCatatan,
         unsubLaporan,
       );
+      muatPengaturanCadangan();
       segarkanTampilanPengaturan();
       jalankanAksiPintasanSetelahLayarTampil();
     });

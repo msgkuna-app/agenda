@@ -18,6 +18,8 @@ import {
   getFirestoreDb,
   collection,
   doc,
+  getDoc,
+  setDoc,
   getDocs,
   writeBatch,
   formatPesanGalatFirestore
@@ -29,8 +31,149 @@ import {
   formatPesanGalatAuth
 } from "./auth.js";
 import { getPreferensiTema, terapkanTema } from "./tema.js";
-import { hariIni, parseTanggal } from "./util-tanggal.js";
+import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
+import { formatTanggalLengkapIndonesia } from "./jadwal.js";
 import { escapeHtml, tampilkanToast } from "./sidebar.js";
+
+export const KUNCI_STORAGE_CADANGAN_TERAKHIR = "agenda_arsip_cadangan_terakhir";
+export const KUNCI_STORAGE_CADANGAN_INTERVAL = "agenda_arsip_cadangan_interval";
+export const KUNCI_STORAGE_CADANGAN_TUNDA = "agenda_arsip_cadangan_tunda_sampai";
+
+const statusCadangan = {
+  terakhirEksporAt: null,
+  intervalHari: 14,
+  sudahDimuat: false
+};
+const pemberitahuCadangan = new Set();
+
+export function onPerubahanCadangan(fn) {
+  if (typeof fn === "function") {
+    pemberitahuCadangan.add(fn);
+    return () => pemberitahuCadangan.delete(fn);
+  }
+  return () => {};
+}
+
+export function getStatusCadangan() {
+  if (!statusCadangan.sudahDimuat) {
+    try {
+      const tersimpan = localStorage.getItem(KUNCI_STORAGE_CADANGAN_TERAKHIR);
+      if (tersimpan) statusCadangan.terakhirEksporAt = tersimpan;
+      const inv = localStorage.getItem(KUNCI_STORAGE_CADANGAN_INTERVAL);
+      if (inv !== null && !Number.isNaN(Number(inv))) {
+        statusCadangan.intervalHari = Number(inv);
+      }
+    } catch (_e) {}
+  }
+  return { ...statusCadangan };
+}
+
+export function hitungSelisihHariCadangan(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return null;
+  const tglTerakhirStr = tanggalLokal(d);
+  const tglSekarangStr = hariIni();
+  const p1 = parseTanggal(tglTerakhirStr);
+  const p2 = parseTanggal(tglSekarangStr);
+  if (!p1 || !p2) return null;
+  const utc1 = Date.UTC(p1.getFullYear(), p1.getMonth(), p1.getDate());
+  const utc2 = Date.UTC(p2.getFullYear(), p2.getMonth(), p2.getDate());
+  const msPerHari = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.floor((utc2 - utc1) / msPerHari));
+}
+
+export async function muatPengaturanCadangan() {
+  let terakhir = null;
+  let interval = 14;
+
+  try {
+    const t = localStorage.getItem(KUNCI_STORAGE_CADANGAN_TERAKHIR);
+    if (t) terakhir = t;
+    const inv = localStorage.getItem(KUNCI_STORAGE_CADANGAN_INTERVAL);
+    if (inv !== null && !Number.isNaN(Number(inv))) {
+      interval = Number(inv);
+    }
+  } catch (_e) {}
+
+  try {
+    const db = getFirestoreDb();
+    const docRef = doc(db, "pengaturan", "cadangan");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.terakhirEksporAt) {
+        terakhir = String(data.terakhirEksporAt);
+        try {
+          localStorage.setItem(KUNCI_STORAGE_CADANGAN_TERAKHIR, terakhir);
+        } catch (_e2) {}
+      }
+      if (data.intervalHari !== undefined && Number.isFinite(Number(data.intervalHari))) {
+        interval = Number(data.intervalHari);
+        try {
+          localStorage.setItem(KUNCI_STORAGE_CADANGAN_INTERVAL, String(interval));
+        } catch (_e3) {}
+      }
+    }
+  } catch (_err) {
+    // Offline: tetap gunakan salinan lokal dari localStorage
+  }
+
+  statusCadangan.terakhirEksporAt = terakhir;
+  statusCadangan.intervalHari = interval;
+  statusCadangan.sudahDimuat = true;
+
+  pemberitahuCadangan.forEach((fn) => {
+    try { fn(statusCadangan); } catch (_e) {}
+  });
+
+  return { ...statusCadangan };
+}
+
+export async function simpanIntervalCadangan(intervalBaru) {
+  const inv = Number(intervalBaru);
+  statusCadangan.intervalHari = inv;
+
+  try {
+    localStorage.setItem(KUNCI_STORAGE_CADANGAN_INTERVAL, String(inv));
+  } catch (_e) {}
+
+  try {
+    const db = getFirestoreDb();
+    await setDoc(doc(db, "pengaturan", "cadangan"), {
+      intervalHari: inv,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (_err) {
+    // Jika gagal (offline), salinan lokal sudah tersimpan
+  }
+
+  pemberitahuCadangan.forEach((fn) => {
+    try { fn(statusCadangan); } catch (_e) {}
+  });
+  segarkanTampilanPengaturan();
+}
+
+export function tundaPengingatCadangan(hari = 3) {
+  const tundaSampai = tambahHari(hari);
+  try {
+    localStorage.setItem(KUNCI_STORAGE_CADANGAN_TUNDA, tundaSampai);
+  } catch (_e) {}
+
+  pemberitahuCadangan.forEach((fn) => {
+    try { fn(statusCadangan); } catch (_e) {}
+  });
+}
+
+export function apakahSedangMenundaCadangan() {
+  try {
+    const tundaSampai = localStorage.getItem(KUNCI_STORAGE_CADANGAN_TUNDA);
+    if (!tundaSampai) return false;
+    return hariIni() <= tundaSampai;
+  } catch (_e) {
+    return false;
+  }
+}
 import { normalisasiWarnaKategori, urutkanDaftarKategori } from "./kategori.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
@@ -325,6 +468,16 @@ function pastikanKerangkaHalamanPengaturan() {
             <p class="settings-desc-text">
               Mengunduh seluruh data Firestore ke satu berkas JSON terstruktur lengkap dengan nama kategori di samping <code>kategoriId</code>.
             </p>
+            <p id="settings-backup-last-time" class="settings-backup-last-time">Memeriksa riwayat cadangan...</p>
+            <div class="form-field settings-backup-interval-field">
+              <label for="settings-backup-interval-select" class="form-label">Ingatkan saya setiap</label>
+              <select id="settings-backup-interval-select" class="form-select">
+                <option value="7">7 hari</option>
+                <option value="14">14 hari (bawaan)</option>
+                <option value="30">30 hari</option>
+                <option value="0">Nonaktif</option>
+              </select>
+            </div>
             <p id="settings-export-counts" class="field-hint-text"></p>
             <div class="settings-subpanel-actions">
               <button type="button" id="btn-settings-export-json" class="btn-primary settings-full-btn-mobile">
@@ -530,6 +683,24 @@ export function segarkanTampilanPengaturan() {
     const jLap = getDaftarLaporan().length;
     exportCountsEl.textContent = `Tersedia saat ini: ${jKeg} kegiatan, ${jKatKeg} kategori kegiatan, ${jDok} dokumen, ${jKatDok} kategori dokumen, ${jCat} catatan, ${jLap} riwayat laporan.`;
   }
+
+  // Status Cadangan Terakhir & Pilihan Interval
+  const lastTimeEl = document.getElementById("settings-backup-last-time");
+  if (lastTimeEl) {
+    if (statusCadangan.terakhirEksporAt) {
+      const selisih = hitungSelisihHariCadangan(statusCadangan.terakhirEksporAt);
+      const dLokal = tanggalLokal(new Date(statusCadangan.terakhirEksporAt));
+      const tglLengkap = formatTanggalLengkapIndonesia(dLokal);
+      lastTimeEl.textContent = `Cadangan terakhir: ${tglLengkap} (${selisih !== null ? selisih : 0} hari lalu)`;
+    } else {
+      lastTimeEl.textContent = "Belum pernah mengekspor cadangan";
+    }
+  }
+
+  const intervalSelect = document.getElementById("settings-backup-interval-select");
+  if (intervalSelect instanceof HTMLSelectElement) {
+    intervalSelect.value = String(statusCadangan.intervalHari);
+  }
 }
 
 async function perbaruiInfoVersiSwDiDom() {
@@ -699,7 +870,7 @@ async function tanganiPeriksaPembaruanSw() {
 // C1. Ekspor JSON Seluruh Data (dengan namaKategori di samping kategoriId)
 // ============================================================================
 
-async function eksporSeluruhDataJson() {
+export async function eksporSeluruhDataJson() {
   if (sedangMengekspor) return;
   const btn = document.getElementById("btn-settings-export-json");
   sedangMengekspor = true;
@@ -834,6 +1005,30 @@ async function eksporSeluruhDataJson() {
     a.click();
     a.remove();
     window.setTimeout(() => URL.revokeObjectURL(urlObj), 1500);
+
+    // Pencatatan waktu ekspor berhasil
+    const sekarangIso = new Date().toISOString();
+    try {
+      localStorage.setItem(KUNCI_STORAGE_CADANGAN_TERAKHIR, sekarangIso);
+      localStorage.removeItem(KUNCI_STORAGE_CADANGAN_TUNDA);
+    } catch (_e) {}
+
+    statusCadangan.terakhirEksporAt = sekarangIso;
+
+    try {
+      const db = getFirestoreDb();
+      await setDoc(doc(db, "pengaturan", "cadangan"), {
+        terakhirEksporAt: sekarangIso,
+        updatedAt: sekarangIso
+      }, { merge: true });
+    } catch (_err) {
+      // Offline: salinan lokal sudah tersimpan di localStorage
+    }
+
+    pemberitahuCadangan.forEach((fn) => {
+      try { fn(statusCadangan); } catch (_e) {}
+    });
+    segarkanTampilanPengaturan();
 
     tampilkanToast(`Cadangan "${namaBerkas}" berhasil diunduh.`, "success");
   } catch (err) {

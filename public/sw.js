@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.3.3";
+const VERSION = "agenda-arsip-v1.3.4";
 
 const APP_SHELL = [
   "/",
