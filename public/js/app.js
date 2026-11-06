@@ -222,7 +222,7 @@ function pastikanKerangkaDashboard() {
   if (!panel || panel.querySelector("#dashboard-cards-grid")) return;
 
   // Urutan DOM mengikuti urutan bacaan alami di HP (<600px):
-  // 1. Catatan, 2. Kegiatan hari ini, 3. 7 hari ke depan, 4. Dokumen terbaru.
+  // 1. Kegiatan hari ini, 2. 7 hari ke depan, 3. Catatan, 4. Dokumen terbaru.
   // Pada >=600px, CSS Grid dengan grid-template-areas menyusunnya menjadi 2 kolom x 2 baris.
   panel.innerHTML = `<div class="page-stack dashboard-container">
     <div class="section-header-bar">
@@ -236,20 +236,6 @@ function pastikanKerangkaDashboard() {
       </div>
     </div>
     <div id="dashboard-cards-grid" class="dashboard-cards-grid">
-      <section class="dash-card dash-area-catatan" aria-labelledby="dash-title-catatan">
-        <div class="dash-card-header">
-          <div class="dash-card-heading-group">
-            <h3 id="dash-title-catatan" class="dash-card-title">Catatan</h3>
-            <span class="dash-card-caption">Tersemat &amp; terbaru diperbarui</span>
-          </div>
-          <span id="dash-count-catatan" class="dash-metric-number">0</span>
-        </div>
-        <div id="dash-body-catatan" class="dash-card-body" aria-live="polite"></div>
-        <div class="dash-card-footer">
-          <button type="button" class="btn-link-filter" data-dash-action="buka-catatan">Lihat semua</button>
-        </div>
-      </section>
-
       <section class="dash-card dash-area-hari-ini" aria-labelledby="dash-title-hari-ini">
         <div class="dash-card-header dash-card-header-hari-ini">
           <div class="dash-card-heading-group">
@@ -300,6 +286,20 @@ function pastikanKerangkaDashboard() {
         <div id="dash-body-7hari" class="dash-card-body" aria-live="polite"></div>
         <div class="dash-card-footer">
           <button type="button" class="btn-link-filter" data-dash-action="buka-jadwal">Buka halaman Jadwal</button>
+        </div>
+      </section>
+
+      <section class="dash-card dash-area-catatan" aria-labelledby="dash-title-catatan">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="dash-title-catatan" class="dash-card-title">Catatan</h3>
+            <span class="dash-card-caption">Tersemat &amp; terbaru diperbarui</span>
+          </div>
+          <span id="dash-count-catatan" class="dash-metric-number">0</span>
+        </div>
+        <div id="dash-body-catatan" class="dash-card-body" aria-live="polite"></div>
+        <div class="dash-card-footer">
+          <button type="button" class="btn-link-filter" data-dash-action="buka-catatan">Lihat semua</button>
         </div>
       </section>
 

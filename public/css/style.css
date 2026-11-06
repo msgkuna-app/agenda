@@ -1774,7 +1774,7 @@ html[data-drawer="open"] .app-sidebar {
 
 /* ==========================================================================
    MASALAH 2: Dashboard Grid Seimbang dengan grid-template-areas
-   - HP (<600px): 1 kolom (catatan, hari-ini, tujuh-hari, dokumen)
+   - HP (<600px): 1 kolom (hari-ini, tujuh-hari, catatan, dokumen)
    - Tablet & Desktop (>=600px): 2 kolom x 2 baris
      Baris 1: hari-ini | tujuh-hari
      Baris 2: catatan  | dokumen
@@ -1789,9 +1789,9 @@ html[data-drawer="open"] .app-sidebar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "catatan"
     "hari-ini"
     "tujuh-hari"
+    "catatan"
     "dokumen";
   gap: var(--space-4);
   align-items: stretch;
