@@ -33,5 +33,33 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tambah kegiatan",
+      "short_name": "Kegiatan",
+      "description": "Catat kegiatan baru",
+      "url": "/?aksi=tambah-kegiatan",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Catatan baru",
+      "short_name": "Catatan",
+      "description": "Buat catatan singkat",
+      "url": "/?aksi=catatan-baru",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

@@ -153,6 +153,55 @@ let swUpdateMenunggu = false;
 let swUpdateIntervalId = null;
 let sedangMuatUlangSw = false;
 let spandukSwSudahDiikat = false;
+const DAFTAR_PUTIH_AKSI_PINTASAN = ["tambah-kegiatan", "catatan-baru"];
+let aksiPintasanTertunda = null;
+let aksiPintasanSudahDijalankan = false;
+
+function bersihkanParameterAksiUrl() {
+  try {
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.hash,
+    );
+  } catch (_err) {}
+}
+
+function bacaAksiPintasanDariUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const aksi = params.get("aksi");
+    if (aksi && DAFTAR_PUTIH_AKSI_PINTASAN.includes(aksi)) {
+      aksiPintasanTertunda = aksi;
+    }
+    if (params.has("aksi")) {
+      bersihkanParameterAksiUrl();
+    }
+  } catch (_err) {}
+}
+
+function jalankanAksiPintasanSetelahLayarTampil() {
+  if (aksiPintasanSudahDijalankan || !aksiPintasanTertunda) {
+    bersihkanParameterAksiUrl();
+    return;
+  }
+  const aksi = aksiPintasanTertunda;
+  aksiPintasanTertunda = null;
+  aksiPintasanSudahDijalankan = true;
+  bersihkanParameterAksiUrl();
+
+  if (aksi === "tambah-kegiatan") {
+    bukaModalFormKegiatan(null, hariIni());
+  } else if (aksi === "catatan-baru") {
+    pindahKeBagian("catatan");
+    requestAnimationFrame(() => {
+      const btnTambah = document.getElementById("btn-tambah-catatan-singkat");
+      if (btnTambah) {
+        btnTambah.click();
+      }
+    });
+  }
+}
 
 export function hentikanSemuaLanggananData() {
   unsubscribeKegiatan();
@@ -841,6 +890,7 @@ function pasangEventListenerAntarmuka() {
         await loginWithGoogle();
         periksaStatusTokenDrive();
       } catch (err) {
+        aksiPintasanTertunda = null;
         const pesanTertunda = consumeLastAuthError();
         setPesanGalatLogin(pesanTertunda || formatPesanGalatAuth(err));
       } finally {
@@ -1233,6 +1283,7 @@ function daftarkanServiceWorker() {
 }
 
 function mulaiAplikasi() {
+  bacaAksiPintasanDariUrl();
   initTema();
   daftarkanServiceWorker();
   initPwaInstallPrompt();
@@ -1279,7 +1330,10 @@ function mulaiAplikasi() {
         hentikanPemantauTokenDrive();
         perbaruiInfoAkunSidebar(null);
         const pesanPenolakan = consumeLastAuthError();
-        if (pesanPenolakan) setPesanGalatLogin(pesanPenolakan);
+        if (pesanPenolakan) {
+          aksiPintasanTertunda = null;
+          setPesanGalatLogin(pesanPenolakan);
+        }
         tampilkanLayarUtama("login");
         return;
       }
@@ -1301,6 +1355,7 @@ function mulaiAplikasi() {
         unsubLaporan,
       );
       segarkanTampilanPengaturan();
+      jalankanAksiPintasanSetelahLayarTampil();
     });
   } catch (err) {
     setPesanGalatLogin(formatPesanGalatAuth(err));

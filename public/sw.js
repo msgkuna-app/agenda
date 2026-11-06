@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v2.3.3";
+const VERSION = "agenda-arsip-v1.3.3";
 
 const APP_SHELL = [
   "/",
@@ -120,7 +120,7 @@ self.addEventListener("fetch", (event) => {
           }
           return networkResponse;
         } catch (_err) {
-          const cached = await cache.match(request);
+          const cached = await cache.match(request, { ignoreSearch: true });
           if (cached) {
             return cached;
           }
