@@ -52,6 +52,13 @@ export const MENU_SECTIONS = [
     svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`
   },
   {
+    id: "sampah",
+    label: "Tempat Sampah",
+    fase: "Fase 7",
+    desc: "Item kegiatan dan catatan yang dihapus sementara. Dapat dipulihkan sebelum 30 hari.",
+    svg: `<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`
+  },
+  {
     id: "pengaturan",
     label: "Pengaturan",
     fase: "Fase 6",
@@ -99,14 +106,26 @@ export function gulirAreaKontenKeAtas() {
 
 /**
  * Menampilkan notifikasi toast konsisten yang mengambang (position: fixed) dan
- * memperhitungkan env(safe-area-inset-bottom).
+ * memperhitungkan env(safe-area-inset-bottom). Mendukung tombol aksi opsional {aksiLabel, aksiOnClick, durasiMs}.
  * @param {string} pesan
  * @param {"info" | "success" | "warning" | "danger"} [tipe="info"]
- * @param {number} [durasiMs=3800]
+ * @param {number | { aksiLabel?: string, aksiOnClick?: () => void, durasiMs?: number }} [opsiAtauDurasi=3800]
  */
-export function tampilkanToast(pesan, tipe = "info", durasiMs = 3800) {
+export function tampilkanToast(pesan, tipe = "info", opsiAtauDurasi = 3800) {
   const bersih = String(pesan || "").trim();
   if (!bersih) return;
+
+  let durasiMs = 3800;
+  let aksiLabel = "";
+  let aksiOnClick = null;
+
+  if (typeof opsiAtauDurasi === "number") {
+    durasiMs = opsiAtauDurasi;
+  } else if (opsiAtauDurasi && typeof opsiAtauDurasi === "object") {
+    if (typeof opsiAtauDurasi.durasiMs === "number") durasiMs = opsiAtauDurasi.durasiMs;
+    if (opsiAtauDurasi.aksiLabel) aksiLabel = String(opsiAtauDurasi.aksiLabel).trim();
+    if (typeof opsiAtauDurasi.aksiOnClick === "function") aksiOnClick = opsiAtauDurasi.aksiOnClick;
+  }
 
   let wadah = document.getElementById("toast-region");
   if (!wadah) {
@@ -132,7 +151,7 @@ export function tampilkanToast(pesan, tipe = "info", durasiMs = 3800) {
           ? "toast-danger"
           : "toast-info";
   toast.className = `toast-item ${jenisKelas}`;
-  toast.setAttribute("role", tipe === "danger" ? "alert" : "status");
+  toast.setAttribute("role", aksiLabel ? "status" : (tipe === "danger" ? "alert" : "status"));
 
   const ikonPath =
     tipe === "success"
@@ -141,30 +160,88 @@ export function tampilkanToast(pesan, tipe = "info", durasiMs = 3800) {
         ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
         : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
 
+  const tombolAksiHtml = aksiLabel
+    ? `<button type="button" class="toast-action-btn" data-toast-action>${escapeHtml(aksiLabel)}</button>`
+    : "";
+
   toast.innerHTML = `
     <span class="toast-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ikonPath}</svg>
     </span>
     <span class="toast-text">${escapeHtml(bersih)}</span>
+    ${tombolAksiHtml}
     <button type="button" class="icon-btn toast-close-btn" aria-label="Tutup pemberitahuan" title="Tutup">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   `;
 
   let dihapus = false;
+  let timerId = null;
+  let sisaWaktuMs = durasiMs;
+  let waktuMulai = Date.now();
+
   const hapusToast = () => {
     if (dihapus) return;
     dihapus = true;
+    if (timerId) {
+      window.clearTimeout(timerId);
+      timerId = null;
+    }
     toast.classList.remove("is-visible");
     window.setTimeout(() => toast.remove(), 180);
   };
+
+  const jadwalkanTimer = (ms) => {
+    if (ms <= 0) return;
+    waktuMulai = Date.now();
+    sisaWaktuMs = ms;
+    timerId = window.setTimeout(hapusToast, ms);
+  };
+
+  const jedaTimer = () => {
+    if (timerId) {
+      window.clearTimeout(timerId);
+      timerId = null;
+      sisaWaktuMs = Math.max(0, sisaWaktuMs - (Date.now() - waktuMulai));
+    }
+  };
+
+  const lanjutkanTimer = () => {
+    if (sisaWaktuMs > 0) {
+      jadwalkanTimer(sisaWaktuMs);
+    }
+  };
+
+  toast.addEventListener("mouseenter", jedaTimer);
+  toast.addEventListener("mouseleave", () => {
+    if (!toast.contains(document.activeElement)) {
+      lanjutkanTimer();
+    }
+  });
+
+  toast.addEventListener("focusin", jedaTimer);
+  toast.addEventListener("focusout", (e) => {
+    if (!toast.contains(e.relatedTarget)) {
+      lanjutkanTimer();
+    }
+  });
+
+  if (aksiOnClick) {
+    const btnAksi = toast.querySelector("[data-toast-action]");
+    if (btnAksi) {
+      btnAksi.addEventListener("click", () => {
+        hapusToast();
+        aksiOnClick();
+      });
+    }
+  }
 
   toast.querySelector(".toast-close-btn")?.addEventListener("click", hapusToast);
   wadah.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("is-visible"));
 
   if (durasiMs > 0) {
-    window.setTimeout(hapusToast, durasiMs);
+    jadwalkanTimer(durasiMs);
   }
 }
 

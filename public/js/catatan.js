@@ -17,9 +17,9 @@ import {
   onSnapshot,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
-import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./auth.js";
+import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth, getDriveAccessToken } from "./auth.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml } from "./sidebar.js";
+import { escapeHtml, tampilkanToast } from "./sidebar.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import {
   buatDokumenGoogleDocsDrive,
@@ -109,7 +109,79 @@ export function sorotCatatanDiHalaman(catatanId) {
 }
 
 export function getDaftarCatatan() {
-  return daftarCatatan.map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
+  return daftarCatatan
+    .filter((c) => !c.dihapusAt)
+    .map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
+}
+
+export function getDaftarCatatanDiSampah() {
+  return daftarCatatan
+    .filter((c) => Boolean(c.dihapusAt))
+    .map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
+}
+
+export async function hapusLunakCatatan(id, driveDiSampah = false) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID catatan tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, "catatan", targetId), {
+    dihapusAt: new Date().toISOString(),
+    driveDiSampah: Boolean(driveDiSampah),
+    updatedAt: new Date().toISOString()
+  });
+}
+
+export async function pulihkanCatatan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID catatan tidak valid.");
+  const item = daftarCatatan.find((c) => c.id === targetId);
+  let pesanDrive = "";
+
+  if (item && item.jenis === JENIS_CATATAN_GDOC && item.driveDiSampah && item.docId) {
+    if (!navigator.onLine || isDriveTokenExpired()) {
+      pesanDrive = "Dokumen Google Docs masih berada di Sampah Drive (token kedaluwarsa atau offline).";
+    } else {
+      try {
+        const token = typeof getDriveAccessToken === "function" ? getDriveAccessToken() : null;
+        if (!token) {
+          pesanDrive = "Dokumen Google Docs masih berada di Sampah Drive (token akses tidak tersedia).";
+        } else {
+          const resp = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(item.docId)}?supportsAllDrives=true`,
+            {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json; charset=UTF-8"
+              },
+              body: JSON.stringify({ trashed: false })
+            }
+          );
+          if (!resp.ok) {
+            pesanDrive = "Dokumen Google Docs masih berada di Sampah Drive (gagal memperbarui status di Google Drive).";
+          }
+        }
+      } catch (_e) {
+        pesanDrive = "Dokumen Google Docs masih berada di Sampah Drive.";
+      }
+    }
+  }
+
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, "catatan", targetId), {
+    dihapusAt: null,
+    driveDiSampah: false,
+    updatedAt: new Date().toISOString()
+  });
+
+  return { pesanDrive };
+}
+
+export async function hapusPermanenCatatan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID catatan tidak valid.");
+  const db = getFirestoreDb();
+  await deleteDoc(doc(db, "catatan", targetId));
 }
 
 export function isCatatanSudahDimuat() {
@@ -147,7 +219,7 @@ export function getCatatanTerkaitKegiatan(kegiatanId) {
   const target = String(kegiatanId || "").trim();
   if (!target) return [];
   return urutkanDaftarCatatan(
-    daftarCatatan.filter((c) => String(c.kegiatanId || "").trim() === target),
+    getDaftarCatatan().filter((c) => String(c.kegiatanId || "").trim() === target),
     "desc"
   ).map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
 }
@@ -364,7 +436,8 @@ function perbaruiOpsiKegiatanDiModal() {
 
 function ambilCatatanTersaring() {
   const q = kataKunciCari.trim().toLowerCase();
-  const hasil = daftarCatatan.filter((item) => {
+  const sumberAktif = getDaftarCatatan();
+  const hasil = sumberAktif.filter((item) => {
     if (filterJenis !== "ALL" && item.jenis !== filterJenis) return false;
     if (q) {
       const cocokJudul = String(item.judul || "").toLowerCase().includes(q);
@@ -391,19 +464,20 @@ function renderDaftarCatatan() {
 
   const adaFilter = kataKunciCari.trim() !== "" || filterJenis !== "ALL";
   const hasil = ambilCatatanTersaring();
+  const totalAktif = getDaftarCatatan().length;
 
   if (bar && sum) {
-    if (adaFilter || daftarCatatan.length > 0) {
+    if (adaFilter || totalAktif > 0) {
       bar.hidden = false;
       sum.textContent = adaFilter
-        ? `Menampilkan ${hasil.length} dari ${daftarCatatan.length} catatan`
-        : `Total ${daftarCatatan.length} catatan tercatat`;
+        ? `Menampilkan ${hasil.length} dari ${totalAktif} catatan`
+        : `Total ${totalAktif} catatan tercatat`;
     } else {
       bar.hidden = true;
     }
   }
 
-  if (daftarCatatan.length === 0) {
+  if (totalAktif === 0) {
     region.innerHTML = `<div class="empty-stage-card">
       <div class="empty-stage-icon" aria-hidden="true">${IKON_SINGKAT}</div>
       <h3 class="empty-stage-title">Belum Ada Catatan</h3>
@@ -645,12 +719,14 @@ function tutupModalBuatCatatanGdoc(kembalikanFokus = true) {
 
 function bukaDialogHapusSingkat(item) {
   const modal = document.getElementById("catatan-singkat-delete-modal");
+  const title = modal?.querySelector(".modal-title");
   const desc = document.getElementById("catatan-singkat-delete-desc");
   const cancelBtn = document.getElementById("catatan-singkat-delete-cancel-btn");
   if (!modal || !item) return;
   fokusSebelumModalCatatan = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   idCatatanSingkatHapus = item.id;
-  if (desc) desc.textContent = `Catatan singkat "${item.judul}" pada ${formatTanggalCatatan(item.tanggal)} akan dihapus permanen.`;
+  if (title) title.textContent = "Pindahkan ke Tempat Sampah?";
+  if (desc) desc.textContent = `Catatan singkat "${item.judul}" pada ${formatTanggalCatatan(item.tanggal)} akan dipindahkan ke Tempat Sampah. Dapat dipulihkan selama 30 hari.`;
   hapusSingkatModalTerbuka = true;
   modal.hidden = false;
   requestAnimationFrame(() => { if (cancelBtn instanceof HTMLElement) cancelBtn.focus(); });
@@ -959,11 +1035,24 @@ export function initHalamanCatatan() {
   delSingkatModal?.addEventListener("click", (e) => { if (e.target === delSingkatModal) tutupDialogHapusSingkat(true); });
   document.getElementById("catatan-singkat-delete-confirm-btn")?.addEventListener("click", async (e) => {
     if (!idCatatanSingkatHapus) return;
+    const targetId = idCatatanSingkatHapus;
     const btn = e.currentTarget;
     if (btn instanceof HTMLButtonElement) btn.disabled = true;
     try {
-      await deleteDoc(doc(getFirestoreDb(), "catatan", idCatatanSingkatHapus));
+      await hapusLunakCatatan(targetId, false);
       tutupDialogHapusSingkat(false);
+      tampilkanToast("Catatan dipindahkan ke Tempat Sampah", "info", {
+        aksiLabel: "Urungkan",
+        aksiOnClick: async () => {
+          try {
+            await pulihkanCatatan(targetId);
+            tampilkanToast("Catatan berhasil dipulihkan", "success");
+          } catch (errUrung) {
+            tampilkanToast(`Gagal mengurungkan: ${formatPesanGalatFirestore(errUrung)}`, "danger");
+          }
+        },
+        durasiMs: 8000
+      });
     } catch (err) {
       tutupDialogHapusSingkat(false);
       tampilkanNotifikasiCatatan({ pesan: formatPesanGalatFirestore(err), tipe: "danger" });
@@ -996,8 +1085,24 @@ export function initHalamanCatatan() {
           if (!driveErr || !driveErr.isNotFound) throw driveErr;
         }
       }
-      await deleteDoc(doc(getFirestoreDb(), "catatan", target.id));
+      await hapusLunakCatatan(target.id, hapusDiDrive);
       tutupDialogHapusGdoc(false);
+      tampilkanToast("Catatan Google Docs dipindahkan ke Tempat Sampah", "info", {
+        aksiLabel: "Urungkan",
+        aksiOnClick: async () => {
+          try {
+            const hasil = await pulihkanCatatan(target.id);
+            if (hasil && hasil.pesanDrive) {
+              tampilkanToast(`Catatan dipulihkan. ${hasil.pesanDrive}`, "warning");
+            } else {
+              tampilkanToast("Catatan berhasil dipulihkan", "success");
+            }
+          } catch (errUrung) {
+            tampilkanToast(`Gagal mengurungkan: ${formatPesanGalatFirestore(errUrung)}`, "danger");
+          }
+        },
+        durasiMs: 8000
+      });
     } catch (err) {
       setGalatHapusGdoc(formatPesanGalatDrive(err), adalahGalatToken(err));
     } finally {
@@ -1043,7 +1148,9 @@ export function subscribeCatatan() {
           disematkan: Boolean(d.disematkan),
           tanggal: String(d.tanggal || ""),
           createdAt: String(d.createdAt || ""),
-          updatedAt: String(d.updatedAt || "")
+          updatedAt: String(d.updatedAt || ""),
+          dihapusAt: d.dihapusAt || null,
+          driveDiSampah: Boolean(d.driveDiSampah)
         };
         if (jenis === JENIS_CATATAN_GDOC) {
           entri.templat = String(d.templat || "kosong");

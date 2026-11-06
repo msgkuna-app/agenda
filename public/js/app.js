@@ -98,6 +98,12 @@ import {
   renderTimelineHarian,
   bersihkanTimelineHarian,
 } from "./timeline-harian.js";
+import {
+  initHalamanSampah,
+  renderHalamanSampah,
+  jalankanPembersihanSampahOtomatis,
+  resetPembersihanSampah,
+} from "./sampah.js";
 
 const NAMA_HARI = [
   "Minggu",
@@ -218,6 +224,7 @@ export function hentikanSemuaLanggananData() {
   resetCacheDrive();
   resetHalamanJadwalSaatKeluar();
   resetHalamanPengaturanSaatKeluar();
+  resetPembersihanSampah();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
@@ -856,7 +863,11 @@ function initHalamanDashboard() {
     });
   }
 
-  onPerubahanKegiatan(() => renderDashboard());
+  onPerubahanKegiatan(() => {
+    renderDashboard();
+    renderHalamanSampah();
+    jalankanPembersihanSampahOtomatis();
+  });
   onPerubahanDokumen(() => {
     renderKartuDokumenDashboard();
     perbaruiBannerPengingatCadangan();
@@ -864,6 +875,8 @@ function initHalamanDashboard() {
   onPerubahanCatatan(() => {
     renderKartuCatatanDashboard();
     perbaruiBannerPengingatCadangan();
+    renderHalamanSampah();
+    jalankanPembersihanSampahOtomatis();
   });
   onPerubahanCadangan(() => perbaruiBannerPengingatCadangan());
   renderDashboard();
@@ -1395,6 +1408,8 @@ function mulaiAplikasi() {
     onSectionChange: (sectionId) => {
       if (sectionId === "pengaturan") {
         segarkanTampilanPengaturan();
+      } else if (sectionId === "sampah") {
+        renderHalamanSampah();
       }
     },
   });
@@ -1408,6 +1423,7 @@ function mulaiAplikasi() {
   initHalamanCatatan();
   initHalamanLaporan();
   initHalamanPengaturan();
+  initHalamanSampah();
   initHalamanDashboard();
   pasangEventListenerAntarmuka();
   perbaruiTanggalHeader();

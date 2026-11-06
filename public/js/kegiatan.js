@@ -23,7 +23,7 @@ import {
   TANPA_KATEGORI_INFO
 } from "./kategori.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import { escapeHtml, pindahKeBagian, tampilkanToast } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
 import {
   JENIS_CATATAN_GDOC,
@@ -86,7 +86,42 @@ export function daftarkanPembukaDetailKegiatan(fn) {
 }
 
 export function getDaftarKegiatan() {
-  return daftarKegiatan.map((item) => ({ ...item }));
+  return daftarKegiatan
+    .filter((item) => !item.dihapusAt)
+    .map((item) => ({ ...item }));
+}
+
+export function getDaftarKegiatanDiSampah() {
+  return daftarKegiatan
+    .filter((item) => Boolean(item.dihapusAt))
+    .map((item) => ({ ...item }));
+}
+
+export async function hapusLunakKegiatan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID kegiatan tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, "kegiatan", targetId), {
+    dihapusAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+}
+
+export async function pulihkanKegiatan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID kegiatan tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, "kegiatan", targetId), {
+    dihapusAt: null,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+export async function hapusPermanenKegiatan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID kegiatan tidak valid.");
+  const db = getFirestoreDb();
+  await deleteDoc(doc(db, "kegiatan", targetId));
 }
 
 export function isKegiatanSudahDimuat() {
@@ -262,8 +297,9 @@ function perbaruiDropdownKategori() {
 
 function ambilKegiatanTersaring() {
   const q = kataKunciCari.trim().toLowerCase();
+  const sumberAktif = getDaftarKegiatan();
 
-  const tersaring = daftarKegiatan.filter((item) => {
+  const tersaring = sumberAktif.filter((item) => {
     if (filterStatus !== "ALL" && item.status !== filterStatus) return false;
 
     if (filterKategoriId !== "ALL") {
@@ -317,19 +353,20 @@ function renderDaftarKegiatan() {
 
   const adaFilter = kataKunciCari.trim() !== "" || filterKategoriId !== "ALL" || filterStatus !== "ALL";
   const hasil = ambilKegiatanTersaring();
+  const totalAktif = getDaftarKegiatan().length;
 
   if (barFilterAktif && ringkasanEl) {
-    if (adaFilter || daftarKegiatan.length > 0) {
+    if (adaFilter || totalAktif > 0) {
       barFilterAktif.hidden = false;
       ringkasanEl.textContent = adaFilter
-        ? `Menampilkan ${hasil.length} dari ${daftarKegiatan.length} kegiatan`
-        : `Total ${daftarKegiatan.length} kegiatan tercatat`;
+        ? `Menampilkan ${hasil.length} dari ${totalAktif} kegiatan`
+        : `Total ${totalAktif} kegiatan tercatat`;
     } else {
       barFilterAktif.hidden = true;
     }
   }
 
-  if (daftarKegiatan.length === 0) {
+  if (totalAktif === 0) {
     region.innerHTML = `<div class="empty-stage-card">
       <div class="empty-stage-icon" aria-hidden="true">${svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 24)}</div>
       <h3 class="empty-stage-title">Belum Ada Kegiatan</h3>
@@ -582,14 +619,18 @@ function tutupModalFormKegiatan(kembalikanFokus = true) {
 
 export function bukaDialogHapusKegiatan(item) {
   const modal = document.getElementById("kegiatan-delete-modal");
+  const title = document.getElementById("kegiatan-delete-title");
   const desc = document.getElementById("kegiatan-delete-desc");
   const cancelBtn = document.getElementById("kegiatan-delete-cancel-btn");
   if (!modal || !item) return;
 
   fokusSebelumModalKegiatan = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   idKegiatanAkanDihapus = item.id;
+  if (title) {
+    title.textContent = "Pindahkan ke Tempat Sampah?";
+  }
   if (desc) {
-    desc.textContent = `Kegiatan "${item.judul}" pada ${formatTanggalTampilan(item.tanggal)} akan dihapus permanen.`;
+    desc.textContent = `Kegiatan "${item.judul}" pada ${formatTanggalTampilan(item.tanggal)} akan dipindahkan ke Tempat Sampah. Dapat dipulihkan selama 30 hari.`;
   }
 
   hapusModalTerbuka = true;
@@ -923,9 +964,24 @@ export function initHalamanKegiatan() {
       deleteConfirmBtn.disabled = true;
       tampilkanGalatHalamanKegiatan("");
       try {
-        const db = getFirestoreDb();
-        await deleteDoc(doc(db, "kegiatan", targetId));
+        await hapusLunakKegiatan(targetId);
         tutupDialogHapusKegiatan(false);
+        const detailModal = document.getElementById("kegiatan-detail-modal");
+        if (detailModal && !detailModal.hidden) {
+          detailModal.hidden = true;
+        }
+        tampilkanToast("Kegiatan dipindahkan ke Tempat Sampah", "info", {
+          aksiLabel: "Urungkan",
+          aksiOnClick: async () => {
+            try {
+              await pulihkanKegiatan(targetId);
+              tampilkanToast("Kegiatan berhasil dipulihkan", "success");
+            } catch (errUrung) {
+              tampilkanToast(`Gagal mengurungkan: ${formatPesanGalatFirestore(errUrung)}`, "danger");
+            }
+          },
+          durasiMs: 8000
+        });
       } catch (err) {
         tutupDialogHapusKegiatan(false);
         tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
@@ -983,7 +1039,8 @@ export function subscribeKegiatan() {
           kategoriId: String(d.kategoriId || ""),
           status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
           createdAt: d.createdAt || "",
-          updatedAt: d.updatedAt || ""
+          updatedAt: d.updatedAt || "",
+          dihapusAt: d.dihapusAt || null
         });
       });
 

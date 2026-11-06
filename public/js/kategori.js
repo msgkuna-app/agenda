@@ -553,7 +553,7 @@ export function buatManajerKategori(konfigurasi) {
 
     if (jumlahServer > 0) {
       const galatDipakai = new Error(
-        `Kategori ini masih dipakai ${jumlahServer} ${labelItemPemakai} dan tidak bisa dihapus.`
+        `Kategori ini masih dipakai ${jumlahServer} ${labelItemPemakai} (termasuk yang ada di Tempat Sampah) dan tidak bisa dihapus.`
       );
       galatDipakai.jumlahPemakai = jumlahServer;
       throw galatDipakai;
