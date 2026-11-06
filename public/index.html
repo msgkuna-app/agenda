@@ -38,62 +38,103 @@
     />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-    <!-- Skrip sinkron awal sebelum stylesheet untuk mencegah kilasan warna tema & ukuran sidebar -->
-    <script>
-      (function () {
-        var root = document.documentElement;
-        var prefTema = "system";
-        try {
-          var t = localStorage.getItem("agenda_arsip_tema");
-          if (t === "light" || t === "dark" || t === "system") prefTema = t;
-        } catch (_e) {}
-
-        var gelapSistem =
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var efektif =
-          prefTema === "system" ? (gelapSistem ? "dark" : "light") : prefTema;
-
-        if (prefTema === "light" || prefTema === "dark")
-          root.setAttribute("data-theme", prefTema);
-        else root.removeAttribute("data-theme");
-        root.style.colorScheme = efektif;
-
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta)
-          meta.setAttribute(
-            "content",
-            efektif === "dark" ? "#0f172a" : "#0B5FA5",
-          );
-
-        var statusSidebar = null;
-        try {
-          var s = localStorage.getItem("agenda_arsip_sidebar");
-          if (s === "expanded" || s === "collapsed") statusSidebar = s;
-        } catch (_e2) {}
-
-        if (!statusSidebar) {
-          statusSidebar =
-            window.matchMedia &&
-            window.matchMedia("(min-width: 1024.02px)").matches
-              ? "expanded"
-              : "collapsed";
-        }
-        root.setAttribute("data-sidebar", statusSidebar);
-      })();
-    </script>
+    <!-- Skrip sinkron awal sebelum stylesheet untuk mencegah kilasan warna tema & ukuran sidebar serta jaring pengaman layar awal -->
+    <script src="/js/boot-tema.js"></script>
 
     <link rel="stylesheet" href="/css/style.css" />
   </head>
   <body>
+    <!-- Pesan fallback jika peramban menonaktifkan JavaScript -->
+    <noscript>
+      <div class="centered-screen">
+        <section class="config-error-card" aria-labelledby="noscript-heading">
+          <div class="config-error-header">
+            <div class="config-error-icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="24"
+                height="24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div>
+              <h1 id="noscript-heading" class="config-error-title">
+                JavaScript Diperlukan
+              </h1>
+            </div>
+          </div>
+          <p class="config-error-desc">
+            Aplikasi <strong>Agenda &amp; Arsip</strong> memerlukan dukungan JavaScript yang aktif pada peramban Anda untuk mengelola jadwal, catatan, dan berkas Google Drive.
+          </p>
+          <p class="config-error-desc">
+            Harap aktifkan JavaScript melalui pengaturan peramban Anda, lalu muat ulang halaman ini.
+          </p>
+        </section>
+      </div>
+    </noscript>
+
     <a href="#main-content" class="skip-link">Langsung ke konten utama</a>
 
-    <!-- 1. Layar Memeriksa Sesi Masuk -->
+    <!-- 1. Layar Memeriksa Sesi Masuk (dengan kartu jaring pengaman timeout & galat) -->
     <main id="screen-checking" class="centered-screen" aria-live="polite">
-      <div class="session-card">
+      <div id="session-loading-card" class="session-card">
         <div class="spinner" aria-hidden="true"></div>
         <p class="session-status-text">Memeriksa sesi masuk...</p>
       </div>
+
+      <section
+        id="session-error-card"
+        class="config-error-card"
+        aria-labelledby="session-error-heading"
+        hidden
+      >
+        <div class="config-error-header">
+          <div class="config-error-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div>
+            <h1 id="session-error-heading" class="config-error-title">
+              Pemeriksaan Sesi Terhambat
+            </h1>
+          </div>
+        </div>
+        <p id="session-error-desc" class="config-error-desc">
+          Pemeriksaan sesi masuk membutuhkan waktu lebih dari 10 detik. Sambungan internet Anda mungkin lambat atau modul aplikasi terhambat dimuat.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="session-retry-btn" class="btn-primary">
+            Coba lagi
+          </button>
+          <button
+            type="button"
+            id="session-clear-cache-btn"
+            class="btn-secondary"
+          >
+            Bersihkan cache aplikasi
+          </button>
+        </div>
+      </section>
     </main>
 
     <!-- 2. Layar Galat Konfigurasi Firebase -->
@@ -2384,7 +2425,7 @@
       aria-live="polite"
       hidden
     >
-      <p class="sw-update-text">Versi baru Agenda & Arsiptersedia.</p>
+      <p class="sw-update-text">Versi baru Agenda & Arsip tersedia.</p>
       <div class="sw-update-actions">
         <button
           type="button"

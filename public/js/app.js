@@ -246,10 +246,22 @@ function tampilkanLayarUtama(namaLayar) {
   const layarLogin = document.getElementById("screen-login");
   const layarApp = document.getElementById("app-shell");
 
-  if (layarChecking) layarChecking.hidden = namaLayar !== "checking";
+  if (layarChecking) {
+    layarChecking.hidden = namaLayar !== "checking";
+    if (namaLayar === "checking") {
+      const cardLoading = document.getElementById("session-loading-card");
+      const cardError = document.getElementById("session-error-card");
+      if (cardLoading) cardLoading.hidden = false;
+      if (cardError) cardError.hidden = true;
+    }
+  }
   if (layarConfigError) layarConfigError.hidden = namaLayar !== "config-error";
   if (layarLogin) layarLogin.hidden = namaLayar !== "login";
   if (layarApp) layarApp.hidden = namaLayar !== "app";
+
+  if (namaLayar !== "checking" && typeof window.__selesaiPemeriksaanSesi === "function") {
+    window.__selesaiPemeriksaanSesi();
+  }
 
   if (namaLayar !== "app") {
     tutupDrawerMobile(false);
