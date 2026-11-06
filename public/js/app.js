@@ -1064,6 +1064,7 @@ function pantauWorkerInstalling(workerBaru) {
       workerBaru.state === "installed" &&
       navigator.serviceWorker.controller
     ) {
+      hapusPenandaTundaUpdateSw();
       tandaiPembaruanSwMenunggu();
     }
   });
@@ -1160,6 +1161,7 @@ export async function periksaPembaruan() {
   if (!registration) {
     registration = await navigator.serviceWorker.register("/sw.js", {
       scope: "/",
+      updateViaCache: "none",
     });
   }
   ikatRegistrasiServiceWorker(registration);
@@ -1208,6 +1210,7 @@ function daftarkanServiceWorker() {
     try {
       const registration = await navigator.serviceWorker.register("/sw.js", {
         scope: "/",
+        updateViaCache: "none",
       });
       ikatRegistrasiServiceWorker(registration);
 

@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v2.3.0";
+const VERSION = "agenda-arsip-v2.3.1";
 
 const APP_SHELL = [
   "/",
@@ -33,7 +33,13 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(APP_SHELL)),
+    caches
+      .open(VERSION)
+      .then((cache) =>
+        cache.addAll(
+          APP_SHELL.map((url) => new Request(url, { cache: "reload" })),
+        ),
+      ),
   );
 });
 
@@ -108,7 +114,7 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         const cache = await caches.open(VERSION);
         try {
-          const networkResponse = await fetch(request);
+          const networkResponse = await fetch(request, { cache: "no-cache" });
           if (networkResponse && networkResponse.ok) {
             cache.put(request, networkResponse.clone());
           }
