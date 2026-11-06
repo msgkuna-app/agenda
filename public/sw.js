@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.3.5";
+const VERSION = "agenda-arsip-v1.4.0";
 
 const APP_SHELL = [
   "/",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "/css/style.css",
   "/js/app.js",
   "/js/firebase-config.js",
+  "/js/pencarian-global.js",
   "/js/auth.js",
   "/js/util-tanggal.js",
   "/js/tema.js",

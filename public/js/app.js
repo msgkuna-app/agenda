@@ -104,6 +104,10 @@ import {
   jalankanPembersihanSampahOtomatis,
   resetPembersihanSampah,
 } from "./sampah.js";
+import {
+  initPencarianGlobal,
+  bersihkanPencarianGlobal,
+} from "./pencarian-global.js";
 
 const NAMA_HARI = [
   "Minggu",
@@ -225,6 +229,7 @@ export function hentikanSemuaLanggananData() {
   resetHalamanJadwalSaatKeluar();
   resetHalamanPengaturanSaatKeluar();
   resetPembersihanSampah();
+  bersihkanPencarianGlobal();
   while (dataUnsubscribers.length > 0) {
     const unsub = dataUnsubscribers.pop();
     if (typeof unsub === "function") {
@@ -1461,6 +1466,38 @@ function mulaiAplikasi() {
         unsubCatatan,
         unsubLaporan,
       );
+      initPencarianGlobal({
+        getDaftarKegiatan,
+        getDaftarCatatan,
+        getDaftarDokumen,
+        onPilihHasil: (item) => {
+          if (!item) return;
+          if (item.kelompok === "kegiatan") {
+            bukaDialogDetailKegiatan(item.id);
+          } else if (item.kelompok === "catatan") {
+            if (item.jenis === JENIS_CATATAN_GDOC) {
+              const urlDocs = tautanAmanGoogleDocs(item);
+              if (urlDocs && urlDocs !== "#") {
+                window.open(urlDocs, "_blank", "noopener");
+              }
+            } else {
+              pindahKeBagian("catatan");
+              sorotCatatanDiHalaman(item.id);
+            }
+          } else if (item.kelompok === "dokumen") {
+            pindahKeBagian("dokumen");
+            const tautanAman =
+              item.tautan && /^https?:\/\//i.test(item.tautan)
+                ? item.tautan
+                : item.driveFileId
+                  ? `https://drive.google.com/file/d/${encodeURIComponent(item.driveFileId)}/view`
+                  : "";
+            if (tautanAman) {
+              window.open(tautanAman, "_blank", "noopener");
+            }
+          }
+        },
+      });
       muatPengaturanCadangan();
       segarkanTampilanPengaturan();
       jalankanAksiPintasanSetelahLayarTampil();
