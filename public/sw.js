@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.6.1";
+const VERSION = "agenda-arsip-v1.6.0";
 
 const APP_SHELL = [
   "/",
@@ -29,14 +29,6 @@ const APP_SHELL = [
   "/js/dokumen.js",
   "/js/templat-dokumen.js",
   "/js/catatan.js",
-  "/js/catatan/index.js",
-  "/js/catatan/state.js",
-  "/js/catatan/util.js",
-  "/js/catatan/data.js",
-  "/js/catatan/render.js",
-  "/js/catatan/dialog-singkat.js",
-  "/js/catatan/dialog-gdoc.js",
-  "/js/catatan/dialog-hapus.js",
   "/js/sampah.js",
   "/js/laporan.js",
   "/js/pengaturan.js",
