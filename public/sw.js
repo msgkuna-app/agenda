@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.6.1";
+const VERSION = "agenda-arsip-v1.7.0";
 
 const APP_SHELL = [
   "/",
@@ -27,6 +27,16 @@ const APP_SHELL = [
   "/js/jadwal.js",
   "/js/drive.js",
   "/js/dokumen.js",
+  "/js/dokumen/index.js",
+  "/js/dokumen/state.js",
+  "/js/dokumen/util.js",
+  "/js/dokumen/drive-ops.js",
+  "/js/dokumen/data.js",
+  "/js/dokumen/render.js",
+  "/js/dokumen/dialog-unggah.js",
+  "/js/dokumen/dialog-edit.js",
+  "/js/dokumen/dialog-hapus.js",
+  "/js/dokumen/dialog-rapikan.js",
   "/js/templat-dokumen.js",
   "/js/catatan.js",
   "/js/catatan/index.js",
