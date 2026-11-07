@@ -1,10 +1,11 @@
 /**
- * Modul Halaman Jadwal & Dialog Rincian Kegiatan (Fase 2)
+ * Modul Halaman Jadwal & Dialog Rincian Kegiatan (Fase 2 + Optimalisasi Pembacaan Fase 5)
  * - Dua tampilan: Kalender Bulanan (buatan sendiri, awal pekan Senin, bahasa Indonesia,
  *   penanda hari ini, maks 3 titik warna kategori + "+N", ringkas di HP & sel besar berisi
  *   nama kegiatan singkat di tablet/desktop) dan Daftar Agenda 30 hari ke depan.
  * - Semua perhitungan tanggal HANYA memakai util-tanggal.js (Aturan #6).
- * - Mengikuti langganan kegiatan tunggal dari kegiatan.js tanpa langganan ganda (Aturan #5).
+ * - Fase 5: Memanggil sinkronkanJendelaTanggalKegiatan(tahun, bulan) saat navigasi bulan
+ *   agar listener jendela Firestore hanya membaca data bulan aktif (+/- 1 bulan).
  */
 import { formatPesanGalatFirestore } from "./firebase-config.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
@@ -18,7 +19,8 @@ import {
   bukaModalFormKegiatan,
   bukaDialogHapusKegiatan,
   ubahStatusKegiatanCepat,
-  kelasBadgeStatus
+  kelasBadgeStatus,
+  sinkronkanJendelaTanggalKegiatan
 } from "./kegiatan.js";
 
 const NAMA_BULAN_PANJANG = [
@@ -399,6 +401,8 @@ export function bukaJadwalPadaTanggal(tanggalTarget) {
     tanggalTerpilih = tanggalTarget;
     tahunKalender = obj.getFullYear();
     bulanKalender = obj.getMonth();
+    // Sinkronkan jendela tanggal aktif
+    sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
   }
   modeTampilanJadwal = "kalender";
   pindahKeBagian("jadwal");
@@ -561,6 +565,9 @@ function pindahBulanKalender(deltaBulan) {
   } else {
     tanggalTerpilih = tanggalLokal(new Date(tahunKalender, bulanKalender, 1));
   }
+
+  // Sinkronkan listener jendela kegiatan (+/- 1 bulan)
+  sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
   renderHalamanJadwal();
 }
 
@@ -568,8 +575,14 @@ function pilihTanggalPadaKalender(tanggalStr) {
   const obj = parseTanggal(tanggalStr);
   if (!obj) return;
   tanggalTerpilih = tanggalStr;
+  const thnSebelumnya = tahunKalender;
+  const blnSebelumnya = bulanKalender;
   tahunKalender = obj.getFullYear();
   bulanKalender = obj.getMonth();
+
+  if (tahunKalender !== thnSebelumnya || bulanKalender !== blnSebelumnya) {
+    sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
+  }
   renderHalamanJadwal();
 }
 
@@ -577,6 +590,9 @@ export function initHalamanJadwal() {
   inisialisasiStateTanggalAwal();
   pastikanKerangkaHalamanJadwal();
   ikatEventDialogDetailKegiatan();
+
+  // Sinkronkan jendela tanggal kalender saat init
+  sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
 
   if (jadwalSudahDiikat) return;
   jadwalSudahDiikat = true;
@@ -605,6 +621,7 @@ export function initHalamanJadwal() {
       if (targetEl.closest("#btn-bulan-berikutnya")) { pindahBulanKalender(1); return; }
       if (targetEl.closest("#btn-jadwal-hari-ini")) {
         inisialisasiStateTanggalAwal();
+        sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
         renderHalamanJadwal();
         return;
       }

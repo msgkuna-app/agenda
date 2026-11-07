@@ -1,4 +1,37 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "kegiatan",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dihapusAt", "order": "ASCENDING" },
+        { "fieldPath": "tanggal", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "kegiatan",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dihapusAt", "order": "ASCENDING" },
+        { "fieldPath": "tanggal", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "catatan",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dihapusAt", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "catatan",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dihapusAt", "order": "ASCENDING" },
+        { "fieldPath": "tanggal", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

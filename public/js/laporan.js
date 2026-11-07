@@ -31,7 +31,9 @@ import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,
   isKegiatanSudahDimuat,
-  onPerubahanKegiatan
+  onPerubahanKegiatan,
+  ambilKegiatanRentangTanggal,
+  ambilSemuaKegiatanSekaliPakai
 } from "./kegiatan.js";
 import {
   manajerKategoriDokumen,
@@ -39,14 +41,16 @@ import {
   isDokumenSudahDimuat,
   onPerubahanDokumen,
   formatUkuranBerkas,
-  infoJenisBerkasMime
+  infoJenisBerkasMime,
+  ambilSemuaDokumenSekaliPakai
 } from "./dokumen.js";
 import {
   JENIS_CATATAN_GDOC,
   getDaftarCatatan,
   isCatatanSudahDimuat,
   onPerubahanCatatan,
-  tautanAmanGoogleDocs
+  tautanAmanGoogleDocs,
+  ambilSemuaCatatanSekaliPakai
 } from "./catatan.js";
 import {
   pastikanFolderIndukDrive,
@@ -170,11 +174,71 @@ function ambilInfoJenisLaporan(idJenis) {
   return DAFTAR_JENIS_LAPORAN.find((j) => j.id === idJenis) || DAFTAR_JENIS_LAPORAN[0];
 }
 
+// Cache lokal sekali pakai untuk data laporan yang dimuat berdasarkan permintaan
+let cacheKegiatanLaporan = null;
+let rentangTerakhirKegiatan = "";
+let cacheDokumenLaporan = null;
+let cacheCatatanLaporan = null;
+let sedangMemuatDataSekaliPakai = false;
+
+export async function pastikanDataLaporanTersedia(jenis, tglDari, tglSampai) {
+  if (jenis === "kegiatan" || jenis === "rekap-status") {
+    const kunciRentang = `${tglDari}_${tglSampai}`;
+    if (cacheKegiatanLaporan && rentangTerakhirKegiatan === kunciRentang) {
+      return cacheKegiatanLaporan;
+    }
+    sedangMemuatDataSekaliPakai = true;
+    try {
+      const data = await ambilKegiatanRentangTanggal(tglDari, tglSampai);
+      cacheKegiatanLaporan = data;
+      rentangTerakhirKegiatan = kunciRentang;
+      return data;
+    } catch (err) {
+      console.warn("Gagal memuat kegiatan rentang tanggal untuk laporan:", err);
+      return getDaftarKegiatan();
+    } finally {
+      sedangMemuatDataSekaliPakai = false;
+    }
+  } else if (jenis === "dokumen") {
+    if (cacheDokumenLaporan) return cacheDokumenLaporan;
+    sedangMemuatDataSekaliPakai = true;
+    try {
+      const data = await ambilSemuaDokumenSekaliPakai();
+      cacheDokumenLaporan = data;
+      return data;
+    } catch (err) {
+      console.warn("Gagal memuat dokumen sekali pakai untuk laporan:", err);
+      return getDaftarDokumen();
+    } finally {
+      sedangMemuatDataSekaliPakai = false;
+    }
+  } else if (jenis === "catatan") {
+    if (cacheCatatanLaporan) return cacheCatatanLaporan;
+    sedangMemuatDataSekaliPakai = true;
+    try {
+      const data = await ambilSemuaCatatanSekaliPakai();
+      cacheCatatanLaporan = data;
+      return data;
+    } catch (err) {
+      console.warn("Gagal memuat catatan sekali pakai untuk laporan:", err);
+      return getDaftarCatatan();
+    } finally {
+      sedangMemuatDataSekaliPakai = false;
+    }
+  }
+  return [];
+}
+
 function cariJudulKegiatanTerkait(kegiatanId) {
   const idBersih = String(kegiatanId || "").trim();
   if (!idBersih) return "-";
   const ketemu = getDaftarKegiatan().find((k) => k.id === idBersih);
-  return ketemu ? ketemu.judul : "Kegiatan tidak ditemukan";
+  if (ketemu) return ketemu.judul;
+  if (cacheKegiatanLaporan) {
+    const ketemuCache = cacheKegiatanLaporan.find((k) => k.id === idBersih);
+    if (ketemuCache) return ketemuCache.judul;
+  }
+  return "Kegiatan tidak ditemukan";
 }
 
 function ambilDaftarOpsiKategoriLaporan(jenis) {
@@ -263,11 +327,21 @@ function susunDataLaporanSaatIni() {
     };
   }
 
-  if (jenisAktif === "kegiatan") {
-    if (!isKegiatanSudahDimuat()) {
+  if (jenisAktif === "kegiatan" || jenisAktif === "rekap-status") {
+    const kunciRentang = `${tanggalDari}_${tanggalSampai}`;
+    if (!cacheKegiatanLaporan || rentangTerakhirKegiatan !== kunciRentang) {
+      if (!sedangMemuatDataSekaliPakai) {
+        pastikanDataLaporanTersedia(jenisAktif, tanggalDari, tanggalSampai).then(() => {
+          renderPratinjauLaporan();
+        });
+      }
       return { valid: true, sedangMemuatSumber: true, infoJenis, rentangLabel, header: [], barisData: [], barisTotal: [], ringkasanTambahan: "" };
     }
-    const tersaring = getDaftarKegiatan()
+  }
+
+  if (jenisAktif === "kegiatan") {
+    const sumberKegiatan = cacheKegiatanLaporan || getDaftarKegiatan();
+    const tersaring = sumberKegiatan
       .filter((k) => {
         if (!parseTanggal(k.tanggal)) return false;
         if (k.tanggal < tanggalDari || k.tanggal > tanggalSampai) return false;
@@ -322,10 +396,8 @@ function susunDataLaporanSaatIni() {
   }
 
   if (jenisAktif === "rekap-status") {
-    if (!isKegiatanSudahDimuat()) {
-      return { valid: true, sedangMemuatSumber: true, infoJenis, rentangLabel, header: [], barisData: [], barisTotal: [], ringkasanTambahan: "" };
-    }
-    const kegiatanPeriode = getDaftarKegiatan().filter((k) => {
+    const sumberKegiatan = cacheKegiatanLaporan || getDaftarKegiatan();
+    const kegiatanPeriode = sumberKegiatan.filter((k) => {
       if (!parseTanggal(k.tanggal)) return false;
       if (k.tanggal < tanggalDari || k.tanggal > tanggalSampai) return false;
       return cocokFilterKategoriTerstruktur(k.kategoriId, manajerKategoriKegiatan);
@@ -431,10 +503,13 @@ function susunDataLaporanSaatIni() {
   }
 
   if (jenisAktif === "dokumen") {
-    if (!isDokumenSudahDimuat()) {
-      return { valid: true, sedangMemuatSumber: true, infoJenis, rentangLabel, header: [], barisData: [], barisTotal: [], ringkasanTambahan: "" };
+    if (!cacheDokumenLaporan && !sedangMemuatDataSekaliPakai) {
+      pastikanDataLaporanTersedia("dokumen").then(() => {
+        renderPratinjauLaporan();
+      });
     }
-    const tersaring = getDaftarDokumen()
+    const sumberDokumen = cacheDokumenLaporan || getDaftarDokumen();
+    const tersaring = sumberDokumen
       .map((d) => ({
         ...d,
         _ymdLokal: ekstrakTanggalYmdDariIso(d.tanggalUnggah || d.createdAt)
@@ -511,10 +586,13 @@ function susunDataLaporanSaatIni() {
   }
 
   // Jenis: "catatan"
-  if (!isCatatanSudahDimuat()) {
-    return { valid: true, sedangMemuatSumber: true, infoJenis, rentangLabel, header: [], barisData: [], barisTotal: [], ringkasanTambahan: "" };
+  if (!cacheCatatanLaporan && !sedangMemuatDataSekaliPakai) {
+    pastikanDataLaporanTersedia("catatan").then(() => {
+      renderPratinjauLaporan();
+    });
   }
-  const tersaring = getDaftarCatatan()
+  const sumberCatatan = cacheCatatanLaporan || getDaftarCatatan();
+  const tersaring = sumberCatatan
     .filter((c) => {
       if (!parseTanggal(c.tanggal)) return false;
       if (c.tanggal < tanggalDari || c.tanggal > tanggalSampai) return false;
@@ -593,7 +671,8 @@ function escapeSelCsv(nilai) {
   return str;
 }
 
-function unduhLaporanSebagaiCsv() {
+async function unduhLaporanSebagaiCsv() {
+  await pastikanDataLaporanTersedia(jenisAktif, tanggalDari, tanggalSampai);
   const paket = susunDataLaporanSaatIni();
   if (!paket.valid) {
     tampilkanNotifikasiLaporan({ pesan: paket.pesanValidasi, tipe: "danger" });
@@ -757,6 +836,7 @@ function kolomKeHurufA1(indeksNol) {
 async function buatLaporanKeGoogleSheets() {
   if (sedangMembuatSpreadsheet) return;
 
+  await pastikanDataLaporanTersedia(jenisAktif, tanggalDari, tanggalSampai);
   const paket = susunDataLaporanSaatIni();
   if (!paket.valid) {
     tampilkanNotifikasiLaporan({ pesan: paket.pesanValidasi, tipe: "danger" });

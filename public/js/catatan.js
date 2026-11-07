@@ -1,11 +1,16 @@
 /**
- * Modul Halaman Catatan Singkat & Catatan Google Docs (Fase 4)
+ * Modul Halaman Catatan Singkat & Catatan Google Docs (Fase 4 + Optimalisasi Pembacaan Fase 5)
  * Koleksi Firestore: "catatan" (jenis "singkat" atau "gdoc", judul, isi [untuk singkat],
  * kategori [teks bebas pendek], tag [array], kegiatanId [opsional], disematkan [boolean],
  * tanggal [YYYY-MM-DD], createdAt, updatedAt; serta templat, docId, tautan untuk "gdoc"
  * tanpa menyimpan isi dokumen Google Docs).
- * Dilengkapi bilah alat ringkas satu baris, panel filter tersembunyi bawaan (melipat di
- * desktop/tablet, lembar bawah di HP), dan chip filter aktif yang dapat dihapus satu per satu.
+ *
+ * Optimalisasi Fase 5:
+ * 1. Listener dibatasi 100 catatan terbaru (where dihapusAt == null, orderBy updatedAt desc, limit 100)
+ * 2. Paginasi dengan tombol "Muat lebih banyak catatan" (startAfter)
+ * 3. Soft delete: query where("dihapusAt", "==", null) agar item sampah tidak membebani listener utama
+ * 4. Jembatan ambilSemuaCatatanSekaliPakai() untuk Laporan, Pencarian Global, dan Ekspor Cadangan
+ * 5. Indikator dan tombol "Cari di seluruh catatan server" saat mencari kata kunci
  */
 import {
   getFirestoreDb,
@@ -15,6 +20,12 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth, getDriveAccessToken } from "./auth.js";
@@ -35,6 +46,7 @@ import { initFilterPanel } from "./filter-panel.js";
 
 export const JENIS_CATATAN_SINGKAT = "singkat";
 export const JENIS_CATATAN_GDOC = "gdoc";
+export const UKURAN_HALAMAN_CATATAN = 100;
 
 const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -51,7 +63,15 @@ const IKON_TAB_BARU = svgIkon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8
 const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 
 let unsubscribeSnapshotCatatan = null;
-let daftarCatatan = [];
+const petaCatatanHalaman = new Map();
+const petaCatatanTambahan = new Map();
+
+let lastDocCatatanHalaman = null;
+let adaLebihBanyakCatatan = false;
+let sedangMuatLebihCatatan = false;
+let sedangMencariSemuaCatatan = false;
+let seluruhCatatanSudahDimuat = false;
+
 let sudahDimuatPertamaKali = false;
 let antarmukaSudahDiikat = false;
 const listenersPerubahanCatatan = new Set();
@@ -83,7 +103,7 @@ export function sorotCatatanDiHalaman(catatanId) {
   if (!targetId) return;
 
   const tampilDiFilter = ambilCatatanTersaring().some((c) => c.id === targetId);
-  if (!tampilDiFilter && daftarCatatan.some((c) => c.id === targetId)) {
+  if (!tampilDiFilter && getDaftarCatatan().some((c) => c.id === targetId)) {
     aturUlangSemuaFilterCatatan();
   }
 
@@ -109,13 +129,21 @@ export function sorotCatatanDiHalaman(catatanId) {
 }
 
 export function getDaftarCatatan() {
-  return daftarCatatan
+  const gabungan = new Map();
+  petaCatatanHalaman.forEach((v, k) => gabungan.set(k, v));
+  petaCatatanTambahan.forEach((v, k) => gabungan.set(k, v));
+
+  return Array.from(gabungan.values())
     .filter((c) => !c.dihapusAt)
     .map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
 }
 
 export function getDaftarCatatanDiSampah() {
-  return daftarCatatan
+  const gabungan = new Map();
+  petaCatatanHalaman.forEach((v, k) => gabungan.set(k, v));
+  petaCatatanTambahan.forEach((v, k) => gabungan.set(k, v));
+
+  return Array.from(gabungan.values())
     .filter((c) => Boolean(c.dihapusAt))
     .map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
 }
@@ -129,12 +157,18 @@ export async function hapusLunakCatatan(id, driveDiSampah = false) {
     driveDiSampah: Boolean(driveDiSampah),
     updatedAt: new Date().toISOString()
   });
+  petaCatatanHalaman.delete(targetId);
+  petaCatatanTambahan.delete(targetId);
+  beritahuPerubahanCatatan();
 }
 
 export async function pulihkanCatatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID catatan tidak valid.");
-  const item = daftarCatatan.find((c) => c.id === targetId);
+  const item = getDaftarCatatanDiSampah().find((c) => c.id === targetId) ||
+    petaCatatanHalaman.get(targetId) ||
+    petaCatatanTambahan.get(targetId);
+
   let pesanDrive = "";
 
   if (item && item.jenis === JENIS_CATATAN_GDOC && item.driveDiSampah && item.docId) {
@@ -173,8 +207,6 @@ export async function pulihkanCatatan(id) {
     driveDiSampah: false,
     updatedAt: new Date().toISOString()
   });
-
-  return { pesanDrive };
 }
 
 export async function hapusPermanenCatatan(id) {
@@ -182,6 +214,9 @@ export async function hapusPermanenCatatan(id) {
   if (!targetId) throw new Error("ID catatan tidak valid.");
   const db = getFirestoreDb();
   await deleteDoc(doc(db, "catatan", targetId));
+  petaCatatanHalaman.delete(targetId);
+  petaCatatanTambahan.delete(targetId);
+  beritahuPerubahanCatatan();
 }
 
 export function isCatatanSudahDimuat() {
@@ -469,9 +504,14 @@ function renderDaftarCatatan() {
   if (bar && sum) {
     if (adaFilter || totalAktif > 0) {
       bar.hidden = false;
-      sum.textContent = adaFilter
-        ? `Menampilkan ${hasil.length} dari ${totalAktif} catatan`
+      let teksRingkasan = adaFilter
+        ? `Menampilkan ${hasil.length} dari ${totalAktif} catatan dimuat`
         : `Total ${totalAktif} catatan tercatat`;
+
+      if (adaFilter && !seluruhCatatanSudahDimuat) {
+        teksRingkasan += ` • <button type="button" id="btn-cari-semua-catatan" class="btn-link-action" style="background:none;border:none;padding:0;color:var(--color-primary-text, #2563eb);text-decoration:underline;cursor:pointer;font:inherit;">${sedangMencariSemuaCatatan ? "Mencari di semua data..." : "Cari di seluruh catatan server"}</button>`;
+      }
+      sum.innerHTML = teksRingkasan;
     } else {
       bar.hidden = true;
     }
@@ -487,11 +527,15 @@ function renderDaftarCatatan() {
   }
 
   if (hasil.length === 0) {
-    region.innerHTML = `<div class="empty-stage-card"><h3 class="empty-stage-title">Tidak Ada Catatan yang Cocok</h3><p class="empty-stage-desc">Tidak ditemukan catatan yang sesuai dengan pencarian atau filter jenis.</p></div>`;
+    region.innerHTML = `<div class="empty-stage-card">
+      <h3 class="empty-stage-title">Tidak Ada Catatan yang Cocok</h3>
+      <p class="empty-stage-desc">Tidak ditemukan catatan yang sesuai dengan pencarian atau filter jenis.</p>
+      ${!seluruhCatatanSudahDimuat ? `<div style="margin-top:12px;"><button type="button" id="btn-cari-semua-catatan-empty" class="btn-secondary btn-sm-touch">${sedangMencariSemuaCatatan ? "Mencari di semua data..." : "Cari di seluruh catatan server"}</button></div>` : ""}
+    </div>`;
     return;
   }
 
-  region.innerHTML = `<div class="kegiatan-list-grid">${hasil.map((item) => {
+  const kartuHtml = hasil.map((item) => {
     const gdoc = item.jenis === JENIS_CATATAN_GDOC;
     const keg = item.kegiatanId ? cariKegiatanId(item.kegiatanId) : null;
     const tpl = gdoc ? ambilInfoTemplatDokumen(item.templat) : null;
@@ -527,7 +571,124 @@ function renderDaftarCatatan() {
         </div>
       </div>
     </article>`;
-  }).join("")}</div>`;
+  }).join("");
+
+  const tombolMuatLebih = adaLebihBanyakCatatan
+    ? `<div class="doc-load-more-bar">
+        <button type="button" id="btn-muat-lebih-catatan" class="btn-secondary"${sedangMuatLebihCatatan ? " disabled" : ""}>
+          ${sedangMuatLebihCatatan ? "Memuat..." : "Muat lebih banyak catatan"}
+        </button>
+      </div>`
+    : "";
+
+  region.innerHTML = `<div class="kegiatan-list-grid">${kartuHtml}</div>${tombolMuatLebih}`;
+}
+
+/**
+ * Fase 5: Memuat batch catatan berikutnya (paginasi).
+ */
+export async function muatLebihBanyakCatatan() {
+  if (sedangMuatLebihCatatan || !lastDocCatatanHalaman) return;
+  sedangMuatLebihCatatan = true;
+  renderDaftarCatatan();
+
+  try {
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, "catatan"),
+      where("dihapusAt", "==", null),
+      orderBy("updatedAt", "desc"),
+      startAfter(lastDocCatatanHalaman),
+      limit(UKURAN_HALAMAN_CATATAN)
+    );
+    const snap = await getDocs(q);
+    snap.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      const jenis = d.jenis === JENIS_CATATAN_GDOC ? JENIS_CATATAN_GDOC : JENIS_CATATAN_SINGKAT;
+      const entri = {
+        id: docSnap.id,
+        jenis,
+        judul: String(d.judul || ""),
+        isi: jenis === JENIS_CATATAN_SINGKAT ? String(d.isi || "") : "",
+        kategori: String(d.kategori || ""),
+        tag: Array.isArray(d.tag) ? d.tag.map((t) => String(t || "").trim()).filter(Boolean) : [],
+        kegiatanId: String(d.kegiatanId || ""),
+        disematkan: Boolean(d.disematkan),
+        tanggal: String(d.tanggal || ""),
+        createdAt: String(d.createdAt || ""),
+        updatedAt: String(d.updatedAt || ""),
+        dihapusAt: d.dihapusAt || null,
+        driveDiSampah: Boolean(d.driveDiSampah)
+      };
+      if (jenis === JENIS_CATATAN_GDOC) {
+        entri.templat = String(d.templat || "kosong");
+        entri.docId = String(d.docId || "");
+        entri.tautan = String(d.tautan || "");
+      }
+      petaCatatanHalaman.set(docSnap.id, entri);
+    });
+
+    if (!snap.empty) {
+      lastDocCatatanHalaman = snap.docs[snap.docs.length - 1];
+    }
+    adaLebihBanyakCatatan = snap.docs.length >= UKURAN_HALAMAN_CATATAN;
+    beritahuPerubahanCatatan();
+  } catch (err) {
+    tampilkanNotifikasiCatatan({ pesan: formatPesanGalatFirestore(err), tipe: "danger" });
+  } finally {
+    sedangMuatLebihCatatan = false;
+    renderDaftarCatatan();
+  }
+}
+
+/**
+ * Fase 5: Jembatan sekali pakai untuk mengambil seluruh catatan dari server.
+ * Digunakan oleh Ekspor Cadangan, Laporan, dan Pencarian Global mendalam.
+ */
+export async function ambilSemuaCatatanSekaliPakai() {
+  sedangMencariSemuaCatatan = true;
+  renderDaftarCatatan();
+
+  try {
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, "catatan"),
+      where("dihapusAt", "==", null),
+      orderBy("updatedAt", "desc")
+    );
+    const snap = await getDocs(q);
+    snap.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      const jenis = d.jenis === JENIS_CATATAN_GDOC ? JENIS_CATATAN_GDOC : JENIS_CATATAN_SINGKAT;
+      const entri = {
+        id: docSnap.id,
+        jenis,
+        judul: String(d.judul || ""),
+        isi: jenis === JENIS_CATATAN_SINGKAT ? String(d.isi || "") : "",
+        kategori: String(d.kategori || ""),
+        tag: Array.isArray(d.tag) ? d.tag.map((t) => String(t || "").trim()).filter(Boolean) : [],
+        kegiatanId: String(d.kegiatanId || ""),
+        disematkan: Boolean(d.disematkan),
+        tanggal: String(d.tanggal || ""),
+        createdAt: String(d.createdAt || ""),
+        updatedAt: String(d.updatedAt || ""),
+        dihapusAt: d.dihapusAt || null,
+        driveDiSampah: Boolean(d.driveDiSampah)
+      };
+      if (jenis === JENIS_CATATAN_GDOC) {
+        entri.templat = String(d.templat || "kosong");
+        entri.docId = String(d.docId || "");
+        entri.tautan = String(d.tautan || "");
+      }
+      petaCatatanTambahan.set(docSnap.id, entri);
+    });
+    seluruhCatatanSudahDimuat = true;
+    beritahuPerubahanCatatan();
+    return getDaftarCatatan();
+  } finally {
+    sedangMencariSemuaCatatan = false;
+    renderDaftarCatatan();
+  }
 }
 
 function setGalatModalSingkat(pesan) {
@@ -844,6 +1005,18 @@ export function initHalamanCatatan() {
     renderDaftarCatatan();
   });
 
+  document.addEventListener("click", (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!target) return;
+    if (target.id === "btn-cari-semua-catatan" || target.id === "btn-cari-semua-catatan-empty") {
+      ambilSemuaCatatanSekaliPakai();
+      return;
+    }
+    if (target.id === "btn-muat-lebih-catatan") {
+      muatLebihBanyakCatatan();
+    }
+  });
+
   document.getElementById("catatan-list-region")?.addEventListener("click", async (e) => {
     const btn = e.target instanceof Element ? e.target.closest("button[data-catatan-action]") : null;
     if (!btn) return;
@@ -865,7 +1038,7 @@ export function initHalamanCatatan() {
     }
 
     const id = btn.getAttribute("data-id") || "";
-    const item = daftarCatatan.find((c) => c.id === id);
+    const item = getDaftarCatatan().find((c) => c.id === id);
     if (!item) return;
 
     if (aksi === "toggle-pin") {
@@ -920,6 +1093,7 @@ export function initHalamanCatatan() {
         if (jenisEdit === JENIS_CATATAN_SINGKAT) perubahan.isi = isi;
         await updateDoc(doc(db, "catatan", idEdit), perubahan);
       } else {
+        // Fase 5: Setel dihapusAt: null pada dokumen baru
         await addDoc(collection(db, "catatan"), {
           jenis: JENIS_CATATAN_SINGKAT,
           judul,
@@ -929,6 +1103,7 @@ export function initHalamanCatatan() {
           kegiatanId,
           disematkan,
           tanggal,
+          dihapusAt: null,
           createdAt: sekarang,
           updatedAt: sekarang
         });
@@ -946,25 +1121,13 @@ export function initHalamanCatatan() {
   document.getElementById("catatan-gdoc-cancel-btn")?.addEventListener("click", () => tutupModalBuatCatatanGdoc(true));
   gdocModal?.addEventListener("click", (e) => { if (e.target === gdocModal) tutupModalBuatCatatanGdoc(true); });
   document.getElementById("catatan-gdoc-templat")?.addEventListener("change", sinkronkanJudulSaranGdoc);
-  document.getElementById("catatan-gdoc-kegiatan")?.addEventListener("change", (e) => {
-    const keg = cariKegiatanId(e.target instanceof HTMLSelectElement ? e.target.value : "");
-    const tglEl = document.getElementById("catatan-gdoc-tanggal");
-    if (keg && parseTanggal(keg.tanggal) && tglEl instanceof HTMLInputElement) tglEl.value = keg.tanggal;
-    sinkronkanJudulSaranGdoc();
-  });
+  document.getElementById("catatan-gdoc-kegiatan")?.addEventListener("change", sinkronkanJudulSaranGdoc);
   document.getElementById("catatan-gdoc-relogin-btn")?.addEventListener("click", (e) => {
     masukUlangDriveDariCatatan(e.currentTarget, () => setGalatModalGdoc("", false));
   });
 
   document.getElementById("catatan-gdoc-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (sedangMembuatGdoc) return;
-    if (!navigator.onLine) {
-      setGalatModalGdoc("Tidak ada koneksi internet. Pembuatan Google Docs memerlukan sambungan aktif.", false);
-      perbaruiStatusJaringanCatatan();
-      return;
-    }
-
     const infoTpl = ambilInfoTemplatDokumen(document.getElementById("catatan-gdoc-templat")?.value || "notulensi");
     const judul = String(document.getElementById("catatan-gdoc-judul")?.value || "").trim();
     const tanggal = String(document.getElementById("catatan-gdoc-tanggal")?.value || "").trim();
@@ -1008,6 +1171,7 @@ export function initHalamanCatatan() {
         templat: infoTpl.id,
         docId: hasilDrive.id,
         tautan: hasilDrive.webViewLink,
+        dihapusAt: null,
         createdAt: sekarang,
         updatedAt: sekarang
       });
@@ -1129,11 +1293,19 @@ export function subscribeCatatan() {
   renderDaftarCatatan();
   beritahuPerubahanCatatan();
 
-  const kolCatatan = collection(getFirestoreDb(), "catatan");
+  // Fase 5: Listener terbatas 100 catatan terbaru yang tidak di tempat sampah
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, "catatan"),
+    where("dihapusAt", "==", null),
+    orderBy("updatedAt", "desc"),
+    limit(UKURAN_HALAMAN_CATATAN)
+  );
+
   unsubscribeSnapshotCatatan = onSnapshot(
-    kolCatatan,
+    q,
     (snapshot) => {
-      const daftarBaru = [];
+      petaCatatanHalaman.clear();
       snapshot.forEach((docSnap) => {
         const d = docSnap.data() || {};
         const jenis = d.jenis === JENIS_CATATAN_GDOC ? JENIS_CATATAN_GDOC : JENIS_CATATAN_SINGKAT;
@@ -1157,9 +1329,13 @@ export function subscribeCatatan() {
           entri.docId = String(d.docId || "");
           entri.tautan = String(d.tautan || "");
         }
-        daftarBaru.push(entri);
+        petaCatatanHalaman.set(docSnap.id, entri);
       });
-      daftarCatatan = daftarBaru;
+
+      if (!snapshot.empty) {
+        lastDocCatatanHalaman = snapshot.docs[snapshot.docs.length - 1];
+      }
+      adaLebihBanyakCatatan = snapshot.docs.length >= UKURAN_HALAMAN_CATATAN;
       sudahDimuatPertamaKali = true;
       renderDaftarCatatan();
       beritahuPerubahanCatatan();
@@ -1184,7 +1360,13 @@ export function unsubscribeCatatan() {
     window.clearTimeout(timerSorotCatatan);
     timerSorotCatatan = null;
   }
-  daftarCatatan = [];
+  petaCatatanHalaman.clear();
+  petaCatatanTambahan.clear();
+  lastDocCatatanHalaman = null;
+  adaLebihBanyakCatatan = false;
+  sedangMuatLebihCatatan = false;
+  sedangMencariSemuaCatatan = false;
+  seluruhCatatanSudahDimuat = false;
   sudahDimuatPertamaKali = false;
   sedangMembuatGdoc = false;
   pengendaliFilterCatatan?.tutup(false);

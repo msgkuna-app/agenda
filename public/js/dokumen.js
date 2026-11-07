@@ -1,13 +1,14 @@
 /**
- * Modul Halaman Dokumen, Unggah & Pindah Folder Google Drive, serta Rapikan Dokumen (Fase 3 + Ketahanan Offline Fase 6)
+ * Modul Halaman Dokumen, Unggah & Pindah Folder Google Drive, serta Rapikan Dokumen
+ * (Fase 3 + Ketahanan Offline Fase 6 + Optimalisasi Pembacaan Fase 5)
  * Mematuhi Aturan #5, #6, #7, #8, #9, #10, #12, #13, #14:
  * - Koleksi Firestore: "dokumen" dan "kategoriDokumen"
  * - Semua tampilan tanggal dokumen memakai tanggal lokal lewat util-tanggal.js
- *   (tanpa toISOString().slice(0,10), split("T"), atau new Date("YYYY-MM-DD"))
- * - Tampilan berbentuk LIST sejajar dengan header di desktop/tablet lanskap dan baris dua tingkat
- *   dengan menu titik tiga di HP/tablet potret
- * - Bilah alat ringkas satu baris dengan panel filter tersembunyi bawaan (melipat di desktop/tablet,
- *   lembar bawah di HP) serta chip filter aktif yang dapat dihapus satu per satu.
+ * - Optimalisasi Fase 5:
+ *   1. Listener terbatas 100 dokumen terbaru (orderBy tanggalUnggah desc, limit 100)
+ *   2. Paginasi tombol "Muat lebih banyak dokumen" (startAfter)
+ *   3. Jembatan ambilSemuaDokumenSekaliPakai() untuk Laporan, Pencarian, dan Ekspor
+ *   4. Penghitung kategori dokumen memakai getCountFromServer (hitungDokumenPemakaiServer)
  */
 import {
   getFirestoreDb,
@@ -17,6 +18,13 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  getCountFromServer,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
 import {
@@ -46,7 +54,7 @@ import { escapeHtml, pindahKeBagian } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
 
 export const MAKS_UKURAN_BERKAS_MB = 100;
-const UKURAN_HALAMAN_DOKUMEN = 40;
+export const UKURAN_HALAMAN_DOKUMEN = 100;
 const JEDA_RAPIKAN_MS = 280;
 
 const NAMA_BULAN_PENDEK = [
@@ -68,7 +76,13 @@ export const manajerKategoriDokumen = buatManajerKategori({
 });
 
 let unsubscribeSnapshotDokumen = null;
-let daftarDokumen = [];
+const petaDokumenHalaman = new Map();
+const petaDokumenTambahan = new Map();
+
+let lastDocDokumenHalaman = null;
+let adaLebihBanyakDokumenHalaman = false;
+let sedangMuatLebihDokumen = false;
+
 let sudahDimuatPertamaKali = false;
 let antarmukaSudahDiikat = false;
 let dialogKelolaKategoriDokCtrl = null;
@@ -78,7 +92,7 @@ let kataKunciCari = "";
 let filterKategoriId = "ALL";
 let urutBerdasarkan = "tanggal"; // "tanggal" | "nama" | "ukuran"
 let arahUrutan = "desc"; // "asc" | "desc"
-let batasTampil = UKURAN_HALAMAN_DOKUMEN;
+let batasTampil = 40;
 let pengendaliFilterDokumen = null;
 
 let idMenuTitikTigaTerbuka = null;
@@ -104,7 +118,10 @@ let sedangMerapikan = false;
 let batalkanRapikan = false;
 
 export function getDaftarDokumen() {
-  return daftarDokumen.map((d) => ({ ...d }));
+  const gabungan = new Map();
+  petaDokumenHalaman.forEach((v, k) => gabungan.set(k, v));
+  petaDokumenTambahan.forEach((v, k) => gabungan.set(k, v));
+  return Array.from(gabungan.values()).map((d) => ({ ...d }));
 }
 
 export function isDokumenSudahDimuat() {
@@ -123,10 +140,107 @@ function beritahuPerubahanDokumen() {
   listenersPerubahanDokumen.forEach((fn) => {
     try {
       fn(salinan, statusMuat);
-    } catch (_e) {
-      // Abaikan
-    }
+    } catch (_e) {}
   });
+}
+
+/**
+ * Fase 5: Menghitung dokumen pemakai kategori secara akurat dari server via getCountFromServer.
+ */
+export async function hitungDokumenPemakaiServer(kategoriId) {
+  const target = String(kategoriId || "").trim();
+  try {
+    const db = getFirestoreDb();
+    if (!target) {
+      const q = query(collection(db, "dokumen"), where("kategoriId", "==", ""));
+      const snap = await getCountFromServer(q);
+      return snap.data().count;
+    }
+    const q = query(collection(db, "dokumen"), where("kategoriId", "==", target));
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch (_e) {
+    return hitungDokumenPemakaiLokal(target);
+  }
+}
+
+/**
+ * Memuat batch dokumen berikutnya (paginasi).
+ */
+export async function muatLebihBanyakDokumen() {
+  if (sedangMuatLebihDokumen || !lastDocDokumenHalaman) return;
+  sedangMuatLebihDokumen = true;
+  renderDaftarDokumen();
+
+  try {
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, "dokumen"),
+      orderBy("tanggalUnggah", "desc"),
+      startAfter(lastDocDokumenHalaman),
+      limit(UKURAN_HALAMAN_DOKUMEN)
+    );
+    const snap = await getDocs(q);
+    snap.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      petaDokumenHalaman.set(docSnap.id, {
+        id: docSnap.id,
+        namaTampilan: String(d.namaTampilan || d.namaFile || ""),
+        namaFile: String(d.namaFile || ""),
+        driveFileId: String(d.driveFileId || ""),
+        tautan: String(d.tautan || ""),
+        mimeType: String(d.mimeType || "application/octet-stream"),
+        ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
+        kategoriId: String(d.kategoriId || ""),
+        kegiatanId: String(d.kegiatanId || ""),
+        catatan: String(d.catatan || ""),
+        tanggalUnggah: String(d.tanggalUnggah || d.createdAt || ""),
+        createdAt: String(d.createdAt || ""),
+        updatedAt: String(d.updatedAt || "")
+      });
+    });
+
+    if (!snap.empty) {
+      lastDocDokumenHalaman = snap.docs[snap.docs.length - 1];
+    }
+    adaLebihBanyakDokumenHalaman = snap.docs.length >= UKURAN_HALAMAN_DOKUMEN;
+    beritahuPerubahanDokumen();
+  } catch (err) {
+    tampilkanGalatHalamanDokumen(formatPesanGalatFirestore(err));
+  } finally {
+    sedangMuatLebihDokumen = false;
+    renderDaftarDokumen();
+  }
+}
+
+/**
+ * Jembatan sekali pakai untuk mengambil seluruh dokumen dari server.
+ * Digunakan oleh Laporan, Ekspor Cadangan, dan Pencarian Global mendalam.
+ */
+export async function ambilSemuaDokumenSekaliPakai() {
+  const db = getFirestoreDb();
+  const q = query(collection(db, "dokumen"), orderBy("tanggalUnggah", "desc"));
+  const snap = await getDocs(q);
+  snap.forEach((docSnap) => {
+    const d = docSnap.data() || {};
+    petaDokumenTambahan.set(docSnap.id, {
+      id: docSnap.id,
+      namaTampilan: String(d.namaTampilan || d.namaFile || ""),
+      namaFile: String(d.namaFile || ""),
+      driveFileId: String(d.driveFileId || ""),
+      tautan: String(d.tautan || ""),
+      mimeType: String(d.mimeType || "application/octet-stream"),
+      ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
+      kategoriId: String(d.kategoriId || ""),
+      kegiatanId: String(d.kegiatanId || ""),
+      catatan: String(d.catatan || ""),
+      tanggalUnggah: String(d.tanggalUnggah || d.createdAt || ""),
+      createdAt: String(d.createdAt || ""),
+      updatedAt: String(d.updatedAt || "")
+    });
+  });
+  beritahuPerubahanDokumen();
+  return getDaftarDokumen();
 }
 
 /**
@@ -172,8 +286,6 @@ export function perbaruiStatusJaringanDokumen() {
 
 /**
  * Fase 6 Bagian B3: Menyinkronkan satu folder kategori dokumen dari halaman Pengaturan.
- * @param {string} kategoriId
- * @returns {Promise<{ nama: string, pesan: string }>}
  */
 export async function sinkronkanSatuFolderKategoriDokumen(kategoriId) {
   const kat = manajerKategoriDokumen.ambilKategoriById(kategoriId);
@@ -213,12 +325,6 @@ export async function sinkronkanSatuFolderKategoriDokumen(kategoriId) {
   }
 }
 
-/**
- * Mengubah timestamp ISO (mis. tanggalUnggah) menjadi teks tanggal lokal Indonesia
- * menggunakan tanggalLokal(d) dan parseTanggal() dari util-tanggal.js (Aturan #6).
- * @param {string} isoTimestamp
- * @returns {string}
- */
 export function formatTanggalDokumenLokal(isoTimestamp) {
   if (!isoTimestamp) return "-";
   const tglWaktu = new Date(isoTimestamp);
@@ -232,11 +338,6 @@ export function formatTanggalDokumenLokal(isoTimestamp) {
   return tglStrLokal === hariIni() ? `Hari ini, ${teksTanggal}` : teksTanggal;
 }
 
-/**
- * Memformat ukuran byte ke KB atau MB yang rapi.
- * @param {number} byteVal
- * @returns {string}
- */
 export function formatUkuranBerkas(byteVal) {
   const angka = Number(byteVal);
   if (!Number.isFinite(angka) || angka <= 0) {
@@ -251,12 +352,6 @@ export function formatUkuranBerkas(byteVal) {
   return `${kb} KB`;
 }
 
-/**
- * Menentukan label jenis file singkat dan ikon SVG berdasarkan mimeType dan ekstensi namaFile.
- * @param {string} mimeType
- * @param {string} namaFile
- * @returns {{ label: string, kelasWarna: string, svg: string }}
- */
 export function infoJenisBerkasMime(mimeType, namaFile = "") {
   const m = String(mimeType || "").toLowerCase();
   const eks = String(namaFile || "").toLowerCase();
@@ -368,17 +463,11 @@ function cariJudulKegiatanTerkait(kegiatanId) {
 function hitungDokumenPemakaiLokal(kategoriId) {
   const target = String(kategoriId || "").trim();
   if (!target) {
-    return daftarDokumen.filter((item) => manajerKategoriDokumen.cariInfoKategori(item.kategoriId).tetap).length;
+    return getDaftarDokumen().filter((item) => manajerKategoriDokumen.cariInfoKategori(item.kategoriId).tetap).length;
   }
-  return daftarDokumen.filter((item) => String(item.kategoriId || "").trim() === target).length;
+  return getDaftarDokumen().filter((item) => String(item.kategoriId || "").trim() === target).length;
 }
 
-/**
- * Memastikan folder Drive untuk suatu kategoriId siap dipakai (membuat otomatis saat pertama
- * dibutuhkan jika sebelumnya gagal/belum dibuat). Untuk "Tanpa Kategori" memakai subfolder "Tanpa Kategori".
- * @param {string} kategoriId
- * @returns {Promise<string>} ID folder Drive tujuan
- */
 async function pastikanFolderTujuanKategoriSiap(kategoriId) {
   const idBersih = String(kategoriId || "").trim();
   const kat = idBersih ? manajerKategoriDokumen.ambilKategoriById(idBersih) : null;
@@ -415,9 +504,6 @@ async function pastikanFolderTujuanKategoriSiap(kategoriId) {
   return dibuat.folderId;
 }
 
-/**
- * Handler Drive untuk Kelola Kategori Dokumen (tambah, ubah nama, sinkronkan, buat ulang 404, sampah folder).
- */
 function buatOpsiDriveKategoriDokumen() {
   return {
     onSetelahTambahKategori: async (katBaru) => {
@@ -523,7 +609,7 @@ function buatOpsiDriveKategoriDokumen() {
         folderSinkron: true
       });
 
-      const dokKategoriIni = daftarDokumen.filter(
+      const dokKategoriIni = getDaftarDokumen().filter(
         (d) => String(d.kategoriId || "").trim() === kat.id && d.driveFileId
       );
       let dipindah = 0;
@@ -713,8 +799,9 @@ function perbaruiDropdownKegiatanTerkait(idSelect, nilaiTerpilih = "") {
 
 function ambilDokumenTersaringDanTerurut() {
   const q = kataKunciCari.trim().toLowerCase();
+  const semuaDok = getDaftarDokumen();
 
-  const tersaring = daftarDokumen.filter((item) => {
+  const tersaring = semuaDok.filter((item) => {
     if (filterKategoriId !== "ALL") {
       const infoKat = manajerKategoriDokumen.cariInfoKategori(item.kategoriId);
       if (filterKategoriId === "__TANPA_KATEGORI__") {
@@ -793,21 +880,22 @@ function renderDaftarDokumen() {
   const hasilSemua = ambilDokumenTersaringDanTerurut();
   const potong = hasilSemua.slice(0, batasTampil);
   const sisaBelumTampil = Math.max(0, hasilSemua.length - potong.length);
+  const totalDimuat = getDaftarDokumen().length;
 
   if (barFilter && summaryEl) {
-    if (adaFilter || daftarDokumen.length > 0) {
+    if (adaFilter || totalDimuat > 0) {
       barFilter.hidden = false;
       summaryEl.textContent = adaFilter
-        ? `Menampilkan ${potong.length} dari ${hasilSemua.length} hasil cocok (total ${daftarDokumen.length} dokumen)`
+        ? `Menampilkan ${potong.length} dari ${hasilSemua.length} hasil cocok (total ${totalDimuat} dokumen dimuat)`
         : hasilSemua.length > potong.length
-          ? `Menampilkan ${potong.length} dari ${daftarDokumen.length} dokumen`
-          : `Total ${daftarDokumen.length} dokumen tercatat`;
+          ? `Menampilkan ${potong.length} dari ${totalDimuat} dokumen dimuat`
+          : `Total ${totalDimuat} dokumen tercatat`;
     } else {
       barFilter.hidden = true;
     }
   }
 
-  if (daftarDokumen.length === 0) {
+  if (totalDimuat === 0) {
     region.innerHTML = `<div class="empty-stage-card">
       <div class="empty-stage-icon" aria-hidden="true">${svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/>', 24)}</div>
       <h3 class="empty-stage-title">Belum Ada Dokumen</h3>
@@ -930,11 +1018,16 @@ function renderDaftarDokumen() {
     .join("");
 
   const tombolMuatLebih =
-    sisaBelumTampil > 0
+    sisaBelumTampil > 0 || adaLebihBanyakDokumenHalaman
       ? `<div class="doc-load-more-bar">
-          <button type="button" id="btn-muat-lebih-dokumen" class="btn-secondary">
-            Muat ${Math.min(UKURAN_HALAMAN_DOKUMEN, sisaBelumTampil)} dokumen berikutnya (${sisaBelumTampil} tersisa)
-          </button>
+          ${sisaBelumTampil > 0
+            ? `<button type="button" id="btn-tampil-lebih-dokumen" class="btn-secondary">Tampilkan ${Math.min(40, sisaBelumTampil)} dokumen berikutnya (${sisaBelumTampil} di memori)</button>`
+            : ""
+          }
+          ${adaLebihBanyakDokumenHalaman
+            ? `<button type="button" id="btn-muat-server-dokumen" class="btn-secondary"${sedangMuatLebihDokumen ? " disabled" : ""}>${sedangMuatLebihDokumen ? "Memuat..." : "Muat lebih banyak dari server"}</button>`
+            : ""
+          }
         </div>`
       : "";
 
@@ -958,7 +1051,7 @@ function renderDaftarDokumen() {
 export function terapkanFilterKategoriDokumen(targetKategoriId) {
   kataKunciCari = "";
   filterKategoriId = targetKategoriId || "ALL";
-  batasTampil = UKURAN_HALAMAN_DOKUMEN;
+  batasTampil = 40;
   pengendaliFilterDokumen?.tutup(false);
 
   const searchInput = document.getElementById("dokumen-search-input");
@@ -970,10 +1063,6 @@ export function terapkanFilterKategoriDokumen(targetKategoriId) {
   pindahKeBagian("dokumen");
   renderDaftarDokumen();
 }
-
-// ============================================================================
-// Modal 1: Unggah Dokumen Baru ke Google Drive
-// ============================================================================
 
 function setPesanGalatModalUnggah(pesan, opsi = {}) {
   const box = document.getElementById("dokumen-upload-alert");
@@ -1152,7 +1241,6 @@ export function bukaModalUnggahDokumen() {
   perbaruiDropdownKategoriDokumen();
   perbaruiDropdownKegiatanTerkait("dokumen-upload-kegiatan", "");
 
-  // Bawaan: kategori yang sedang difilter di halaman Dokumen
   if (katSelect instanceof HTMLSelectElement) {
     const daftarKat = manajerKategoriDokumen.getDaftarKategori();
     if (filterKategoriId === "__TANPA_KATEGORI__") {
@@ -1200,10 +1288,6 @@ function tutupModalUnggahDokumen(kembalikanFokus = true) {
   }
   fokusSebelumModalDokumen = null;
 }
-
-// ============================================================================
-// Modal 2: Ubah Metadata Dokumen (+ Pindah Folder Kategori di Drive)
-// ============================================================================
 
 function setPesanGalatModalEdit(pesan) {
   const box = document.getElementById("dokumen-edit-alert");
@@ -1260,10 +1344,6 @@ function tutupModalEditDokumen(kembalikanFokus = true) {
   fokusSebelumModalDokumen = null;
 }
 
-// ============================================================================
-// Modal 3: Konfirmasi Hapus Dokumen (Aplikasi saja / juga Sampah Drive)
-// ============================================================================
-
 function setPesanGalatModalHapus(pesan) {
   const box = document.getElementById("dokumen-delete-alert");
   const txt = document.getElementById("dokumen-delete-alert-text");
@@ -1316,10 +1396,6 @@ function tutupDialogHapusDokumen(kembalikanFokus = true) {
   fokusSebelumModalDokumen = null;
 }
 
-// ============================================================================
-// Modal 4: Rapikan Dokumen ke Folder Kategori (Idempotent + Rate-Limited)
-// ============================================================================
-
 function jedaMs(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -1338,8 +1414,9 @@ function bukaModalRapikanDokumen() {
   sedangMerapikan = false;
   batalkanRapikan = false;
 
+  const total = getDaftarDokumen().length;
   if (countInfo) {
-    countInfo.textContent = `Terdapat ${daftarDokumen.length} dokumen tercatat yang akan diperiksa penempatan foldernya.`;
+    countInfo.textContent = `Terdapat ${total} dokumen tercatat yang akan diperiksa penempatan foldernya.`;
   }
   if (progressBox) progressBox.hidden = true;
   if (summaryBox) {
@@ -1349,7 +1426,7 @@ function bukaModalRapikanDokumen() {
   if (alertBox) alertBox.hidden = true;
   if (startBtn instanceof HTMLButtonElement) {
     startBtn.hidden = false;
-    startBtn.disabled = daftarDokumen.length === 0 || !navigator.onLine;
+    startBtn.disabled = total === 0 || !navigator.onLine;
     startBtn.textContent = "Mulai Rapikan";
   }
   if (closeBtn instanceof HTMLButtonElement) {
@@ -1497,10 +1574,6 @@ async function jalankanRapikanDokumenKeFolder() {
   }
 }
 
-// ============================================================================
-// Inisialisasi Antarmuka & Langganan Firestore
-// ============================================================================
-
 export function initHalamanDokumen() {
   pastikanKerangkaHalamanDokumen();
   pengendaliFilterDokumen = initFilterPanel(document.getElementById("dokumen-toolbar"));
@@ -1510,7 +1583,7 @@ export function initHalamanDokumen() {
 
   dialogKelolaKategoriDokCtrl = inisialisasiDialogKelolaKategori({
     manajer: manajerKategoriDokumen,
-    hitungPemakaiLokal: hitungDokumenPemakaiLokal,
+    hitungPemakaiLokal: hitungDokumenPemakaiServer,
     onLihatItemKategori: (katId) => terapkanFilterKategoriDokumen(katId),
     judulDialog: "Kelola Kategori Dokumen",
     opsiDrive: buatOpsiDriveKategoriDokumen()
@@ -1542,7 +1615,7 @@ export function initHalamanDokumen() {
   if (searchInput instanceof HTMLInputElement) {
     searchInput.addEventListener("input", () => {
       kataKunciCari = searchInput.value;
-      batasTampil = UKURAN_HALAMAN_DOKUMEN;
+      batasTampil = 40;
       renderDaftarDokumen();
     });
   }
@@ -1551,7 +1624,7 @@ export function initHalamanDokumen() {
   if (filterKatSelect instanceof HTMLSelectElement) {
     filterKatSelect.addEventListener("change", () => {
       filterKategoriId = filterKatSelect.value;
-      batasTampil = UKURAN_HALAMAN_DOKUMEN;
+      batasTampil = 40;
       renderDaftarDokumen();
     });
   }
@@ -1573,16 +1646,20 @@ export function initHalamanDokumen() {
     });
   }
 
-  // Delegasi klik pada daftar dokumen (muat bertahap, menu titik tiga, ubah, hapus)
   const listRegion = document.getElementById("dokumen-list-region");
   if (listRegion) {
     listRegion.addEventListener("click", (e) => {
       const target = e.target instanceof Element ? e.target : null;
       if (!target) return;
 
-      if (target.closest("#btn-muat-lebih-dokumen")) {
-        batasTampil += UKURAN_HALAMAN_DOKUMEN;
+      if (target.closest("#btn-tampil-lebih-dokumen")) {
+        batasTampil += 40;
         renderDaftarDokumen();
+        return;
+      }
+
+      if (target.closest("#btn-muat-server-dokumen")) {
+        muatLebihBanyakDokumen();
         return;
       }
 
@@ -1607,7 +1684,7 @@ export function initHalamanDokumen() {
       }
 
       tutupMenuTitikTigaDokumen();
-      const dok = daftarDokumen.find((d) => d.id === id);
+      const dok = getDaftarDokumen().find((d) => d.id === id);
       if (!dok) return;
 
       if (aksi === "edit") {
@@ -1625,7 +1702,6 @@ export function initHalamanDokumen() {
     tutupMenuTitikTigaDokumen();
   });
 
-  // Event formulir Unggah Dokumen
   const uploadModal = document.getElementById("dokumen-upload-modal");
   const uploadForm = document.getElementById("dokumen-upload-form");
   const uploadFileInput = document.getElementById("dokumen-upload-file");
@@ -1684,7 +1760,6 @@ export function initHalamanDokumen() {
     e.preventDefault();
     setPesanGalatModalUnggah("");
 
-    // Jika berkas Drive sudah terunggah namun penulisan Firestore sebelumnya gagal
     if (berkasDriveTersimpanPending && dataFormUploadPending) {
       await jalankanSimpanUlangMetadata();
       return;
@@ -1753,7 +1828,6 @@ export function initHalamanDokumen() {
       const hasilDrive = await tugasUnggah.promise;
       pengendaliUnggahAktif = null;
 
-      // Konfirmasi Drive berhasil! Simpan state sebelum menulis metadata ke Firestore
       berkasDriveTersimpanPending = hasilDrive;
       dataFormUploadPending = {
         namaTampilan: namaTampilanInput || hasilDrive.name || file.name,
@@ -1788,7 +1862,6 @@ export function initHalamanDokumen() {
     }
   });
 
-  // Event formulir Ubah Metadata Dokumen
   const editModal = document.getElementById("dokumen-edit-modal");
   const editForm = document.getElementById("dokumen-edit-form");
   const editSubmitBtn = document.getElementById("dokumen-edit-submit-btn");
@@ -1808,7 +1881,7 @@ export function initHalamanDokumen() {
     setPesanGalatModalEdit("");
 
     const idDok = String(document.getElementById("dokumen-edit-id")?.value || "").trim();
-    const dokLama = daftarDokumen.find((d) => d.id === idDok);
+    const dokLama = getDaftarDokumen().find((d) => d.id === idDok);
     if (!dokLama) {
       tutupModalEditDokumen(true);
       return;
@@ -1843,8 +1916,6 @@ export function initHalamanDokumen() {
     }
 
     try {
-      // Sesuai aturan Fase 3: Pindah kategori memindahkan file di Drive terlebih dahulu.
-      // Jika Drive gagal, JANGAN ubah Firestore dan tampilkan pesan jelas.
       if (pindahKategori && dokLama.driveFileId) {
         const folderTujuanId = await pastikanFolderTujuanKategoriSiap(idEfektifBaru);
         await pindahkanBerkasKeFolderDrive(dokLama.driveFileId, folderTujuanId);
@@ -1870,7 +1941,6 @@ export function initHalamanDokumen() {
     }
   });
 
-  // Event Dialog Hapus Dokumen
   const deleteModal = document.getElementById("dokumen-delete-modal");
   const deleteConfirmBtn = document.getElementById("dokumen-delete-confirm-btn");
 
@@ -1901,7 +1971,6 @@ export function initHalamanDokumen() {
         try {
           await pindahkanItemKeSampahDrive(target.driveFileId);
         } catch (errDrive) {
-          // Jika berkas memang sudah tidak ada di Drive (404), tetap izinkan hapus dari aplikasi
           if (!errDrive || !errDrive.isNotFound) {
             throw errDrive;
           }
@@ -1910,7 +1979,10 @@ export function initHalamanDokumen() {
 
       const db = getFirestoreDb();
       await deleteDoc(doc(db, "dokumen", target.id));
+      petaDokumenHalaman.delete(target.id);
+      petaDokumenTambahan.delete(target.id);
       tutupDialogHapusDokumen(false);
+      beritahuPerubahanDokumen();
     } catch (err) {
       setPesanGalatModalHapus(formatPesanGalatDrive(err));
     } finally {
@@ -1921,7 +1993,6 @@ export function initHalamanDokumen() {
     }
   });
 
-  // Event Modal Rapikan Dokumen
   const organizeModal = document.getElementById("dokumen-organize-modal");
   document.getElementById("dokumen-organize-close-btn")?.addEventListener("click", () => {
     tutupModalRapikanDokumen(true);
@@ -1979,15 +2050,20 @@ export function subscribeDokumen() {
   );
 
   const db = getFirestoreDb();
-  const kolDokumen = collection(db, "dokumen");
+  // Fase 5: Listener dibatasi 100 dokumen terbaru
+  const q = query(
+    collection(db, "dokumen"),
+    orderBy("tanggalUnggah", "desc"),
+    limit(UKURAN_HALAMAN_DOKUMEN)
+  );
 
   unsubscribeSnapshotDokumen = onSnapshot(
-    kolDokumen,
+    q,
     (snapshot) => {
-      const daftarBaru = [];
+      petaDokumenHalaman.clear();
       snapshot.forEach((docSnap) => {
         const d = docSnap.data() || {};
-        daftarBaru.push({
+        petaDokumenHalaman.set(docSnap.id, {
           id: docSnap.id,
           namaTampilan: String(d.namaTampilan || d.namaFile || ""),
           namaFile: String(d.namaFile || ""),
@@ -2004,7 +2080,10 @@ export function subscribeDokumen() {
         });
       });
 
-      daftarDokumen = daftarBaru;
+      if (!snapshot.empty) {
+        lastDocDokumenHalaman = snapshot.docs[snapshot.docs.length - 1];
+      }
+      adaLebihBanyakDokumenHalaman = snapshot.docs.length >= UKURAN_HALAMAN_DOKUMEN;
       sudahDimuatPertamaKali = true;
       tampilkanGalatHalamanDokumen("");
       renderDaftarDokumen();
@@ -2026,15 +2105,17 @@ export function unsubscribeDokumen() {
   if (typeof unsubscribeSnapshotDokumen === "function") {
     try {
       unsubscribeSnapshotDokumen();
-    } catch (_e) {
-      // Abaikan
-    }
+    } catch (_e) {}
     unsubscribeSnapshotDokumen = null;
   }
 
   manajerKategoriDokumen.unsubscribe();
   resetCacheDrive();
-  daftarDokumen = [];
+  petaDokumenHalaman.clear();
+  petaDokumenTambahan.clear();
+  lastDocDokumenHalaman = null;
+  adaLebihBanyakDokumenHalaman = false;
+  sedangMuatLebihDokumen = false;
   sudahDimuatPertamaKali = false;
 
   pengendaliFilterDokumen?.tutup(false);

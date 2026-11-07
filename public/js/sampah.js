@@ -1,26 +1,28 @@
 /**
- * Modul Halaman "Tempat Sampah" dan Pembersihan Otomatis 30 Hari (Fase 7)
- * Mengelola pemulihan dan penghapusan permanen kegiatan dan catatan yang dihapus lunak,
- * filter segmen "Semua | Kegiatan | Catatan", hitung mundur masa simpan 30 hari,
- * konfirmasi kosongkan tempat sampah, serta pembersihan otomatis sekali per sesi saat daring.
+ * Modul Halaman "Tempat Sampah" dan Pembersihan Otomatis 30 Hari (Fase 7 + Optimalisasi Fase 5)
+ * Optimalisasi Fase 5:
+ * - Menggunakan query terpisah where("dihapusAt", "!=", null) untuk kegiatan dan catatan.
+ * - Menghentikan pengiriman item sampah ke listener utama.
+ * - Menyediakan subscribeSampah() dan unsubscribeSampah() untuk pemantauan real-time.
+ * - Menjaga fitur: pemulihan, hapus permanen, kosongkan tempat sampah, filter segmen, dan pembersihan otomatis >30 hari.
  */
 import {
   getFirestoreDb,
+  collection,
   doc,
   writeBatch,
+  onSnapshot,
+  query,
+  where,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
 import {
-  getDaftarKegiatanDiSampah,
   pulihkanKegiatan,
-  hapusPermanenKegiatan,
-  isKegiatanSudahDimuat
+  hapusPermanenKegiatan
 } from "./kegiatan.js";
 import {
-  getDaftarCatatanDiSampah,
   pulihkanCatatan,
   hapusPermanenCatatan,
-  isCatatanSudahDimuat,
   JENIS_CATATAN_GDOC
 } from "./catatan.js";
 import { parseTanggal, hariIni } from "./util-tanggal.js";
@@ -42,12 +44,33 @@ const IKON_SAMPAH = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a
 const IKON_PULIHKAN = svgIkon('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>', 16);
 const IKON_HAPUS_PERMANEN = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16);
 
+// Cache memori internal item di Tempat Sampah
+const petaKegiatanSampah = new Map();
+const petaCatatanSampah = new Map();
+
+let unsubscribeSnapshotKegiatanSampah = null;
+let unsubscribeSnapshotCatatanSampah = null;
+let kegiatanSampahDimuat = false;
+let catatanSampahDimuat = false;
+
 let filterSegmenAktif = "semua"; // "semua" | "kegiatan" | "catatan"
 let antarmukaSampahDiikat = false;
 let sudahPernahBersihkanOtomatisSesiIni = false;
 
 let itemAkanDihapusPermanen = null; // { tipe: "kegiatan" | "catatan", item: any }
 let fokusSebelumModalSampah = null;
+
+export function getDaftarKegiatanDiSampah() {
+  return Array.from(petaKegiatanSampah.values()).map((k) => ({ ...k }));
+}
+
+export function getDaftarCatatanDiSampah() {
+  return Array.from(petaCatatanSampah.values()).map((c) => ({ ...c }));
+}
+
+export function isSampahSudahDimuat() {
+  return kegiatanSampahDimuat && catatanSampahDimuat;
+}
 
 function formatTanggalTeks(tanggalStr) {
   const objek = parseTanggal(tanggalStr);
@@ -364,9 +387,9 @@ function bukaDialogHapusPermanen(tipe, id) {
 
   let item = null;
   if (tipe === "kegiatan") {
-    item = getDaftarKegiatanDiSampah().find((k) => k.id === id);
+    item = petaKegiatanSampah.get(id);
   } else {
-    item = getDaftarCatatanDiSampah().find((c) => c.id === id);
+    item = petaCatatanSampah.get(id);
   }
   if (!item) return;
 
@@ -402,7 +425,7 @@ function bukaDialogKosongkanSampah() {
   const cancelBtn = document.getElementById("sampah-kosongkan-cancel-btn");
   if (!modal) return;
 
-  const total = getDaftarKegiatanDiSampah().length + getDaftarCatatanDiSampah().length;
+  const total = petaKegiatanSampah.size + petaCatatanSampah.size;
   if (total === 0) {
     tampilkanToast("Tempat Sampah sudah kosong", "info");
     return;
@@ -475,15 +498,18 @@ export function initHalamanSampah() {
       try {
         if (tipe === "kegiatan") {
           await pulihkanKegiatan(id);
+          petaKegiatanSampah.delete(id);
           tampilkanToast("Kegiatan berhasil dipulihkan", "success");
         } else {
           const hasil = await pulihkanCatatan(id);
+          petaCatatanSampah.delete(id);
           if (hasil && hasil.pesanDrive) {
             tampilkanToast(`Catatan dipulihkan. ${hasil.pesanDrive}`, "warning");
           } else {
             tampilkanToast("Catatan berhasil dipulihkan", "success");
           }
         }
+        renderHalamanSampah();
       } catch (err) {
         tampilkanGalatHalamanSampah(formatPesanGalatFirestore(err));
         tampilkanToast(`Gagal memulihkan: ${formatPesanGalatFirestore(err)}`, "danger");
@@ -524,10 +550,13 @@ export function initHalamanSampah() {
       try {
         if (tipe === "kegiatan") {
           await hapusPermanenKegiatan(item.id);
+          petaKegiatanSampah.delete(item.id);
         } else {
           await hapusPermanenCatatan(item.id);
+          petaCatatanSampah.delete(item.id);
         }
         tutupDialogHapusPermanen(false);
+        renderHalamanSampah();
         tampilkanToast("Item berhasil dihapus permanen", "success");
       } catch (err) {
         tutupDialogHapusPermanen(false);
@@ -569,7 +598,10 @@ export function initHalamanSampah() {
       try {
         const db = getFirestoreDb();
         await hapusBatchMaks500(db, daftarRef);
+        petaKegiatanSampah.clear();
+        petaCatatanSampah.clear();
         tutupDialogKosongkanSampah(false);
+        renderHalamanSampah();
         tampilkanToast("Tempat Sampah berhasil dikosongkan", "success");
       } catch (err) {
         tutupDialogKosongkanSampah(false);
@@ -597,7 +629,122 @@ export function initHalamanSampah() {
 }
 
 /**
- * Pembersihan otomatis setelah login dan data kegiatan serta catatan dimuat.
+ * Memulai langganan query mandiri Tempat Sampah:
+ * - kegiatan where("dihapusAt", "!=", null)
+ * - catatan where("dihapusAt", "!=", null)
+ */
+export function subscribeSampah() {
+  unsubscribeSampah();
+  initHalamanSampah();
+
+  const db = getFirestoreDb();
+
+  // Query kegiatan di tempat sampah
+  try {
+    const qKegiatanSampah = query(
+      collection(db, "kegiatan"),
+      where("dihapusAt", "!=", null)
+    );
+
+    unsubscribeSnapshotKegiatanSampah = onSnapshot(
+      qKegiatanSampah,
+      (snapshot) => {
+        petaKegiatanSampah.clear();
+        snapshot.docs.forEach((docSnap) => {
+          const d = docSnap.data();
+          petaKegiatanSampah.set(docSnap.id, {
+            id: docSnap.id,
+            judul: String(d.judul || ""),
+            catatan: String(d.catatan || ""),
+            tanggal: String(d.tanggal || ""),
+            waktuMulai: String(d.waktuMulai || ""),
+            waktuSelesai: String(d.waktuSelesai || ""),
+            lokasi: String(d.lokasi || ""),
+            kategoriId: String(d.kategoriId || ""),
+            status: d.status || "Rencana",
+            createdAt: d.createdAt || "",
+            updatedAt: d.updatedAt || "",
+            dihapusAt: d.dihapusAt || null
+          });
+        });
+        kegiatanSampahDimuat = true;
+        renderHalamanSampah();
+        jalankanPembersihanSampahOtomatis();
+      },
+      (err) => {
+        console.warn("Gagal memuat langganan kegiatan sampah:", err);
+        tampilkanGalatHalamanSampah(formatPesanGalatFirestore(err));
+      }
+    );
+  } catch (err) {
+    console.warn("Gagal membuat query kegiatan sampah:", err);
+  }
+
+  // Query catatan di tempat sampah
+  try {
+    const qCatatanSampah = query(
+      collection(db, "catatan"),
+      where("dihapusAt", "!=", null)
+    );
+
+    unsubscribeSnapshotCatatanSampah = onSnapshot(
+      qCatatanSampah,
+      (snapshot) => {
+        petaCatatanSampah.clear();
+        snapshot.docs.forEach((docSnap) => {
+          const d = docSnap.data();
+          petaCatatanSampah.set(docSnap.id, {
+            id: docSnap.id,
+            jenis: d.jenis || "singkat",
+            judul: String(d.judul || ""),
+            isi: String(d.isi || ""),
+            kategori: String(d.kategori || ""),
+            tag: Array.isArray(d.tag) ? d.tag : [],
+            kegiatanId: String(d.kegiatanId || ""),
+            driveDocId: String(d.driveDocId || ""),
+            tautanDocs: String(d.tautanDocs || ""),
+            disematkan: Boolean(d.disematkan),
+            tanggal: String(d.tanggal || ""),
+            createdAt: d.createdAt || "",
+            updatedAt: d.updatedAt || "",
+            dihapusAt: d.dihapusAt || null
+          });
+        });
+        catatanSampahDimuat = true;
+        renderHalamanSampah();
+        jalankanPembersihanSampahOtomatis();
+      },
+      (err) => {
+        console.warn("Gagal memuat langganan catatan sampah:", err);
+        tampilkanGalatHalamanSampah(formatPesanGalatFirestore(err));
+      }
+    );
+  } catch (err) {
+    console.warn("Gagal membuat query catatan sampah:", err);
+  }
+
+  return () => unsubscribeSampah();
+}
+
+export function unsubscribeSampah() {
+  if (typeof unsubscribeSnapshotKegiatanSampah === "function") {
+    try { unsubscribeSnapshotKegiatanSampah(); } catch (_e) {}
+    unsubscribeSnapshotKegiatanSampah = null;
+  }
+  if (typeof unsubscribeSnapshotCatatanSampah === "function") {
+    try { unsubscribeSnapshotCatatanSampah(); } catch (_e) {}
+    unsubscribeSnapshotCatatanSampah = null;
+  }
+
+  petaKegiatanSampah.clear();
+  petaCatatanSampah.clear();
+  kegiatanSampahDimuat = false;
+  catatanSampahDimuat = false;
+  resetPembersihanSampah();
+}
+
+/**
+ * Pembersihan otomatis setelah login dan data tempat sampah dimuat.
  * Berjalan sekali per sesi dan hanya bila perangkat sedang terhubung online.
  * Menghapus permanen item dengan dihapusAt > 30 hari via writeBatch (maks 500 per batch).
  * Gagal diam-diam dengan console.warn.
@@ -605,7 +752,7 @@ export function initHalamanSampah() {
 export async function jalankanPembersihanSampahOtomatis() {
   if (sudahPernahBersihkanOtomatisSesiIni) return;
   if (!navigator.onLine) return;
-  if (!isKegiatanSudahDimuat() || !isCatatanSudahDimuat()) return;
+  if (!isSampahSudahDimuat()) return;
 
   sudahPernahBersihkanOtomatisSesiIni = true;
 

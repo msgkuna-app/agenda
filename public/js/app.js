@@ -101,6 +101,8 @@ import {
 import {
   initHalamanSampah,
   renderHalamanSampah,
+  subscribeSampah,
+  unsubscribeSampah,
   jalankanPembersihanSampahOtomatis,
   resetPembersihanSampah,
 } from "./sampah.js";
@@ -225,6 +227,7 @@ export function hentikanSemuaLanggananData() {
   unsubscribeDokumen();
   unsubscribeCatatan();
   unsubscribeLaporan();
+  unsubscribeSampah();
   resetCacheDrive();
   resetHalamanJadwalSaatKeluar();
   resetHalamanPengaturanSaatKeluar();
@@ -1472,11 +1475,13 @@ function mulaiAplikasi() {
       const unsubDokumen = subscribeDokumen();
       const unsubCatatan = subscribeCatatan();
       const unsubLaporan = subscribeLaporan();
+      const unsubSampah = subscribeSampah();
       dataUnsubscribers.push(
         unsubKegiatan,
         unsubDokumen,
         unsubCatatan,
         unsubLaporan,
+        unsubSampah,
       );
       initPencarianGlobal({
         getDaftarKegiatan,

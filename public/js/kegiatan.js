@@ -1,10 +1,13 @@
 /**
- * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Ekspor Minimal Fase 2 + Integrasi Catatan Fase 4)
- * Mencakup daftar kegiatan, pencarian (judul, catatan, lokasi), filter kategori & status
- * dengan panel filter tersembunyi bawaan (melipat di desktop/tablet, lembar bawah di HP),
- * chip filter aktif yang dapat dihapus satu per satu, pengurutan tanggal, tambah, ubah,
- * hapus dengan konfirmasi, ubah status cepat, observer tunggal bagi modul jadwal.js dan Dashboard,
- * serta tampilan catatan terkait di rincian kegiatan.
+ * Modul Halaman Kegiatan & Langganan Firestore "kegiatan" (Fase 1 + Optimalisasi Pembacaan Fase 5)
+ * Optimalisasi Fase 5:
+ * 1. Memisahkan listener menjadi:
+ *    (a) Jendela tanggal aktif (Dashboard & Jadwal, +/- 1 bulan dari bulan aktif, where tanggal >= dan <=)
+ *    (b) Daftar halaman kegiatan terpaginasi (limit 50, orderBy tanggal desc, startAfter)
+ * 2. Soft delete: where("dihapusAt", "==", null) agar item sampah tidak dibaca listener utama.
+ * 3. Jembatan getDocs sekali pakai (ambilSemuaKegiatanSekaliPakai, ambilKegiatanRentangTanggal)
+ *    untuk Laporan, Pencarian, dan Ekspor Cadangan tanpa listener permanen.
+ * 4. Penghitung kategori akurat menggunakan getCountFromServer.
  */
 import {
   getFirestoreDb,
@@ -14,6 +17,13 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  getCountFromServer,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
 import {
@@ -22,7 +32,7 @@ import {
   KATEGORI_KEGIATAN_BAWAAN,
   TANPA_KATEGORI_INFO
 } from "./kategori.js";
-import { hariIni, parseTanggal } from "./util-tanggal.js";
+import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian, tampilkanToast } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
 import {
@@ -36,6 +46,7 @@ import {
 } from "./catatan.js";
 
 export const DAFTAR_STATUS_KEGIATAN = ["Rencana", "Berjalan", "Selesai"];
+export const UKURAN_HALAMAN_KEGIATAN = 50;
 
 const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -58,8 +69,20 @@ export const manajerKategoriKegiatan = buatManajerKategori({
   daftarBawaan: KATEGORI_KEGIATAN_BAWAAN
 });
 
-let unsubscribeSnapshotKegiatan = null;
-let daftarKegiatan = [];
+// Cache memori internal kegiatan aktif yang telah dimuat
+const petaKegiatanJendela = new Map();
+const petaKegiatanHalaman = new Map();
+const petaKegiatanTambahan = new Map();
+
+let unsubscribeSnapshotJendela = null;
+let unsubscribeSnapshotHalaman = null;
+let jendelaAwalAktif = "";
+let jendelaAkhirAktif = "";
+
+let lastDocKegiatanHalaman = null;
+let adaLebihBanyakKegiatanHalaman = false;
+let sedangMuatLebihBanyakKegiatan = false;
+
 let sudahDimuatPertamaKali = false;
 let antarmukaSudahDiikat = false;
 let dialogKelolaKategoriCtrl = null;
@@ -76,7 +99,6 @@ let hapusModalTerbuka = false;
 let idKegiatanAkanDihapus = null;
 let fokusSebelumModalKegiatan = null;
 
-// Fase 4: Penanda kegiatan yang sedang dibuka di #kegiatan-detail-modal
 let pembukaDetailKegiatanFn = null;
 let idKegiatanTerakhirDiklik = "";
 let idKegiatanDetailAktif = "";
@@ -85,14 +107,41 @@ export function daftarkanPembukaDetailKegiatan(fn) {
   pembukaDetailKegiatanFn = typeof fn === "function" ? fn : null;
 }
 
+/**
+ * Mengembalikan seluruh kegiatan aktif (tanpa dihapusAt) yang saat ini berada di memori
+ * (gabungan listener jendela, listener halaman, dan hasil fetch).
+ */
 export function getDaftarKegiatan() {
-  return daftarKegiatan
+  const gabungan = new Map();
+  petaKegiatanJendela.forEach((v, k) => gabungan.set(k, v));
+  petaKegiatanHalaman.forEach((v, k) => gabungan.set(k, v));
+  petaKegiatanTambahan.forEach((v, k) => gabungan.set(k, v));
+
+  return Array.from(gabungan.values())
     .filter((item) => !item.dihapusAt)
     .map((item) => ({ ...item }));
 }
 
+/**
+ * Mengembalikan daftar kegiatan khusus pada jendela tanggal aktif (Dashboard & Jadwal).
+ */
+export function getKegiatanJendela() {
+  return Array.from(petaKegiatanJendela.values())
+    .filter((item) => !item.dihapusAt)
+    .map((item) => ({ ...item }));
+}
+
+/**
+ * Kompatibilitas mundur: tempat sampah kini memiliki listener mandiri di sampah.js,
+ * namun fungsi ini tetap dipertahankan agar modul lain tidak patah.
+ */
 export function getDaftarKegiatanDiSampah() {
-  return daftarKegiatan
+  const gabungan = new Map();
+  petaKegiatanJendela.forEach((v, k) => gabungan.set(k, v));
+  petaKegiatanHalaman.forEach((v, k) => gabungan.set(k, v));
+  petaKegiatanTambahan.forEach((v, k) => gabungan.set(k, v));
+
+  return Array.from(gabungan.values())
     .filter((item) => Boolean(item.dihapusAt))
     .map((item) => ({ ...item }));
 }
@@ -105,6 +154,10 @@ export async function hapusLunakKegiatan(id) {
     dihapusAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
+  petaKegiatanJendela.delete(targetId);
+  petaKegiatanHalaman.delete(targetId);
+  petaKegiatanTambahan.delete(targetId);
+  beritahuPerubahanKegiatan();
 }
 
 export async function pulihkanKegiatan(id) {
@@ -122,6 +175,10 @@ export async function hapusPermanenKegiatan(id) {
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
   const db = getFirestoreDb();
   await deleteDoc(doc(db, "kegiatan", targetId));
+  petaKegiatanJendela.delete(targetId);
+  petaKegiatanHalaman.delete(targetId);
+  petaKegiatanTambahan.delete(targetId);
+  beritahuPerubahanKegiatan();
 }
 
 export function isKegiatanSudahDimuat() {
@@ -166,12 +223,38 @@ function validJamOpsional(jam) {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(jam);
 }
 
-function hitungKegiatanPemakaiLokal(kategoriId) {
+/**
+ * Fase 5: Menghitung kegiatan yang menggunakan kategori tertentu secara akurat
+ * menggunakan getCountFromServer agar tidak bergantung pada data yang terpotong paginasi.
+ */
+export async function hitungKegiatanPemakaiServer(kategoriId) {
   const target = String(kategoriId || "").trim();
-  if (!target) {
-    return daftarKegiatan.filter((item) => manajerKategoriKegiatan.cariInfoKategori(item.kategoriId).tetap).length;
+  try {
+    const db = getFirestoreDb();
+    if (!target) {
+      // Tanpa kategori: kategoriId == ""
+      const q = query(
+        collection(db, "kegiatan"),
+        where("kategoriId", "==", ""),
+        where("dihapusAt", "==", null)
+      );
+      const snap = await getCountFromServer(q);
+      return snap.data().count;
+    }
+    const q = query(
+      collection(db, "kegiatan"),
+      where("kategoriId", "==", target),
+      where("dihapusAt", "==", null)
+    );
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch (_e) {
+    // Fallback luring ke memori yang sudah dimuat
+    if (!target) {
+      return getDaftarKegiatan().filter((item) => manajerKategoriKegiatan.cariInfoKategori(item.kategoriId).tetap).length;
+    }
+    return getDaftarKegiatan().filter((item) => String(item.kategoriId || "").trim() === target).length;
   }
-  return daftarKegiatan.filter((item) => String(item.kategoriId || "").trim() === target).length;
 }
 
 function tampilkanGalatHalamanKegiatan(pesan) {
@@ -359,8 +442,8 @@ function renderDaftarKegiatan() {
     if (adaFilter || totalAktif > 0) {
       barFilterAktif.hidden = false;
       ringkasanEl.textContent = adaFilter
-        ? `Menampilkan ${hasil.length} dari ${totalAktif} kegiatan`
-        : `Total ${totalAktif} kegiatan tercatat`;
+        ? `Menampilkan ${hasil.length} dari ${totalAktif} kegiatan dimuat`
+        : `Total ${totalAktif} kegiatan dimuat di perangkat`;
     } else {
       barFilterAktif.hidden = true;
     }
@@ -421,29 +504,154 @@ function renderDaftarKegiatan() {
     </article>`;
   }).join("");
 
-  region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>`;
+  const tombolMuatLebih = adaLebihBanyakKegiatanHalaman
+    ? `<div class="doc-load-more-bar">
+        <button type="button" id="btn-muat-lebih-kegiatan" class="btn-secondary"${sedangMuatLebihBanyakKegiatan ? " disabled" : ""}>
+          ${sedangMuatLebihBanyakKegiatan ? "Memuat..." : "Muat lebih banyak kegiatan"}
+        </button>
+      </div>`
+    : "";
+
+  region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>${tombolMuatLebih}`;
 }
 
 /**
- * Fase 4: Mengenali kegiatan yang sedang tampil pada dialog #kegiatan-detail-modal
- * dan merender bagian Catatan Terkait beserta tombol "Tambah catatan" & "Buat notulensi".
+ * Memuat batch kegiatan halaman berikutnya (paginasi).
  */
+export async function muatLebihBanyakKegiatan() {
+  if (sedangMuatLebihBanyakKegiatan || !lastDocKegiatanHalaman) return;
+  sedangMuatLebihBanyakKegiatan = true;
+  renderDaftarKegiatan();
+
+  try {
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, "kegiatan"),
+      where("dihapusAt", "==", null),
+      orderBy("tanggal", "desc"),
+      startAfter(lastDocKegiatanHalaman),
+      limit(UKURAN_HALAMAN_KEGIATAN)
+    );
+    const snap = await getDocs(q);
+    snap.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      petaKegiatanHalaman.set(docSnap.id, {
+        id: docSnap.id,
+        judul: String(d.judul || ""),
+        catatan: String(d.catatan || ""),
+        tanggal: String(d.tanggal || ""),
+        waktuMulai: String(d.waktuMulai || ""),
+        waktuSelesai: String(d.waktuSelesai || ""),
+        lokasi: String(d.lokasi || ""),
+        kategoriId: String(d.kategoriId || ""),
+        status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
+        createdAt: d.createdAt || "",
+        updatedAt: d.updatedAt || "",
+        dihapusAt: d.dihapusAt || null
+      });
+    });
+
+    if (!snap.empty) {
+      lastDocKegiatanHalaman = snap.docs[snap.docs.length - 1];
+    }
+    adaLebihBanyakKegiatanHalaman = snap.docs.length >= UKURAN_HALAMAN_KEGIATAN;
+    beritahuPerubahanKegiatan();
+  } catch (err) {
+    tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
+  } finally {
+    sedangMuatLebihBanyakKegiatan = false;
+    renderDaftarKegiatan();
+  }
+}
+
+/**
+ * Jembatan sekali pakai untuk mengambil seluruh kegiatan aktif dari server.
+ * Digunakan oleh Ekspor Cadangan dan Pencarian Global mendalam.
+ */
+export async function ambilSemuaKegiatanSekaliPakai() {
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, "kegiatan"),
+    where("dihapusAt", "==", null),
+    orderBy("tanggal", "desc")
+  );
+  const snap = await getDocs(q);
+  snap.forEach((docSnap) => {
+    const d = docSnap.data() || {};
+    petaKegiatanTambahan.set(docSnap.id, {
+      id: docSnap.id,
+      judul: String(d.judul || ""),
+      catatan: String(d.catatan || ""),
+      tanggal: String(d.tanggal || ""),
+      waktuMulai: String(d.waktuMulai || ""),
+      waktuSelesai: String(d.waktuSelesai || ""),
+      lokasi: String(d.lokasi || ""),
+      kategoriId: String(d.kategoriId || ""),
+      status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
+      createdAt: d.createdAt || "",
+      updatedAt: d.updatedAt || "",
+      dihapusAt: d.dihapusAt || null
+    });
+  });
+  beritahuPerubahanKegiatan();
+  return getDaftarKegiatan();
+}
+
+/**
+ * Jembatan sekali pakai untuk mengambil kegiatan pada rentang tanggal tertentu.
+ * Digunakan oleh modul Laporan.
+ */
+export async function ambilKegiatanRentangTanggal(tanggalDari, tanggalSampai) {
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, "kegiatan"),
+    where("dihapusAt", "==", null),
+    where("tanggal", ">=", tanggalDari),
+    where("tanggal", "<=", tanggalSampai),
+    orderBy("tanggal", "asc")
+  );
+  const snap = await getDocs(q);
+  const hasil = [];
+  snap.forEach((docSnap) => {
+    const d = docSnap.data() || {};
+    const item = {
+      id: docSnap.id,
+      judul: String(d.judul || ""),
+      catatan: String(d.catatan || ""),
+      tanggal: String(d.tanggal || ""),
+      waktuMulai: String(d.waktuMulai || ""),
+      waktuSelesai: String(d.waktuSelesai || ""),
+      lokasi: String(d.lokasi || ""),
+      kategoriId: String(d.kategoriId || ""),
+      status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
+      createdAt: d.createdAt || "",
+      updatedAt: d.updatedAt || "",
+      dihapusAt: d.dihapusAt || null
+    };
+    petaKegiatanTambahan.set(docSnap.id, item);
+    hasil.push(item);
+  });
+  return hasil;
+}
+
 function deteksiKegiatanPadaModalDetail() {
   const modal = document.getElementById("kegiatan-detail-modal");
   const detailBody = document.getElementById("kegiatan-detail-body");
   if (!modal || modal.hidden || !detailBody) return null;
 
+  const semuaKegiatan = getDaftarKegiatan();
+
   const elDenganId = detailBody.querySelector("[data-id]");
   if (elDenganId) {
     const idDariDom = String(elDenganId.getAttribute("data-id") || "").trim();
-    const ditemukan = daftarKegiatan.find((k) => k.id === idDariDom);
+    const ditemukan = semuaKegiatan.find((k) => k.id === idDariDom);
     if (ditemukan) return ditemukan;
   }
 
   const teksBody = String(detailBody.textContent || "");
   for (const kandidatId of [idKegiatanDetailAktif, idKegiatanTerakhirDiklik]) {
     if (!kandidatId) continue;
-    const item = daftarKegiatan.find((k) => k.id === kandidatId);
+    const item = semuaKegiatan.find((k) => k.id === kandidatId);
     if (item && (!item.judul || teksBody.includes(item.judul))) {
       return item;
     }
@@ -452,7 +660,7 @@ function deteksiKegiatanPadaModalDetail() {
   const headingEl = detailBody.querySelector("h3, h4, .kegiatan-card-title");
   if (headingEl) {
     const teksJudul = String(headingEl.textContent || "").trim();
-    const cocok = daftarKegiatan.find((k) => k.judul.trim() === teksJudul);
+    const cocok = semuaKegiatan.find((k) => k.judul.trim() === teksJudul);
     if (cocok) return cocok;
   }
 
@@ -727,7 +935,7 @@ export function initHalamanKegiatan() {
 
   dialogKelolaKategoriCtrl = inisialisasiDialogKelolaKategori({
     manajer: manajerKategoriKegiatan,
-    hitungPemakaiLokal: hitungKegiatanPemakaiLokal,
+    hitungPemakaiLokal: hitungKegiatanPemakaiServer,
     onLihatItemKategori: (katId) => terapkanFilterKategoriKegiatan(katId),
     judulDialog: "Kelola Kategori Kegiatan"
   });
@@ -738,13 +946,11 @@ export function initHalamanKegiatan() {
     beritahuPerubahanKegiatan();
   });
 
-  // Fase 4: Segarkan kartu kegiatan dan catatan terkait di modal rincian saat catatan berubah
   onPerubahanCatatan(() => {
     renderDaftarKegiatan();
     renderCatatanTerkaitDiDetailModal();
   });
 
-  // Tangkap ID kegiatan yang diklik sebelum dialog rincian dibuka oleh jadwal.js / dashboard
   document.addEventListener(
     "click",
     (e) => {
@@ -755,7 +961,7 @@ export function initHalamanKegiatan() {
       const kandidat = String(
         pembawaId.getAttribute("data-kegiatan-id") || pembawaId.getAttribute("data-id") || ""
       ).trim();
-      if (kandidat && daftarKegiatan.some((k) => k.id === kandidat)) {
+      if (kandidat && getDaftarKegiatan().some((k) => k.id === kandidat)) {
         idKegiatanTerakhirDiklik = kandidat;
       }
     },
@@ -787,14 +993,14 @@ export function initHalamanKegiatan() {
 
       if (aksi === "tambah-catatan") {
         const kegId = btn.getAttribute("data-kegiatan-id") || idKegiatanDetailAktif;
-        const keg = daftarKegiatan.find((k) => k.id === kegId);
+        const keg = getDaftarKegiatan().find((k) => k.id === kegId);
         bukaModalCatatanSingkat(null, {
           kegiatanId: keg ? keg.id : "",
           tanggal: keg && parseTanggal(keg.tanggal) ? keg.tanggal : hariIni()
         });
       } else if (aksi === "buat-notulensi") {
         const kegId = btn.getAttribute("data-kegiatan-id") || idKegiatanDetailAktif;
-        const keg = daftarKegiatan.find((k) => k.id === kegId);
+        const keg = getDaftarKegiatan().find((k) => k.id === kegId);
         if (keg) picuBuatNotulensiUntukKegiatan(keg);
       } else if (aksi === "edit-singkat") {
         const catId = btn.getAttribute("data-catatan-id") || "";
@@ -855,13 +1061,19 @@ export function initHalamanKegiatan() {
   const listRegion = document.getElementById("kegiatan-list-region");
   if (listRegion) {
     listRegion.addEventListener("click", (e) => {
-      const btn = e.target instanceof Element ? e.target.closest("button[data-action]") : null;
+      const btn = e.target instanceof Element ? e.target.closest("button[data-action], #btn-muat-lebih-kegiatan") : null;
       if (!btn) return;
+
+      if (btn.id === "btn-muat-lebih-kegiatan") {
+        muatLebihBanyakKegiatan();
+        return;
+      }
+
       const aksi = btn.getAttribute("data-action");
       const id = btn.getAttribute("data-id");
       if (!id) return;
 
-      const item = daftarKegiatan.find((k) => k.id === id);
+      const item = getDaftarKegiatan().find((k) => k.id === id);
       if (!item) return;
 
       if (aksi === "detail-kegiatan") {
@@ -936,7 +1148,13 @@ export function initHalamanKegiatan() {
         if (idEdit) {
           await updateDoc(doc(db, "kegiatan", idEdit), { ...payload, updatedAt: sekarang });
         } else {
-          await addDoc(collection(db, "kegiatan"), { ...payload, createdAt: sekarang, updatedAt: sekarang });
+          // Fase 5: Selalu setel dihapusAt: null pada dokumen baru
+          await addDoc(collection(db, "kegiatan"), {
+            ...payload,
+            dihapusAt: null,
+            createdAt: sekarang,
+            updatedAt: sekarang
+          });
         }
         tutupModalFormKegiatan(true);
       } catch (err) {
@@ -1003,6 +1221,132 @@ export function initHalamanKegiatan() {
   });
 }
 
+function hitungRentangJendela(tahun, bulanIndex) {
+  // Rentang jendela: 1 bulan sebelum s/d 1 bulan sesudah bulan aktif (+/- 1 bulan)
+  const dMulai = new Date(tahun, bulanIndex - 1, 1);
+  const dAkhir = new Date(tahun, bulanIndex + 2, 0); // hari terakhir bulan berikutnya
+  return {
+    tglAwal: tanggalLokal(dMulai),
+    tglAkhir: tanggalLokal(dAkhir)
+  };
+}
+
+/**
+ * Menyinkronkan listener jendela tanggal aktif saat berpindah bulan pada Kalender Jadwal.
+ */
+export function sinkronkanJendelaTanggalKegiatan(tahun, bulanIndex) {
+  const { tglAwal, tglAkhir } = hitungRentangJendela(tahun, bulanIndex);
+  if (tglAwal === jendelaAwalAktif && tglAkhir === jendelaAkhirAktif && unsubscribeSnapshotJendela) {
+    return;
+  }
+  mulaiLanggananJendelaKegiatan(tglAwal, tglAkhir);
+}
+
+function mulaiLanggananJendelaKegiatan(tglAwal, tglAkhir) {
+  if (typeof unsubscribeSnapshotJendela === "function") {
+    try { unsubscribeSnapshotJendela(); } catch (_e) {}
+    unsubscribeSnapshotJendela = null;
+  }
+
+  jendelaAwalAktif = tglAwal;
+  jendelaAkhirAktif = tglAkhir;
+
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, "kegiatan"),
+    where("dihapusAt", "==", null),
+    where("tanggal", ">=", tglAwal),
+    where("tanggal", "<=", tglAkhir),
+    orderBy("tanggal", "asc")
+  );
+
+  unsubscribeSnapshotJendela = onSnapshot(
+    q,
+    (snapshot) => {
+      petaKegiatanJendela.clear();
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        petaKegiatanJendela.set(docSnap.id, {
+          id: docSnap.id,
+          judul: String(d.judul || ""),
+          catatan: String(d.catatan || ""),
+          tanggal: String(d.tanggal || ""),
+          waktuMulai: String(d.waktuMulai || ""),
+          waktuSelesai: String(d.waktuSelesai || ""),
+          lokasi: String(d.lokasi || ""),
+          kategoriId: String(d.kategoriId || ""),
+          status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
+          createdAt: d.createdAt || "",
+          updatedAt: d.updatedAt || "",
+          dihapusAt: d.dihapusAt || null
+        });
+      });
+      sudahDimuatPertamaKali = true;
+      tampilkanGalatHalamanKegiatan("");
+      renderDaftarKegiatan();
+      renderCatatanTerkaitDiDetailModal();
+      dialogKelolaKategoriCtrl?.segarkanTampilan();
+      beritahuPerubahanKegiatan();
+    },
+    (err) => {
+      sudahDimuatPertamaKali = true;
+      tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
+      renderDaftarKegiatan();
+      beritahuPerubahanKegiatan();
+    }
+  );
+}
+
+function mulaiLanggananHalamanKegiatan() {
+  if (typeof unsubscribeSnapshotHalaman === "function") {
+    try { unsubscribeSnapshotHalaman(); } catch (_e) {}
+    unsubscribeSnapshotHalaman = null;
+  }
+
+  const db = getFirestoreDb();
+  const q = query(
+    collection(db, "kegiatan"),
+    where("dihapusAt", "==", null),
+    orderBy("tanggal", "desc"),
+    limit(UKURAN_HALAMAN_KEGIATAN)
+  );
+
+  unsubscribeSnapshotHalaman = onSnapshot(
+    q,
+    (snapshot) => {
+      petaKegiatanHalaman.clear();
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        petaKegiatanHalaman.set(docSnap.id, {
+          id: docSnap.id,
+          judul: String(d.judul || ""),
+          catatan: String(d.catatan || ""),
+          tanggal: String(d.tanggal || ""),
+          waktuMulai: String(d.waktuMulai || ""),
+          waktuSelesai: String(d.waktuSelesai || ""),
+          lokasi: String(d.lokasi || ""),
+          kategoriId: String(d.kategoriId || ""),
+          status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
+          createdAt: d.createdAt || "",
+          updatedAt: d.updatedAt || "",
+          dihapusAt: d.dihapusAt || null
+        });
+      });
+
+      if (!snapshot.empty) {
+        lastDocKegiatanHalaman = snapshot.docs[snapshot.docs.length - 1];
+      }
+      adaLebihBanyakKegiatanHalaman = snapshot.docs.length >= UKURAN_HALAMAN_KEGIATAN;
+      sudahDimuatPertamaKali = true;
+      renderDaftarKegiatan();
+      beritahuPerubahanKegiatan();
+    },
+    (err) => {
+      tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
+    }
+  );
+}
+
 export function subscribeKegiatan() {
   unsubscribeKegiatan();
   initHalamanKegiatan();
@@ -1019,58 +1363,37 @@ export function subscribeKegiatan() {
     (pesanGalat) => tampilkanGalatHalamanKegiatan(pesanGalat)
   );
 
-  const db = getFirestoreDb();
-  const kolKegiatan = collection(db, "kegiatan");
+  // Inisialisasi jendela tanggal hari ini (+/- 1 bulan)
+  const skr = parseTanggal(hariIni()) || new Date();
+  const { tglAwal, tglAkhir } = hitungRentangJendela(skr.getFullYear(), skr.getMonth());
+  mulaiLanggananJendelaKegiatan(tglAwal, tglAkhir);
 
-  unsubscribeSnapshotKegiatan = onSnapshot(
-    kolKegiatan,
-    (snapshot) => {
-      const itemBaru = [];
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data() || {};
-        itemBaru.push({
-          id: docSnap.id,
-          judul: String(d.judul || ""),
-          catatan: String(d.catatan || ""),
-          tanggal: String(d.tanggal || ""),
-          waktuMulai: String(d.waktuMulai || ""),
-          waktuSelesai: String(d.waktuSelesai || ""),
-          lokasi: String(d.lokasi || ""),
-          kategoriId: String(d.kategoriId || ""),
-          status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
-          createdAt: d.createdAt || "",
-          updatedAt: d.updatedAt || "",
-          dihapusAt: d.dihapusAt || null
-        });
-      });
-
-      daftarKegiatan = itemBaru;
-      sudahDimuatPertamaKali = true;
-      tampilkanGalatHalamanKegiatan("");
-      renderDaftarKegiatan();
-      renderCatatanTerkaitDiDetailModal();
-      dialogKelolaKategoriCtrl?.segarkanTampilan();
-      beritahuPerubahanKegiatan();
-    },
-    (err) => {
-      sudahDimuatPertamaKali = true;
-      tampilkanGalatHalamanKegiatan(formatPesanGalatFirestore(err));
-      renderDaftarKegiatan();
-      beritahuPerubahanKegiatan();
-    }
-  );
+  // Inisialisasi listener daftar halaman kegiatan
+  mulaiLanggananHalamanKegiatan();
 
   return () => unsubscribeKegiatan();
 }
 
 export function unsubscribeKegiatan() {
-  if (typeof unsubscribeSnapshotKegiatan === "function") {
-    try { unsubscribeSnapshotKegiatan(); } catch (_e) {}
-    unsubscribeSnapshotKegiatan = null;
+  if (typeof unsubscribeSnapshotJendela === "function") {
+    try { unsubscribeSnapshotJendela(); } catch (_e) {}
+    unsubscribeSnapshotJendela = null;
+  }
+  if (typeof unsubscribeSnapshotHalaman === "function") {
+    try { unsubscribeSnapshotHalaman(); } catch (_e) {}
+    unsubscribeSnapshotHalaman = null;
   }
 
   manajerKategoriKegiatan.unsubscribe();
-  daftarKegiatan = [];
+  petaKegiatanJendela.clear();
+  petaKegiatanHalaman.clear();
+  petaKegiatanTambahan.clear();
+  lastDocKegiatanHalaman = null;
+  adaLebihBanyakKegiatanHalaman = false;
+  sedangMuatLebihBanyakKegiatan = false;
+  jendelaAwalAktif = "";
+  jendelaAkhirAktif = "";
+
   sudahDimuatPertamaKali = false;
   idKegiatanDetailAktif = "";
   idKegiatanTerakhirDiklik = "";

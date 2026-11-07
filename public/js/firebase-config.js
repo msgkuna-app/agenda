@@ -1,5 +1,5 @@
 /**
- * Konfigurasi Firebase Web SDK & Inisialisasi Layanan (Fase 1)
+ * Konfigurasi Firebase Web SDK & Inisialisasi Layanan (Fase 1 + Optimalisasi Pembacaan Fase 5)
  * Memakai Firebase Web SDK modular v11.4.0 dari CDN gstatic.
  * Salin nilai konfigurasi aplikasi web Anda dari Firebase Console:
  * Project Settings -> General -> Your apps -> SDK setup and configuration (Config)
@@ -28,6 +28,10 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
+  startAt,
+  endAt,
+  endBefore,
   writeBatch,
   getCountFromServer
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
@@ -147,6 +151,10 @@ export {
   where,
   orderBy,
   limit,
+  startAfter,
+  startAt,
+  endAt,
+  endBefore,
   writeBatch,
   getCountFromServer
 };

@@ -5,6 +5,9 @@
  * Bebas dependensi melingkar (fungsi penyedia data disuntikkan via initPencarianGlobal).
  */
 import { pindahKeBagian } from "./sidebar.js";
+import { ambilSemuaKegiatanSekaliPakai } from "./kegiatan.js";
+import { ambilSemuaCatatanSekaliPakai } from "./catatan.js";
+import { ambilSemuaDokumenSekaliPakai } from "./dokumen.js";
 
 const DEBOUNCE_DELAY_MS = 120;
 const BATAS_HASIL_PER_KELOMPOK = 5;
@@ -306,6 +309,27 @@ let penyediaData = {
   getDaftarCatatan: () => [],
   getDaftarDokumen: () => [],
 };
+let dataLengkapSemua = null;
+let sedangMemuatDataLengkap = false;
+
+export async function muatSemuaDataUntukPencarian() {
+  if (sedangMemuatDataLengkap) return dataLengkapSemua;
+  sedangMemuatDataLengkap = true;
+  try {
+    const [keg, cat, dok] = await Promise.all([
+      ambilSemuaKegiatanSekaliPakai(),
+      ambilSemuaCatatanSekaliPakai(),
+      ambilSemuaDokumenSekaliPakai()
+    ]);
+    dataLengkapSemua = { kegiatan: keg, catatan: cat, dokumen: dok };
+    return dataLengkapSemua;
+  } catch (err) {
+    console.warn("Gagal memuat seluruh data server untuk pencarian:", err);
+    return null;
+  } finally {
+    sedangMemuatDataLengkap = false;
+  }
+}
 let penanganPilihHasil = null;
 let dialogTerbuka = false;
 let pemicuFokusTerakhir = null;
@@ -410,6 +434,19 @@ function renderStatusTidakAdaHasil(kueri) {
   indeksPilihanAktif = -1;
 
   if (!wadah) return;
+
+  const tombolServer = sedangMemuatDataLengkap
+    ? `<div style="margin-top:14px; font-size:13px; color:var(--color-primary); display:flex; align-items:center; justify-content:center; gap:6px;">
+        <span>Mencari di semua data...</span>
+       </div>`
+    : !dataLengkapSemua
+      ? `<div style="margin-top:14px; text-align:center;">
+          <button type="button" class="btn-secondary" id="btn-search-all-server" style="font-size:13px; padding:6px 14px;">
+            Cari di semua data (termasuk server)
+          </button>
+         </div>`
+      : "";
+
   wadah.innerHTML = `
     <div class="global-search-empty-state">
       <span class="global-search-empty-icon" aria-hidden="true">
@@ -419,7 +456,8 @@ function renderStatusTidakAdaHasil(kueri) {
         </svg>
       </span>
       <p class="global-search-empty-title">Tidak ada hasil ditemukan</p>
-      <p class="global-search-empty-desc">Tidak ditemukan kecocokan untuk <strong>&ldquo;${escapeHtml(kueri)}&rdquo;</strong>. Coba periksa ejaan atau gunakan kata kunci lain.</p>
+      <p class="global-search-empty-desc">Tidak ditemukan kecocokan untuk <strong>&ldquo;${escapeHtml(kueri)}&rdquo;</strong>.</p>
+      ${tombolServer}
     </div>
   `;
 }
@@ -612,7 +650,21 @@ function renderHasil(hasil, kataKueri) {
     `);
   }
 
-  wadah.innerHTML = potonganHtml.join("");
+  const bannerStatus = sedangMemuatDataLengkap
+    ? `<div style="padding:10px; font-size:12px; color:var(--color-primary); text-align:center;">
+        Mencari di semua data...
+       </div>`
+    : dataLengkapSemua
+      ? `<div style="padding:8px 12px; font-size:12px; color:var(--color-text-muted); text-align:center;">
+          ✓ Menampilkan pencarian dari seluruh data server
+         </div>`
+      : `<div style="margin-top:12px; padding:6px; text-align:center;">
+          <button type="button" class="btn-secondary" id="btn-search-all-server" style="font-size:12px; padding:6px 12px;">
+            Cari juga di riwayat server yang belum dimuat
+          </button>
+         </div>`;
+
+  wadah.innerHTML = potonganHtml.join("") + bannerStatus;
 
   daftarElemenPilihan = Array.from(wadah.querySelectorAll(".global-search-item"));
   indeksPilihanAktif = -1;
@@ -693,7 +745,7 @@ function jalankanPencarian(teksKueri) {
     return;
   }
 
-  const sumber = {
+  const sumber = dataLengkapSemua || {
     kegiatan: penyediaData.getDaftarKegiatan(),
     catatan: penyediaData.getDaftarCatatan(),
     dokumen: penyediaData.getDaftarDokumen(),
@@ -870,6 +922,18 @@ export function initPencarianGlobal(opsi = {}) {
       const targetEl = e.target instanceof Element ? e.target : null;
       if (!targetEl) return;
 
+      const btnSearchServer = targetEl.closest("#btn-search-all-server");
+      if (btnSearchServer) {
+        btnSearchServer.setAttribute("disabled", "true");
+        btnSearchServer.textContent = "Mencari di semua data...";
+        sedangMemuatDataLengkap = true;
+        jalankanPencarian(kueriAktif);
+        muatSemuaDataUntukPencarian().then(() => {
+          jalankanPencarian(kueriAktif);
+        });
+        return;
+      }
+
       const btnSeeAll = targetEl.closest("button[data-search-see-all]");
       if (btnSeeAll) {
         const kelompok = btnSeeAll.getAttribute("data-search-see-all");
@@ -894,6 +958,8 @@ export function initPencarianGlobal(opsi = {}) {
  */
 export function bersihkanPencarianGlobal() {
   tutupPencarianGlobal(false);
+  dataLengkapSemua = null;
+  sedangMemuatDataLengkap = false;
   penyediaData = {
     getDaftarKegiatan: () => [],
     getDaftarCatatan: () => [],

@@ -179,19 +179,22 @@ import {
   DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,
   getDaftarKegiatan,
-  onPerubahanKegiatan
+  onPerubahanKegiatan,
+  ambilSemuaKegiatanSekaliPakai
 } from "./kegiatan.js";
 import {
   manajerKategoriDokumen,
   getDaftarDokumen,
   onPerubahanDokumen,
-  sinkronkanSatuFolderKategoriDokumen
+  sinkronkanSatuFolderKategoriDokumen,
+  ambilSemuaDokumenSekaliPakai
 } from "./dokumen.js";
 import {
   JENIS_CATATAN_GDOC,
   JENIS_CATATAN_SINGKAT,
   getDaftarCatatan,
-  onPerubahanCatatan
+  onPerubahanCatatan,
+  ambilSemuaCatatanSekaliPakai
 } from "./catatan.js";
 import { getDaftarLaporan } from "./laporan.js";
 import { formatPesanGalatDrive } from "./drive.js";
@@ -551,6 +554,21 @@ function pastikanKerangkaHalamanPengaturan() {
         </div>
 
         <div id="settings-import-summary-box" hidden></div>
+
+        <!-- C4. Optimalisasi & Pemeliharaan Soft Delete (Fase 5) -->
+        <div class="settings-subpanel" style="margin-top: 24px; border-top: 1px solid var(--color-border); padding-top: 20px;">
+          <h4 class="sub-card-title">Pemeliharaan Soft Delete Database (Fase 5)</h4>
+          <p class="settings-desc-text">
+            Kueri Firestore optimal <code>where("dihapusAt", "==", null)</code> memerlukan dokumen memiliki field <code>dihapusAt: null</code>. Dokumen riwayat lama yang dibuat sebelum fitur soft-delete belum memiliki field tersebut, sehingga tidak cocok dengan kueri <code>== null</code>. Tombol di bawah ini memeriksa dan menambahkan field <code>dihapusAt: null</code> secara aman dan idempoten (batch maks 500) tanpa mengubah isi data lain.
+          </p>
+          <div class="settings-subpanel-actions">
+            <button type="button" id="btn-settings-migrate-dihapusat" class="btn-secondary settings-full-btn-mobile">
+              ${IKON_SEGAR}
+              <span>Periksa &amp; Lengkapi Field "dihapusAt"</span>
+            </button>
+          </div>
+          <div id="settings-migration-status" style="margin-top: 12px; font-size: 13px;" hidden></div>
+        </div>
       </div>
     </section>
   </div>`;
@@ -887,7 +905,13 @@ export async function eksporSeluruhDataJson() {
       updatedAt: k.updatedAt || ""
     }));
 
-    const kegiatan = getDaftarKegiatan().map((item) => {
+    const [semuaKegiatan, semuaDokumen, semuaCatatan] = await Promise.all([
+      ambilSemuaKegiatanSekaliPakai(),
+      ambilSemuaDokumenSekaliPakai(),
+      ambilSemuaCatatanSekaliPakai()
+    ]);
+
+    const kegiatan = semuaKegiatan.map((item) => {
       const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
       return {
         id: item.id,
@@ -916,7 +940,7 @@ export async function eksporSeluruhDataJson() {
       updatedAt: k.updatedAt || ""
     }));
 
-    const dokumen = getDaftarDokumen().map((d) => {
+    const dokumen = semuaDokumen.map((d) => {
       const infoKat = manajerKategoriDokumen.cariInfoKategori(d.kategoriId);
       return {
         id: d.id,
@@ -936,7 +960,7 @@ export async function eksporSeluruhDataJson() {
       };
     });
 
-    const catatan = getDaftarCatatan().map((c) => {
+    const catatan = semuaCatatan.map((c) => {
       const entri = {
         id: c.id,
         jenis: c.jenis,
@@ -1038,6 +1062,81 @@ export async function eksporSeluruhDataJson() {
     );
   } finally {
     sedangMengekspor = false;
+    if (btn instanceof HTMLButtonElement) btn.disabled = false;
+  }
+}
+
+// ============================================================================
+// C4. Migrasi Soft Delete (menambahkan dihapusAt: null pada dokumen legacy)
+// ============================================================================
+
+export async function jalankanMigrasiDihapusAt() {
+  const btn = document.getElementById("btn-settings-migrate-dihapusat");
+  const statusEl = document.getElementById("settings-migration-status");
+  if (btn instanceof HTMLButtonElement) btn.disabled = true;
+
+  if (statusEl) {
+    statusEl.hidden = false;
+    statusEl.innerHTML = `<span style="color:var(--color-primary);">Memeriksa dokumen tanpa field dihapusAt...</span>`;
+  }
+
+  try {
+    const db = getFirestoreDb();
+    const [snapKegiatan, snapCatatan] = await Promise.all([
+      getDocs(collection(db, "kegiatan")),
+      getDocs(collection(db, "catatan"))
+    ]);
+
+    const butuhMigrasiKegiatan = [];
+    snapKegiatan.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (typeof data.dihapusAt === "undefined") {
+        butuhMigrasiKegiatan.push(docSnap.ref);
+      }
+    });
+
+    const butuhMigrasiCatatan = [];
+    snapCatatan.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (typeof data.dihapusAt === "undefined") {
+        butuhMigrasiCatatan.push(docSnap.ref);
+      }
+    });
+
+    const totalPerlu = butuhMigrasiKegiatan.length + butuhMigrasiCatatan.length;
+    if (totalPerlu === 0) {
+      if (statusEl) {
+        statusEl.innerHTML = `<span style="color:var(--color-success); font-weight:600;">✓ Seluruh dokumen sudah memiliki field dihapusAt (0 dokumen perlu migrasi).</span>`;
+      }
+      tampilkanToast("Semua dokumen sudah termigrasi", "success");
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.innerHTML = `<span>Ditemukan ${totalPerlu} dokumen (${butuhMigrasiKegiatan.length} kegiatan, ${butuhMigrasiCatatan.length} catatan) tanpa dihapusAt. Memperbarui...</span>`;
+    }
+
+    const semuaRef = [...butuhMigrasiKegiatan, ...butuhMigrasiCatatan];
+    for (let i = 0; i < semuaRef.length; i += 500) {
+      const chunk = semuaRef.slice(i, i + 500);
+      const batch = writeBatch(db);
+      chunk.forEach((ref) => {
+        batch.update(ref, { dihapusAt: null });
+      });
+      await batch.commit();
+    }
+
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:var(--color-success); font-weight:600;">✓ Berhasil memigrasi ${totalPerlu} dokumen dengan dihapusAt: null.</span>`;
+    }
+    tampilkanToast(`Migrasi berhasil: ${totalPerlu} dokumen diperbarui`, "success");
+  } catch (err) {
+    console.error("Gagal menjalankan migrasi dihapusAt:", err);
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:var(--color-danger);">Gagal migrasi: ${escapeHtml(formatPesanGalatFirestore(err))}</span>`;
+    }
+    tampilkanToast(`Gagal migrasi: ${formatPesanGalatFirestore(err)}`, "danger");
+  } finally {
     if (btn instanceof HTMLButtonElement) btn.disabled = false;
   }
 }
@@ -1424,6 +1523,8 @@ export function initHalamanPengaturan() {
         tanganiPeriksaPembaruanSw();
       } else if (target.closest("#btn-settings-export-json")) {
         eksporSeluruhDataJson();
+      } else if (target.closest("#btn-settings-migrate-dihapusat")) {
+        jalankanMigrasiDihapusAt();
       } else if (target.closest("#btn-settings-cancel-import")) {
         batalkanPratinjauImpor();
       } else if (target.closest("#btn-settings-confirm-import")) {
