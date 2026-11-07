@@ -4,23 +4,12 @@
  * 1A. hitungTataLetak(daftarKegiatan): Fungsi murni penghitung kolom & tumpang tindih
  * 1B. renderTimelineHarian(wadah, daftarKegiatan, opsi): Fungsi penggambar antarmuka garis waktu
  *
+ * Menggunakan util-html.js terpusat untuk escapeHtml (tetap di-re-export).
  * Sesuai panduan: ES modules, murni tanpa framework, WCAG AA, SVG inline.
  */
 
-/**
- * Mengamankan string HTML agar tidak rentan XSS.
- * @param {string | number | null | undefined} str
- * @returns {string}
- */
-export function escapeHtml(str) {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "./util-html.js";
+export { escapeHtml };
 
 /**
  * Mengubah string "HH:MM" menjadi jumlah menit sejak 00:00.

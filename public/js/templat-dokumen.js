@@ -1,37 +1,22 @@
 /**
- * Modul Templat Dokumen HTML untuk Konversi Otomatis Google Docs (Fase 4)
+ * Modul Templat Dokumen HTML untuk Konversi Otomatis Google Docs (Fase 4 + Refaktor Fase 7A)
  * Mematuhi Aturan #6 & #9:
- * - Seluruh teks masukan pengguna di-escape sebelum dimasukkan ke HTML.
- * - Tanggal kalender diproses HANYA lewat util-tanggal.js (parseTanggal, hariIni).
+ * - Seluruh teks masukan pengguna di-escape sebelum dimasukkan ke HTML (memakai util-html.js terpusat).
+ * - Tanggal kalender diproses HANYA lewat util-tanggal.js (parseTanggal, hariIni) dan konstanta hari/bulan dari util-html.js.
  * - Menyediakan 3 templat: Notulensi Rapat, Catatan Kosong, dan Catatan Harian,
  *   masing-masing otomatis memuat judul kegiatan terkait (bila ada) dan tanggal.
  */
 import { hariIni, parseTanggal } from "./util-tanggal.js";
+import {
+  escapeHtml,
+  NAMA_HARI_LENGKAP,
+  NAMA_BULAN_LENGKAP,
+} from "./util-html.js";
 
-const NAMA_HARI_LENGKAP = [
-  "Minggu",
-  "Senin",
-  "Selasa",
-  "Rabu",
-  "Kamis",
-  "Jumat",
-  "Sabtu"
-];
-
-const NAMA_BULAN_LENGKAP = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember"
-];
+/**
+ * Re-export demi kompatibilitas pengimpor lama (Aturan #9).
+ */
+export const escapeHtmlTemplat = escapeHtml;
 
 export const DAFTAR_TEMPLAT_DOKUMEN = [
   {
@@ -53,20 +38,6 @@ export const DAFTAR_TEMPLAT_DOKUMEN = [
       "Jurnal harian terstruktur berisi tanggal, ringkasan, hal yang dikerjakan, kendala, dan rencana besok."
   }
 ];
-
-/**
- * Meng-escape karakter HTML berbahaya dari masukan pengguna (Aturan #9).
- * @param {unknown} nilai
- * @returns {string}
- */
-export function escapeHtmlTemplat(nilai) {
-  return String(nilai ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 /**
  * Memformat tanggal "YYYY-MM-DD" menjadi teks Bahasa Indonesia memakai parseTanggal() (Aturan #6).
@@ -175,10 +146,10 @@ export function bangunHtmlTemplatDokumen(parameter) {
   const tanggalMentah = String(parameter?.tanggal || "").trim() || hariIni();
   const kegiatan = parameter?.kegiatan || null;
 
-  const judulAman = escapeHtmlTemplat(judulMentah);
-  const tanggalAman = escapeHtmlTemplat(formatTanggalTemplatIndonesia(tanggalMentah));
+  const judulAman = escapeHtml(judulMentah);
+  const tanggalAman = escapeHtml(formatTanggalTemplatIndonesia(tanggalMentah));
   const judulKegiatanMentah = String(kegiatan?.judul || "").trim();
-  const judulKegiatanAman = escapeHtmlTemplat(judulKegiatanMentah);
+  const judulKegiatanAman = escapeHtml(judulKegiatanMentah);
 
   const waktuMulai = String(kegiatan?.waktuMulai || "").trim();
   const waktuSelesai = String(kegiatan?.waktuSelesai || "").trim();
@@ -187,13 +158,13 @@ export function bangunHtmlTemplatDokumen(parameter) {
       ? `${waktuMulai} – ${waktuSelesai}`
       : waktuMulai
     : "[Isi waktu rapat]";
-  const waktuAman = escapeHtmlTemplat(waktuRapatMentah);
+  const waktuAman = escapeHtml(waktuRapatMentah);
 
   const tempatMentah = String(kegiatan?.lokasi || "").trim() || "[Isi tempat / ruang rapat]";
-  const tempatAman = escapeHtmlTemplat(tempatMentah);
+  const tempatAman = escapeHtml(tempatMentah);
 
   const catatanKegiatanMentah = String(kegiatan?.catatan || "").trim();
-  const catatanKegiatanAman = escapeHtmlTemplat(catatanKegiatanMentah).replace(/\r?\n/g, "<br />");
+  const catatanKegiatanAman = escapeHtml(catatanKegiatanMentah).replace(/\r?\n/g, "<br />");
 
   let isiBody = "";
 

@@ -1,7 +1,8 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: GIS Token Client & Ketahanan PWA)
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: GIS Token Client & Ketahanan PWA + Refaktor Fase 7A)
  * Mengatur sesi masuk, pemantau token GIS Drive, Dashboard, Kegiatan, Jadwal,
  * Dokumen, Catatan, Laporan, Pengaturan, konfirmasi keluar, indikator koneksi, toast, dan Service Worker.
+ * Menggunakan util-html.js terpusat untuk escapeHtml, svgIkon, dan nama hari/bulan Indonesia.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -22,8 +23,13 @@ import {
   tutupDrawerMobile,
   pindahKeBagian,
   tampilkanToast,
-  escapeHtml,
 } from "./sidebar.js";
+import {
+  escapeHtml,
+  svgIkon,
+  NAMA_HARI,
+  NAMA_BULAN,
+} from "./util-html.js";
 import { hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import {
   manajerKategoriKegiatan,
@@ -110,33 +116,6 @@ import {
   initPencarianGlobal,
   bersihkanPencarianGlobal,
 } from "./pencarian-global.js";
-
-const NAMA_HARI = [
-  "Minggu",
-  "Senin",
-  "Selasa",
-  "Rabu",
-  "Kamis",
-  "Jumat",
-  "Sabtu",
-];
-const NAMA_BULAN = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
-
-const svgIkon = (isi, uk = 18, tebal = 2) =>
-  `<svg viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 const KUNCI_TUNDA_UPDATE_SW = "agenda_arsip_update_ditunda";
 const INTERVAL_CEK_UPDATE_SW_MS = 60 * 60 * 1000;
@@ -1509,7 +1488,7 @@ function mulaiAplikasi() {
           } else if (item.kelompok === "dokumen") {
             pindahKeBagian("dokumen");
             const tautanAman =
-              item.tautan && /^https?:\/\//i.test(item.tautan)
+              item.tautan && /^https?:\/\//i.test(dokumenTautan(item))
                 ? item.tautan
                 : item.driveFileId
                   ? `https://drive.google.com/file/d/${encodeURIComponent(item.driveFileId)}/view`
@@ -1528,6 +1507,10 @@ function mulaiAplikasi() {
     setPesanGalatLogin(formatPesanGalatAuth(err));
     tampilkanLayarUtama("login");
   }
+}
+
+function dokumenTautan(item) {
+  return item && typeof item.tautan === "string" ? item.tautan : "";
 }
 
 mulaiAplikasi();

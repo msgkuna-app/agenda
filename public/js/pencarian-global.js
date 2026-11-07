@@ -3,18 +3,19 @@
  * Mencari di kegiatan, catatan, dan dokumen sekaligus menggunakan data yang sudah dimuat.
  * Bekerja luring (offline) tanpa langganan Firestore baru.
  * Bebas dependensi melingkar (fungsi penyedia data disuntikkan via initPencarianGlobal).
+ * Menggunakan util-html.js terpusat untuk escapeHtml dan svgIkon.
  */
 import { pindahKeBagian } from "./sidebar.js";
 import { ambilSemuaKegiatanSekaliPakai } from "./kegiatan.js";
 import { ambilSemuaCatatanSekaliPakai } from "./catatan.js";
 import { ambilSemuaDokumenSekaliPakai } from "./dokumen.js";
+import { escapeHtml, svgIkon } from "./util-html.js";
+
+export { escapeHtml };
 
 const DEBOUNCE_DELAY_MS = 120;
 const BATAS_HASIL_PER_KELOMPOK = 5;
 const MAKS_PANJANG_CUPLIKAN = 90;
-
-const svgIkon = (isi, uk = 18, tebal = 2) =>
-  `<svg viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 const IKON_KEGIATAN = svgIkon(
   '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
@@ -28,21 +29,6 @@ const IKON_DOKUMEN = svgIkon(
   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   18,
 );
-
-/**
- * Mengamankan teks sebelum disisipkan ke HTML untuk mencegah XSS.
- * @param {unknown} str
- * @returns {string}
- */
-export function escapeHtml(str) {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 /**
  * Normalisasi teks: huruf kecil, pangkas spasi, hilangkan tanda diakritik.

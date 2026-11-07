@@ -1,10 +1,14 @@
 /**
- * Modul Navigasi Sidebar, Drawer Mobile, Tooltip Ciut, Toast Global, dan Escape HTML (Fase 6)
+ * Modul Navigasi Sidebar, Drawer Mobile, Tooltip Ciut, Toast Global, dan Escape HTML (Fase 6 + Refaktor Fase 7A)
  * Mematuhi Aturan #9, #13, #14 & Bagian A1, A2, A3, D, E:
+ * - Menggunakan modul terpusat util-html.js untuk escapeHtml & escapeAtribut (tetap di-re-export demi kompatibilitas).
  * - Saat berpindah halaman, gulungan area konten utama (#workspace-scroll) dikembalikan ke atas (scrollTop = 0).
  * - Menyediakan sistem Toast terpusat (tampilkanToast) dengan position: fixed dan env(safe-area-inset-bottom).
  * - Memperbarui indikator online/offline di bagian bawah sidebar secara tidak mengganggu.
  */
+
+import { escapeHtml, escapeAtribut } from "./util-html.js";
+export { escapeHtml, escapeAtribut };
 
 const STORAGE_SIDEBAR_KEY = "agenda_arsip_sidebar";
 
@@ -70,21 +74,6 @@ export const MENU_SECTIONS = [
 let activeSectionId = "kegiatan";
 let onNavigateCallback = null;
 let drawerTriggerFocus = null;
-
-/**
- * Mengamankan teks masukan pengguna sebelum disisipkan ke HTML (Aturan #9).
- * @param {unknown} str
- * @returns {string}
- */
-export function escapeHtml(str) {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 /**
  * Mengambil elemen penggulung konten utama (#workspace-scroll / .app-workspace).

@@ -1,5 +1,7 @@
 /**
- * Modul Halaman "Tempat Sampah" dan Pembersihan Otomatis 30 Hari (Fase 7 + Optimalisasi Fase 5)
+ * Modul Halaman "Tempat Sampah" dan Pembersihan Otomatis 30 Hari (Fase 7 + Optimalisasi Fase 5 + Refaktor Fase 7A)
+ * Menggunakan util-html.js terpusat untuk escapeHtml, svgIkon, serta konstanta hari/bulan pendek.
+ *
  * Optimalisasi Fase 5:
  * - Menggunakan query terpisah where("dihapusAt", "!=", null) untuk kegiatan dan catatan.
  * - Menghentikan pengiriman item sampah ke listener utama.
@@ -26,16 +28,16 @@ import {
   JENIS_CATATAN_GDOC
 } from "./catatan.js";
 import { parseTanggal, hariIni } from "./util-tanggal.js";
-import { escapeHtml, tampilkanToast } from "./sidebar.js";
+import { tampilkanToast } from "./sidebar.js";
+import {
+  escapeHtml,
+  svgIkon,
+  NAMA_HARI_PENDEK,
+  NAMA_BULAN_PENDEK,
+} from "./util-html.js";
 
 const TIGA_PULUH_HARI_MS = 30 * 24 * 60 * 60 * 1000;
 const SATU_HARI_MS = 24 * 60 * 60 * 1000;
-
-const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 const IKON_KEGIATAN = svgIkon('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', 20);
 const IKON_CATATAN_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
