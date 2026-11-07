@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.6.0";
+const VERSION = "agenda-arsip-v1.5.1";
 
 const APP_SHELL = [
   "/",
@@ -8,12 +8,6 @@ const APP_SHELL = [
   "/js/boot-tema.js",
   "/js/util-html.js",
   "/js/app.js",
-  "/js/app/index.js",
-  "/js/app/pwa.js",
-  "/js/app/pintasan.js",
-  "/js/app/jaringan-token.js",
-  "/js/app/sesi.js",
-  "/js/app/dashboard.js",
   "/js/firebase-config.js",
   "/js/pencarian-global.js",
   "/js/auth.js",
