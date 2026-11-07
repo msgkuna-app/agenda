@@ -1,75 +1,114 @@
 /**
- * Modul Autentikasi Firebase & Token Google Drive (Aturan #2, #3, #4, #5, #10)
- * Memakai Firebase Web SDK modular v11 dari CDN gstatic.
+ * Modul Autentikasi Firebase & Token Google Drive via Google Identity Services (GIS)
+ * (Fase 6: Pemisahan Token Drive dari Firebase Auth)
+ * - Firebase Auth murni untuk identitas pengguna dan keamanan aturan Firestore.
+ * - GIS Token Client untuk hak akses Google Drive (scope: drive.file).
+ * - Token disimpan HANYA di memori modul, membersihkan sisa sessionStorage lama saat startup.
+ * - Memiliki fungsi mintaTokenDrive({ senyap }) dengan lazy refresh (margin 2 menit).
+ * - Memvalidasi kepemilikan akun tunggal (AUTHORIZED_EMAIL) dan mencabut token jika tidak cocok.
  */
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { getFirebaseAuth } from "./firebase-config.js";
+import { getFirebaseAuth, GOOGLE_CLIENT_ID } from "./firebase-config.js";
 
 export const AUTHORIZED_EMAIL = "msgkuna.app@gmail.com";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const STORAGE_TOKEN_KEY = "agenda_arsip_drive_token";
-const STORAGE_TOKEN_TS_KEY = "agenda_arsip_drive_token_ts";
-const TOKEN_MAX_AGE_MS = 50 * 60 * 1000; // 50 menit
+const STORAGE_TOKEN_KEY_LAMA = "agenda_arsip_drive_token";
+const STORAGE_TOKEN_TS_KEY_LAMA = "agenda_arsip_drive_token_ts";
+
+// Bersihkan sisa kunci lama di sessionStorage saat modul dimuat
+try {
+  sessionStorage.removeItem(STORAGE_TOKEN_KEY_LAMA);
+  sessionStorage.removeItem(STORAGE_TOKEN_TS_KEY_LAMA);
+} catch (_err) {}
+
+// Penyimpanan token eksklusif HANYA di memori modul
+let driveAccessToken = null;
+let driveTokenExpiresAt = 0; // Epoch milliseconds waktu kedaluwarsa nyata
+const MARGIN_KEDALUWARSA_MS = 2 * 60 * 1000; // 2 menit
 
 let currentUser = null;
 let lastAuthErrorMessage = "";
 let authListenerUnsub = null;
 
-function simpanTokenDrive(accessToken) {
-  if (!accessToken) return;
-  try {
-    sessionStorage.setItem(STORAGE_TOKEN_KEY, accessToken);
-    sessionStorage.setItem(STORAGE_TOKEN_TS_KEY, String(Date.now()));
-  } catch (_err) {
-    // Abaikan kendala sessionStorage
-  }
-}
+let tokenClientGIS = null;
+let janjiMuatGis = null;
+let janjiMintaTokenAktif = null;
 
-function hapusTokenDrive() {
-  try {
-    sessionStorage.removeItem(STORAGE_TOKEN_KEY);
-    sessionStorage.removeItem(STORAGE_TOKEN_TS_KEY);
-  } catch (_err) {
-    // Abaikan kendala sessionStorage
+/**
+ * Memuat pustaka Google Identity Services (GIS) secara dinamis & asinkron.
+ * @returns {Promise<typeof google>}
+ */
+export function pastikanGisLoaded() {
+  if (typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+    return Promise.resolve(window.google);
   }
+  if (janjiMuatGis) {
+    return janjiMuatGis;
+  }
+
+  janjiMuatGis = new Promise((resolve, reject) => {
+    // Cek apakah script tag sudah ada di DOM
+    const skripAda = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+    if (skripAda) {
+      if (window.google?.accounts?.oauth2) {
+        resolve(window.google);
+        return;
+      }
+      skripAda.addEventListener("load", () => resolve(window.google));
+      skripAda.addEventListener("error", () =>
+        reject(new Error("Gagal memuat Google Identity Services (GIS)."))
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.google?.accounts?.oauth2) {
+        resolve(window.google);
+      } else {
+        reject(new Error("Pustaka GIS dimuat tetapi objek google.accounts.oauth2 tidak ditemukan."));
+      }
+    };
+    script.onerror = () => {
+      janjiMuatGis = null;
+      reject(new Error("Gagal memuat Google Identity Services dari Google. Periksa koneksi internet Anda."));
+    };
+    document.head.appendChild(script);
+  });
+
+  return janjiMuatGis;
 }
 
 /**
- * Mengambil access token Google Drive jika tersedia dan belum kedaluwarsa (50 menit).
+ * Mengambil access token Google Drive dari memori jika masih berlaku.
  * @returns {string | null}
  */
 export function getDriveAccessToken() {
   if (isDriveTokenExpired()) {
     return null;
   }
-  try {
-    return sessionStorage.getItem(STORAGE_TOKEN_KEY);
-  } catch (_err) {
-    return null;
-  }
+  return driveAccessToken;
 }
 
 /**
- * Memeriksa apakah token Google Drive kedaluwarsa (> 50 menit) atau belum ada.
+ * Memeriksa apakah token Google Drive kedaluwarsa atau belum ada,
+ * dengan memperhitungkan margin aman 2 menit sebelum batas kedaluwarsa nyata.
  * @returns {boolean}
  */
 export function isDriveTokenExpired() {
-  try {
-    const token = sessionStorage.getItem(STORAGE_TOKEN_KEY);
-    const tsRaw = sessionStorage.getItem(STORAGE_TOKEN_TS_KEY);
-    if (!token || !tsRaw) return true;
-    const ts = Number(tsRaw);
-    if (!Number.isFinite(ts)) return true;
-    return Date.now() - ts >= TOKEN_MAX_AGE_MS;
-  } catch (_err) {
+  if (!driveAccessToken || !driveTokenExpiresAt) {
     return true;
   }
+  return Date.now() >= driveTokenExpiresAt - MARGIN_KEDALUWARSA_MS;
 }
 
 /**
@@ -90,7 +129,7 @@ export function consumeLastAuthError() {
 }
 
 /**
- * Menerjemahkan galat autentikasi ke Bahasa Indonesia yang jelas (Aturan #10).
+ * Menerjemahkan galat autentikasi ke Bahasa Indonesia yang jelas.
  * @param {unknown} err
  * @returns {string}
  */
@@ -112,17 +151,148 @@ export function formatPesanGalatAuth(err) {
     return "Gagal menghubungi layanan Google. Periksa koneksi internet Anda.";
   }
   if (kode === "auth/unauthorized-domain") {
-    return "Domain situs ini belum didaftarkan pada Authorized domains di Firebase Console (Authentication -> Settings).";
+    return "Domain situs ini belum didaftarkan pada Authorized domains di Firebase Console.";
   }
   if (err instanceof Error && err.message) {
     return err.message;
   }
-  return "Terjadi kendala saat memproses sesi masuk Google.";
+  return "Terjadi kendala saat memproses autentikasi Google.";
 }
 
 /**
- * Memulai pemantau status login Firebase (Aturan #3 & #4).
- * Callback selalu dipanggil dengan (user, token) tanpa argumen isReady.
+ * Memvalidasi apakah token GIS milik email pemilik sah.
+ * @param {string} token
+ * @returns {Promise<boolean>}
+ */
+async function validasiEmailPemilikToken(token) {
+  try {
+    const resp = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return false;
+    const info = await resp.json();
+    const emailToken = String(info.email || "").trim().toLowerCase();
+    return emailToken === AUTHORIZED_EMAIL.toLowerCase();
+  } catch (_e) {
+    // Jika panggilan verifikasi gagal karena jaringan, anggap tidak valid demi keamanan
+    return false;
+  }
+}
+
+/**
+ * Meminta token akses Google Drive melalui GIS Token Client:
+ * - Jika token di memori masih berlaku, kembalikan langsung.
+ * - Jika `senyap: true`, mencoba prompt: "" (tanpa popup persetujuan ulang).
+ * - Jika `senyap: false` atau dipicu gestur klik, meminta token dengan dialog.
+ * - Memvalidasi email pemilik. Jika berbeda, cabut token dan tolak.
+ *
+ * @param {{ senyap?: boolean }} opsi
+ * @returns {Promise<{ token: string, expires_in: number }>}
+ */
+export async function mintaTokenDrive(opsi = { senyap: false }) {
+  if (!isDriveTokenExpired() && driveAccessToken) {
+    const sisaDetik = Math.max(0, Math.floor((driveTokenExpiresAt - Date.now()) / 1000));
+    return { token: driveAccessToken, expires_in: sisaDetik };
+  }
+
+  if (janjiMintaTokenAktif) {
+    return janjiMintaTokenAktif;
+  }
+
+  janjiMintaTokenAktif = (async () => {
+    if (!navigator.onLine) {
+      throw new Error("Tidak ada koneksi internet. Sambungkan ke jaringan terlebih dahulu.");
+    }
+
+    const clientId = typeof GOOGLE_CLIENT_ID === "string" ? GOOGLE_CLIENT_ID.trim() : "";
+    if (!clientId || clientId === "ISI_DARI_GOOGLE_CLOUD_CONSOLE") {
+      throw new Error(
+        "OAuth Client ID belum dikonfigurasi pada GOOGLE_CLIENT_ID di firebase-config.js. Harap isi OAuth Client ID Web Anda."
+      );
+    }
+
+    const google = await pastikanGisLoaded();
+
+    return new Promise((resolve, reject) => {
+      let resolved = false;
+
+      tokenClientGIS = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: DRIVE_SCOPE,
+        hint: AUTHORIZED_EMAIL,
+        callback: async (tokenResponse) => {
+          if (resolved) return;
+          resolved = true;
+
+          if (tokenResponse.error) {
+            const errPesan =
+              tokenResponse.error === "access_denied"
+                ? "Izin akses Google Drive ditolak oleh pengguna."
+                : `Gagal mendapatkan izin Drive: ${tokenResponse.error_description || tokenResponse.error}`;
+            reject(new Error(errPesan));
+            return;
+          }
+
+          const token = tokenResponse.access_token;
+          const expiresInDetik = Number(tokenResponse.expires_in) || 3600;
+
+          if (!token) {
+            reject(new Error("Respons Google Identity Services tidak memuat token akses."));
+            return;
+          }
+
+          // Validasi email token terhadap pemilik sah
+          const valid = await validasiEmailPemilikToken(token);
+          if (!valid) {
+            try {
+              google.accounts.oauth2.revoke(token, () => {});
+            } catch (_e) {}
+            driveAccessToken = null;
+            driveTokenExpiresAt = 0;
+            const pesanDitolak = `Akses Drive ditolak. Akun Google yang dipilih bukan pemilik resmi aplikasi (${AUTHORIZED_EMAIL}).`;
+            lastAuthErrorMessage = pesanDitolak;
+            reject(new Error(pesanDitolak));
+            return;
+          }
+
+          // Simpan hanya di memori modul dengan batas kedaluwarsa nyata
+          driveAccessToken = token;
+          driveTokenExpiresAt = Date.now() + expiresInDetik * 1000;
+
+          resolve({ token, expires_in: expiresInDetik });
+        },
+        error_callback: (err) => {
+          if (resolved) return;
+          resolved = true;
+          reject(new Error(err?.message || "Terjadi kesalahan pada Google Identity Services."));
+        },
+      });
+
+      try {
+        if (opsi.senyap) {
+          tokenClientGIS.requestAccessToken({ prompt: "" });
+        } else {
+          tokenClientGIS.requestAccessToken({ prompt: "consent" });
+        }
+      } catch (errReq) {
+        if (!resolved) {
+          resolved = true;
+          reject(errReq);
+        }
+      }
+    });
+  })();
+
+  try {
+    return await janjiMintaTokenAktif;
+  } finally {
+    janjiMintaTokenAktif = null;
+  }
+}
+
+/**
+ * Memulai pemantau status login Firebase.
+ * Scope Drive tidak lagi diminta lewat provider Firebase Auth.
  * @param {(user: import("https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js").User | null, token: string | null) => void} callback
  */
 export function initAuth(callback) {
@@ -139,7 +309,8 @@ export function initAuth(callback) {
     async (user) => {
       if (!user) {
         currentUser = null;
-        hapusTokenDrive();
+        driveAccessToken = null;
+        driveTokenExpiresAt = 0;
         dipanggilPertamaKali = true;
         callback(null, null);
         return;
@@ -149,11 +320,11 @@ export function initAuth(callback) {
       if (emailBersih !== AUTHORIZED_EMAIL.toLowerCase()) {
         currentUser = null;
         lastAuthErrorMessage = `Akses ditolak. Akun "${user.email || "tidak dikenal"}" bukan pemilik aplikasi ini (${AUTHORIZED_EMAIL}).`;
-        hapusTokenDrive();
+        driveAccessToken = null;
+        driveTokenExpiresAt = 0;
         try {
           await logoutUser();
         } catch (_e) {
-          // Pastikan callback tetap dipanggil ke status keluar
           callback(null, null);
         }
         return;
@@ -177,12 +348,11 @@ export function initAuth(callback) {
 }
 
 /**
- * Login menggunakan popup Google + scope Google Drive (Aturan #2 & #4).
+ * Login Firebase menggunakan Google Auth Provider murni (tanpa scope Drive di Firebase).
  */
 export async function loginWithGoogle() {
   const auth = getFirebaseAuth();
   const provider = new GoogleAuthProvider();
-  provider.addScope(DRIVE_SCOPE);
   provider.setCustomParameters({ prompt: "select_account" });
 
   const result = await signInWithPopup(auth, provider);
@@ -191,27 +361,49 @@ export async function loginWithGoogle() {
 
   if (emailBersih !== AUTHORIZED_EMAIL.toLowerCase()) {
     lastAuthErrorMessage = `Akses ditolak. Akun "${user?.email || "tidak dikenal"}" tidak diizinkan mengakses Agenda & Arsip.`;
-    hapusTokenDrive();
+    driveAccessToken = null;
+    driveTokenExpiresAt = 0;
     await logoutUser();
     throw new Error(lastAuthErrorMessage);
   }
 
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  const accessToken = credential?.accessToken || null;
-  if (accessToken) {
-    simpanTokenDrive(accessToken);
-  }
-
   currentUser = user;
-  return { user, token: accessToken };
+
+  // Mencoba meminta izin token Drive secara otomatis
+  try {
+    const hasilDrive = await mintaTokenDrive({ senyap: true });
+    return { user, token: hasilDrive.token };
+  } catch (_e) {
+    // Jika permintaan senyap belum diizinkan, kembalikan user dan biarkan banner / tombol memandu dialog
+    return { user, token: null };
+  }
 }
 
 /**
- * Keluar dari sesi Firebase dan menghapus token Drive di sessionStorage.
+ * Keluar dari sesi Firebase, mencabut token GIS dari Google, dan membersihkan memori.
  */
 export async function logoutUser() {
   const auth = getFirebaseAuth();
   currentUser = null;
-  hapusTokenDrive();
+
+  if (driveAccessToken) {
+    const tokenLama = driveAccessToken;
+    driveAccessToken = null;
+    driveTokenExpiresAt = 0;
+    try {
+      if (window.google?.accounts?.oauth2?.revoke) {
+        window.google.accounts.oauth2.revoke(tokenLama, () => {});
+      }
+    } catch (_e) {}
+  } else {
+    driveAccessToken = null;
+    driveTokenExpiresAt = 0;
+  }
+
+  try {
+    sessionStorage.removeItem(STORAGE_TOKEN_KEY_LAMA);
+    sessionStorage.removeItem(STORAGE_TOKEN_TS_KEY_LAMA);
+  } catch (_e) {}
+
   await signOut(auth);
 }

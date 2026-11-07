@@ -1,8 +1,7 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: Pengaturan, Cadangan & Penyempurnaan App Shell)
- * Mengatur sesi masuk, layar galat konfigurasi, layar login, Dashboard, Kegiatan, Jadwal,
- * Dokumen, Catatan, Laporan, dan Pengaturan, pemantau kedaluwarsa token Google Drive,
- * konfirmasi keluar dengan pemulihan fokus keyboard, indikator koneksi, toast, dan Service Worker.
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: GIS Token Client & Ketahanan PWA)
+ * Mengatur sesi masuk, pemantau token GIS Drive, Dashboard, Kegiatan, Jadwal,
+ * Dokumen, Catatan, Laporan, Pengaturan, konfirmasi keluar, indikator koneksi, toast, dan Service Worker.
  */
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
@@ -11,6 +10,7 @@ import {
   loginWithGoogle,
   logoutUser,
   isDriveTokenExpired,
+  mintaTokenDrive,
   consumeLastAuthError,
   formatPesanGalatAuth,
 } from "./auth.js";
@@ -149,7 +149,7 @@ function ambilPreferensiTampilanHariIni() {
       return tersimpan;
     }
   } catch (_e) {}
-  return "timeline"; // Bawaan: "Timeline"
+  return "timeline";
 }
 
 function simpanPreferensiTampilanHariIni(mode) {
@@ -304,9 +304,6 @@ function pastikanKerangkaDashboard() {
   const panel = document.getElementById("section-dashboard");
   if (!panel || panel.querySelector("#dashboard-cards-grid")) return;
 
-  // Urutan DOM mengikuti urutan bacaan alami di HP (<600px):
-  // 1. Kegiatan hari ini, 2. 7 hari ke depan, 3. Catatan, 4. Dokumen terbaru.
-  // Pada >=600px, CSS Grid dengan grid-template-areas menyusunnya menjadi 2 kolom x 2 baris.
   panel.innerHTML = `<div class="page-stack dashboard-container">
     <div class="section-header-bar">
       <div class="section-heading-group">
@@ -629,14 +626,12 @@ function perbaruiBannerPengingatCadangan() {
 
   const status = getStatusCadangan();
 
-  // 1. Pengingat tidak nonaktif
   if (status.intervalHari === 0) {
     banner.hidden = true;
     banner.innerHTML = "";
     return;
   }
 
-  // 2. Data kegiatan, catatan, dan dokumen sudah dimuat dan total item minimal 1
   if (!isKegiatanSudahDimuat() || !isDokumenSudahDimuat() || !isCatatanSudahDimuat()) {
     banner.hidden = true;
     banner.innerHTML = "";
@@ -652,14 +647,12 @@ function perbaruiBannerPengingatCadangan() {
     return;
   }
 
-  // 4. Pengguna tidak sedang menunda
   if (apakahSedangMenundaCadangan()) {
     banner.hidden = true;
     banner.innerHTML = "";
     return;
   }
 
-  // 3. Belum pernah ekspor ATAU selisih hari sejak ekspor terakhir >= intervalHari
   let teksBanner = "";
   if (!status.terakhirEksporAt) {
     teksBanner = "Anda belum pernah mengekspor cadangan data.";
@@ -902,6 +895,10 @@ function initHalamanDashboard() {
   renderDashboard();
 }
 
+/**
+ * Memeriksa status token Google Drive di memori.
+ * Banner "Masuk ulang" hanya muncul jika token kedaluwarsa atau belum aktif.
+ */
 function periksaStatusTokenDrive() {
   const banner = document.getElementById("token-expired-banner");
   const teksBanner = document.getElementById("token-expired-text");
@@ -927,7 +924,16 @@ function periksaStatusTokenDrive() {
 
 function mulaiPemantauTokenDrive() {
   hentikanPemantauTokenDrive();
-  periksaStatusTokenDrive();
+
+  // Mencoba meminta token secara senyap saat sesi dimulai (tanpa dialog popup jika izin sudah ada)
+  if (navigator.onLine && isDriveTokenExpired()) {
+    mintaTokenDrive({ senyap: true })
+      .then(() => periksaStatusTokenDrive())
+      .catch(() => periksaStatusTokenDrive());
+  } else {
+    periksaStatusTokenDrive();
+  }
+
   tokenCheckIntervalId = window.setInterval(periksaStatusTokenDrive, 30 * 1000);
 }
 
@@ -1025,6 +1031,7 @@ function pasangEventListenerAntarmuka() {
     });
   }
 
+  // Tombol banner "Masuk ulang" untuk memperbarui izin Drive via dialog GIS
   const btnRelogin = document.getElementById("relogin-drive-btn");
   if (btnRelogin) {
     btnRelogin.addEventListener("click", async () => {
@@ -1040,7 +1047,7 @@ function pasangEventListenerAntarmuka() {
       const teksAwal = btnRelogin.textContent;
       btnRelogin.textContent = "Memuat...";
       try {
-        await loginWithGoogle();
+        await mintaTokenDrive({ senyap: false });
         periksaStatusTokenDrive();
         tampilkanToast("Izin akses Google Drive berhasil diperbarui.", "success");
       } catch (err) {
@@ -1271,9 +1278,7 @@ async function periksaPembaruanSwBerkala() {
     if (swRegistration.waiting && navigator.serviceWorker.controller) {
       tandaiPembaruanSwMenunggu();
     }
-  } catch (_err) {
-    // Abaikan galat saat offline atau sambungan terputus
-  }
+  } catch (_err) {}
 }
 
 function ikatTombolSpandukSw() {

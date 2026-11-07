@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.4.2";
+const VERSION = "agenda-arsip-v1.5.0";
 
 const APP_SHELL = [
   "/",
@@ -81,16 +81,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Aturan #11: JANGAN mencegat path /__/ (Firebase Auth/Hosting helper) dan googleapis.com
+  // JANGAN mencegat path Firebase Auth/Hosting helper, Google APIs, dan Google Accounts (GIS)
   if (
     url.pathname.startsWith("/__/") ||
     url.hostname === "googleapis.com" ||
-    url.hostname.endsWith(".googleapis.com")
+    url.hostname.endsWith(".googleapis.com") ||
+    url.hostname === "accounts.google.com" ||
+    url.hostname.endsWith(".accounts.google.com")
   ) {
     return;
   }
 
-  // Aturan #11: Cache dulu (Cache-First) untuk SDK dari www.gstatic.com/firebasejs/
+  // Cache dulu (Cache-First) untuk SDK dari www.gstatic.com/firebasejs/
   if (
     url.hostname === "www.gstatic.com" &&
     url.pathname.startsWith("/firebasejs/")

@@ -1,22 +1,18 @@
 /**
- * Modul Operasi Google Drive API v3 & Struktur Folder Kategori (Fase 3 + Fase 4 Google Docs & Resumable Upload)
- * Mematuhi Aturan #2, #7, #8, #10, #12:
- * - Seluruh operasi memakai ID (folderId, fileId), kecuali pencarian satu kali folder induk "Agenda-Arsip"
- *   jika belum tercatat di koleksi "pengaturan" (dokumen "drive").
- * - Tidak pernah menyimpan access token di Firestore.
- * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google,
- *   serta permission-denied Firestore.
- * - Unggah berkas cerdas: multipart untuk berkas <= 5 MB, resumable per potongan 2 MiB dengan retry backoff
- *   dan query status untuk berkas > 5 MB.
+ * Modul Operasi Google Drive API v3 & Struktur Folder Kategori (Fase 3 + Fase 4 Google Docs & Resumable Upload + Fase 6 GIS)
+ * - Seluruh operasi memakai ID (folderId, fileId).
+ * - Tidak pernah menyimpan access token di storage / Firestore.
+ * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google.
+ * - Memperbarui token otomatis sebelum kedaluwarsa (lazy refresh via mintaTokenDrive di ambilTokenWajib).
  */
 import {
   getFirestoreDb,
   doc,
   getDoc,
   setDoc,
-  formatPesanGalatFirestore
+  formatPesanGalatFirestore,
 } from "./firebase-config.js";
-import { getDriveAccessToken, isDriveTokenExpired } from "./auth.js";
+import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./auth.js";
 
 export const NAMA_FOLDER_INDUK = "Agenda-Arsip";
 export const NAMA_FOLDER_TANPA_KATEGORI = "Tanpa Kategori";
@@ -51,7 +47,7 @@ export function resetCacheDrive() {
 }
 
 /**
- * Membersihkan nama folder sesuai spesifikasi Fase 3:
+ * Membersihkan nama folder sesuai spesifikasi:
  * pangkas spasi, ganti / dan \ dengan "-", maksimal 100 karakter.
  * @param {string} namaMentah
  * @returns {string}
@@ -80,7 +76,7 @@ function buatErrorDrive(status, pesanAsli, alasanKode = "") {
   if (!navigator.onLine) {
     pesan = "Tidak ada koneksi internet. Operasi Google Drive memerlukan sambungan aktif.";
   } else if (status === 401) {
-    pesan = "Sesi akses Google Drive telah kedaluwarsa atau tidak sah. Tekan tombol \"Masuk ulang\" untuk memperbarui sesi.";
+    pesan = 'Sesi akses Google Drive telah kedaluwarsa atau tidak sah. Tekan tombol "Masuk ulang" untuk memperbarui sesi.';
   } else if (status === 403) {
     if (
       reasonLower.includes("accessnotconfigured") ||
@@ -88,7 +84,7 @@ function buatErrorDrive(status, pesanAsli, alasanKode = "") {
       rawLower.includes("drive api has not been used") ||
       rawLower.includes("is disabled")
     ) {
-      pesan = "Google Drive API belum diaktifkan pada proyek Google Cloud / Firebase ini. Aktifkan \"Google Drive API\" di Google Cloud Console lalu coba lagi.";
+      pesan = 'Google Drive API belum diaktifkan pada proyek Google Cloud / Firebase ini. Aktifkan "Google Drive API" di Google Cloud Console lalu coba lagi.';
     } else if (
       reasonLower.includes("insufficientfilepermissions") ||
       reasonLower.includes("forbidden") ||
@@ -122,7 +118,7 @@ function buatErrorDrive(status, pesanAsli, alasanKode = "") {
 }
 
 /**
- * Menerjemahkan sembarang galat operasi Drive / jaringan / Firestore ke pesan jelas (Aturan #10).
+ * Menerjemahkan sembarang galat operasi Drive / jaringan / Firestore ke pesan jelas.
  * @param {unknown} err
  * @returns {string}
  */
@@ -141,27 +137,39 @@ export function formatPesanGalatDrive(err) {
 
 /**
  * Memastikan token akses Google Drive tersedia dan belum kedaluwarsa.
- * @returns {string}
+ * Dilengkapi lazy refresh otomatis via GIS (mintaTokenDrive({ senyap: true })) bila kedaluwarsa.
+ * @returns {Promise<string>}
  */
-function ambilTokenWajib() {
+export async function ambilTokenWajib() {
   if (!navigator.onLine) {
     const errOffline = new Error("Tidak ada koneksi internet. Sambungkan perangkat Anda terlebih dahulu.");
     errOffline.isOffline = true;
     throw errOffline;
   }
+
+  // Jika kedaluwarsa atau belum ada token, coba perbarui secara senyap (lazy refresh)
   if (isDriveTokenExpired()) {
-    const err = new Error(
-      "Sesi akses Google Drive telah kedaluwarsa (lebih dari 50 menit) atau belum tersedia. Silakan klik tombol \"Masuk ulang\"."
-    );
-    err.isTokenExpired = true;
-    err.isUnauthorized = true;
-    err.status = 401;
-    throw err;
+    try {
+      const hasil = await mintaTokenDrive({ senyap: true });
+      if (hasil?.token) {
+        return hasil.token;
+      }
+    } catch (_errSilent) {
+      // Jika permintaan senyap gagal (mis. belum pernah consent atau butuh interaksi)
+      const err = new Error(
+        'Sesi akses Google Drive telah kedaluwarsa atau belum aktif. Silakan klik tombol "Masuk ulang" untuk memberikan izin.'
+      );
+      err.isTokenExpired = true;
+      err.isUnauthorized = true;
+      err.status = 401;
+      throw err;
+    }
   }
+
   const token = getDriveAccessToken();
   if (!token) {
     const err = new Error(
-      "Token akses Google Drive tidak tersedia. Silakan klik tombol \"Masuk ulang\" untuk memperbarui izin Drive."
+      'Token akses Google Drive tidak tersedia. Silakan klik tombol "Masuk ulang" untuk memperbarui izin Drive.'
     );
     err.isTokenExpired = true;
     err.isUnauthorized = true;
@@ -202,7 +210,7 @@ async function uraiResponsGalatDrive(resp) {
  * @param {RequestInit} [opsi]
  */
 async function panggilDriveJson(url, opsi = {}) {
-  const token = ambilTokenWajib();
+  const token = await ambilTokenWajib();
   const headers = new Headers(opsi.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
   if (opsi.body && !headers.has("Content-Type")) {
@@ -213,7 +221,7 @@ async function panggilDriveJson(url, opsi = {}) {
   try {
     resp = await fetch(url, {
       ...opsi,
-      headers
+      headers,
     });
   } catch (_netErr) {
     throw new Error("Gagal menghubungi server Google Drive. Periksa koneksi internet Anda.");
@@ -246,12 +254,12 @@ export async function ambilPengaturanDriveFirestore() {
   return {
     rootFolderId: String(d.rootFolderId || "").trim(),
     uncategorizedFolderId: String(d.uncategorizedFolderId || "").trim(),
-    updatedAt: String(d.updatedAt || "")
+    updatedAt: String(d.updatedAt || ""),
   };
 }
 
 /**
- * Menyimpan perubahan ID folder ke koleksi "pengaturan" dokumen "drive" (tanpa menyimpan token!).
+ * Menyimpan perubahan ID folder ke koleksi "pengaturan" dokumen "drive".
  * @param {Record<string, unknown>} dataParsial
  */
 async function simpanPengaturanDriveFirestore(dataParsial) {
@@ -261,7 +269,7 @@ async function simpanPengaturanDriveFirestore(dataParsial) {
     ref,
     {
       ...dataParsial,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     },
     { merge: true }
   );
@@ -281,10 +289,10 @@ export async function ambilMetadataItemDrive(fileId) {
     throw err;
   }
   const params = new URLSearchParams({
-    fields: "id,name,mimeType,trashed,parents,webViewLink,size"
+    fields: "id,name,mimeType,trashed,parents,webViewLink,size",
   });
   return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
-    method: "GET"
+    method: "GET",
   });
 }
 
@@ -298,19 +306,19 @@ export async function buatFolderDrive(namaFolder, parentFolderId = null) {
   const namaBersih = bersihkanNamaFolderDrive(namaFolder);
   const body = {
     name: namaBersih,
-    mimeType: MIME_TYPE_FOLDER_DRIVE
+    mimeType: MIME_TYPE_FOLDER_DRIVE,
   };
   if (parentFolderId) {
     body.parents = [parentFolderId];
   }
 
   const params = new URLSearchParams({
-    fields: "id,name,mimeType"
+    fields: "id,name,mimeType",
   });
 
   return panggilDriveJson(`${DRIVE_FILES_API}?${params.toString()}`, {
     method: "POST",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 }
 
@@ -325,21 +333,17 @@ async function cariFolderIndukSekali() {
     q,
     fields: "files(id,name,createdTime)",
     pageSize: "5",
-    spaces: "drive"
+    spaces: "drive",
   });
   const data = await panggilDriveJson(`${DRIVE_FILES_API}?${params.toString()}`, {
-    method: "GET"
+    method: "GET",
   });
   const daftar = Array.isArray(data?.files) ? data.files : [];
   return daftar.length > 0 && daftar[0].id ? String(daftar[0].id) : null;
 }
 
 /**
- * Memastikan folder induk "Agenda-Arsip" siap dipakai:
- * 1. Baca ID dari koleksi "pengaturan" dokumen "drive".
- * 2. Jika sudah ada ID, verifikasi lewat ID (apabila 404 atau trashed, buat baru lalu perbarui ID).
- * 3. Jika belum pernah ada ID di pengaturan/drive, cari sekali berdasarkan nama "Agenda-Arsip",
- *    buat bila tidak ditemukan, simpan ID-nya di pengaturan/drive, dan pakai ID itu seterusnya.
+ * Memastikan folder induk "Agenda-Arsip" siap dipakai.
  * @returns {Promise<string>}
  */
 export async function pastikanFolderIndukDrive() {
@@ -378,18 +382,16 @@ export async function pastikanFolderIndukDrive() {
         }
       }
 
-      // ID tercatat sebelumnya ternyata sudah dihapus (404 / trashed) -> buat folder induk baru memakai ID baru
       const folderBaru = await buatFolderDrive(NAMA_FOLDER_INDUK, null);
       cacheRootFolderId = folderBaru.id;
       cacheUncategorizedFolderId = null;
       await simpanPengaturanDriveFirestore({
         rootFolderId: folderBaru.id,
-        uncategorizedFolderId: ""
+        uncategorizedFolderId: "",
       });
       return folderBaru.id;
     }
 
-    // Belum pernah tercatat di pengaturan/drive: cari berdasarkan nama sekali saja
     let ditemukanId = await cariFolderIndukSekali();
     if (!ditemukanId) {
       const dibuat = await buatFolderDrive(NAMA_FOLDER_INDUK, null);
@@ -398,7 +400,7 @@ export async function pastikanFolderIndukDrive() {
 
     cacheRootFolderId = ditemukanId;
     await simpanPengaturanDriveFirestore({
-      rootFolderId: ditemukanId
+      rootFolderId: ditemukanId,
     });
     return ditemukanId;
   })();
@@ -411,8 +413,7 @@ export async function pastikanFolderIndukDrive() {
 }
 
 /**
- * Memastikan subfolder "Tanpa Kategori" tersedia di dalam folder induk "Agenda-Arsip"
- * dan ID-nya disimpan pada pengaturan/drive (uncategorizedFolderId).
+ * Memastikan subfolder "Tanpa Kategori" tersedia di dalam folder induk "Agenda-Arsip".
  * @returns {Promise<string>}
  */
 export async function pastikanFolderTanpaKategoriDrive() {
@@ -458,7 +459,7 @@ export async function pastikanFolderTanpaKategoriDrive() {
     cacheUncategorizedFolderId = dibuat.id;
     await simpanPengaturanDriveFirestore({
       rootFolderId: rootId,
-      uncategorizedFolderId: dibuat.id
+      uncategorizedFolderId: dibuat.id,
     });
     return dibuat.id;
   })();
@@ -482,13 +483,12 @@ export async function buatSubfolderKategoriDrive(namaKategori) {
   return {
     folderId: folder.id,
     rootFolderId,
-    namaBersih
+    namaBersih,
   };
 }
 
 /**
- * Mengganti nama folder kategori di Google Drive memakai PATCH /drive/v3/files/{folderId}.
- * Jika folder sudah berada di sampah Drive (trashed=true), perlakukan sama seperti 404.
+ * Mengganti nama folder kategori di Google Drive memakai PATCH.
  * @param {string} folderId
  * @param {string} namaBaru
  */
@@ -505,11 +505,11 @@ export async function gantiNamaFolderDrive(folderId, namaBaru) {
 
   const namaBersih = bersihkanNamaFolderDrive(namaBaru);
   const params = new URLSearchParams({
-    fields: "id,name,trashed"
+    fields: "id,name,trashed",
   });
   return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
     method: "PATCH",
-    body: JSON.stringify({ name: namaBersih })
+    body: JSON.stringify({ name: namaBersih }),
   });
 }
 
@@ -523,19 +523,16 @@ export async function pindahkanItemKeSampahDrive(itemId) {
     throw new Error("ID item Google Drive tidak ditemukan.");
   }
   const params = new URLSearchParams({
-    fields: "id,trashed"
+    fields: "id,trashed",
   });
   return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
     method: "PATCH",
-    body: JSON.stringify({ trashed: true })
+    body: JSON.stringify({ trashed: true }),
   });
 }
 
 /**
- * Memindahkan berkas Drive ke folder tujuan berdasarkan ID:
- * 1. GET parents berkas saat ini.
- * 2. Jika sudah berada tepat di folder tujuan saja, kembalikan status "skipped" (idempotent).
- * 3. PATCH dengan addParents=targetFolderId dan removeParents=parentsLama.
+ * Memindahkan berkas Drive ke folder tujuan berdasarkan ID.
  * @param {string} driveFileId
  * @param {string} targetFolderId
  * @returns {Promise<{status: "moved" | "skipped", parentsSebelumnya: string[]}>}
@@ -561,7 +558,7 @@ export async function pindahkanBerkasKeFolderDrive(driveFileId, targetFolderId) 
   const removeParents = parentsLama.filter((p) => p !== tujuanId).join(",");
   const params = new URLSearchParams({
     addParents: tujuanId,
-    fields: "id,parents,webViewLink"
+    fields: "id,parents,webViewLink",
   });
   if (removeParents) {
     params.set("removeParents", removeParents);
@@ -569,15 +566,14 @@ export async function pindahkanBerkasKeFolderDrive(driveFileId, targetFolderId) 
 
   await panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(fileId)}?${params.toString()}`, {
     method: "PATCH",
-    body: JSON.stringify({})
+    body: JSON.stringify({}),
   });
 
   return { status: "moved", parentsSebelumnya: parentsLama };
 }
 
 /**
- * Mengunggah berkas ke Google Drive menggunakan uploadType=multipart sederhana (untuk berkas <= 5 MB),
- * dilengkapi laporan progres (0-100%) dan dukungan pembatalan (abort).
+ * Mengunggah berkas ke Google Drive menggunakan uploadType=multipart sederhana.
  * @param {{
  *   file: File,
  *   folderId: string,
@@ -592,31 +588,23 @@ function unggahBerkasMultipartSederhana(konfigurasi) {
   let dibatalkanManual = false;
   const waktuMulai = Date.now();
 
-  const promise = new Promise((resolve, reject) => {
-    let token;
-    try {
-      token = ambilTokenWajib();
-    } catch (err) {
-      reject(err);
-      return;
-    }
+  const promise = (async () => {
+    const token = await ambilTokenWajib();
 
     if (!(file instanceof File)) {
-      reject(new Error("Pilih berkas yang akan diunggah terlebih dahulu."));
-      return;
+      throw new Error("Pilih berkas yang akan diunggah terlebih dahulu.");
     }
 
     const folderTujuan = String(folderId || "").trim();
     if (!folderTujuan) {
-      reject(new Error("Folder kategori tujuan di Google Drive belum siap."));
-      return;
+      throw new Error("Folder kategori tujuan di Google Drive belum siap.");
     }
 
     const mimeAsli = file.type || "application/octet-stream";
     const namaFinal = String(namaSimpanDrive || file.name || "Dokumen").trim() || "Dokumen";
     const metadata = {
       name: namaFinal,
-      parents: [folderTujuan]
+      parents: [folderTujuan],
     };
 
     const boundary = `-------AgendaArsipBoundary${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
@@ -629,99 +617,101 @@ function unggahBerkasMultipartSederhana(konfigurasi) {
     const bagianPenutup = `\r\n--${boundary}--`;
 
     const bodyMultipart = new Blob([bagianPembuka, file, bagianPenutup], {
-      type: `multipart/related; boundary=${boundary}`
+      type: `multipart/related; boundary=${boundary}`,
     });
 
     const params = new URLSearchParams({
       uploadType: "multipart",
-      fields: "id,name,mimeType,size,webViewLink"
+      fields: "id,name,mimeType,size,webViewLink",
     });
 
-    const xhr = new XMLHttpRequest();
-    xhrAktif = xhr;
-    xhr.open("POST", `${DRIVE_UPLOAD_API}?${params.toString()}`, true);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.setRequestHeader("Content-Type", `multipart/related; boundary=${boundary}`);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhrAktif = xhr;
+      xhr.open("POST", `${DRIVE_UPLOAD_API}?${params.toString()}`, true);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("Content-Type", `multipart/related; boundary=${boundary}`);
 
-    xhr.upload.addEventListener("progress", (evt) => {
-      if (!evt.lengthComputable || typeof onProgress !== "function") return;
-      const persen = evt.total > 0 ? Math.min(99, Math.round((evt.loaded / evt.total) * 100)) : 0;
-      const durasiDetik = Math.max(0.1, (Date.now() - waktuMulai) / 1000);
-      const kecepatanBps = evt.loaded / durasiDetik;
-      const sisaBytes = Math.max(0, evt.total - evt.loaded);
-      const sisaDetik = kecepatanBps > 0 ? sisaBytes / kecepatanBps : 0;
+      xhr.upload.addEventListener("progress", (evt) => {
+        if (!evt.lengthComputable || typeof onProgress !== "function") return;
+        const persen = evt.total > 0 ? Math.min(99, Math.round((evt.loaded / evt.total) * 100)) : 0;
+        const durasiDetik = Math.max(0.1, (Date.now() - waktuMulai) / 1000);
+        const kecepatanBps = evt.loaded / durasiDetik;
+        const sisaBytes = Math.max(0, evt.total - evt.loaded);
+        const sisaDetik = kecepatanBps > 0 ? sisaBytes / kecepatanBps : 0;
 
-      onProgress(persen, evt.loaded, evt.total, {
-        kecepatanBps,
-        sisaDetik,
-        statusTeks: "Mengunggah berkas ke Google Drive...",
-        sedangRetry: false
+        onProgress(persen, evt.loaded, evt.total, {
+          kecepatanBps,
+          sisaDetik,
+          statusTeks: "Mengunggah berkas ke Google Drive...",
+          sedangRetry: false,
+        });
       });
-    });
 
-    xhr.addEventListener("abort", () => {
-      const errBatal = new Error("Pengunggahan dokumen dibatalkan.");
-      errBatal.isAborted = true;
-      reject(errBatal);
-    });
+      xhr.addEventListener("abort", () => {
+        const errBatal = new Error("Pengunggahan dokumen dibatalkan.");
+        errBatal.isAborted = true;
+        reject(errBatal);
+      });
 
-    xhr.addEventListener("error", () => {
-      if (dibatalkanManual) return;
-      reject(
-        new Error(
-          !navigator.onLine
-            ? "Koneksi internet terputus saat mengunggah berkas ke Google Drive."
-            : "Gagal mengirim berkas ke Google Drive. Periksa jaringan Anda lalu coba lagi."
-        )
-      );
-    });
+      xhr.addEventListener("error", () => {
+        if (dibatalkanManual) return;
+        reject(
+          new Error(
+            !navigator.onLine
+              ? "Koneksi internet terputus saat mengunggah berkas ke Google Drive."
+              : "Gagal mengirim berkas ke Google Drive. Periksa jaringan Anda lalu coba lagi."
+          )
+        );
+      });
 
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const hasil = JSON.parse(xhr.responseText || "{}");
-          const idDrive = String(hasil.id || "");
-          const tautanDrive =
-            String(hasil.webViewLink || "").trim() ||
-            `https://drive.google.com/file/d/${encodeURIComponent(idDrive)}/view`;
-          if (typeof onProgress === "function") {
-            onProgress(100, file.size, file.size, {
-              statusTeks: "Pengunggahan ke Google Drive selesai.",
-              sedangRetry: false,
-              sisaDetik: 0
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const hasil = JSON.parse(xhr.responseText || "{}");
+            const idDrive = String(hasil.id || "");
+            const tautanDrive =
+              String(hasil.webViewLink || "").trim() ||
+              `https://drive.google.com/file/d/${encodeURIComponent(idDrive)}/view`;
+            if (typeof onProgress === "function") {
+              onProgress(100, file.size, file.size, {
+                statusTeks: "Pengunggahan ke Google Drive selesai.",
+                sedangRetry: false,
+                sisaDetik: 0,
+              });
+            }
+            resolve({
+              id: idDrive,
+              name: String(hasil.name || namaFinal),
+              mimeType: String(hasil.mimeType || mimeAsli),
+              size: Number.isFinite(Number(hasil.size)) ? Number(hasil.size) : file.size,
+              webViewLink: tautanDrive,
             });
+          } catch (_parseErr) {
+            reject(new Error("Respons unggahan dari Google Drive tidak dapat dibaca."));
           }
-          resolve({
-            id: idDrive,
-            name: String(hasil.name || namaFinal),
-            mimeType: String(hasil.mimeType || mimeAsli),
-            size: Number.isFinite(Number(hasil.size)) ? Number(hasil.size) : file.size,
-            webViewLink: tautanDrive
-          });
-        } catch (_parseErr) {
-          reject(new Error("Respons unggahan dari Google Drive tidak dapat dibaca."));
+          return;
         }
-        return;
-      }
 
-      let pesanAsli = "";
-      let alasanKode = "";
-      try {
-        const parsed = JSON.parse(xhr.responseText || "{}");
-        if (parsed && parsed.error) {
-          pesanAsli = String(parsed.error.message || "");
-          if (Array.isArray(parsed.error.errors) && parsed.error.errors.length > 0) {
-            alasanKode = String(parsed.error.errors[0].reason || "");
+        let pesanAsli = "";
+        let alasanKode = "";
+        try {
+          const parsed = JSON.parse(xhr.responseText || "{}");
+          if (parsed && parsed.error) {
+            pesanAsli = String(parsed.error.message || "");
+            if (Array.isArray(parsed.error.errors) && parsed.error.errors.length > 0) {
+              alasanKode = String(parsed.error.errors[0].reason || "");
+            }
           }
+        } catch (_e) {
+          pesanAsli = xhr.statusText || "";
         }
-      } catch (_e) {
-        pesanAsli = xhr.statusText || "";
-      }
-      reject(buatErrorDrive(xhr.status, pesanAsli, alasanKode));
+        reject(buatErrorDrive(xhr.status, pesanAsli, alasanKode));
+      });
+
+      xhr.send(bodyMultipart);
     });
-
-    xhr.send(bodyMultipart);
-  });
+  })();
 
   return {
     promise,
@@ -730,38 +720,19 @@ function unggahBerkasMultipartSederhana(konfigurasi) {
       if (xhrAktif) {
         try {
           xhrAktif.abort();
-        } catch (_e) {
-          // Abaikan
-        }
+        } catch (_e) {}
       }
-    }
+    },
   };
 }
 
 /**
- * Mengunggah berkas ke Google Drive menggunakan mekanisme Resumable Upload (uploadType=resumable).
- * - Menginisiasi sesi dengan POST metadata untuk mendapatkan Location session URI.
- * - Mengirim berkas per potongan (2 MiB, kelipatan 256 KiB) dengan header Content-Range.
- * - Mendukung retry otomatis dengan exponential backoff untuk galat jaringan dan 5xx.
- * - Bila terjadi galat di tengah jalan, status ditanyakan ke Drive (Content-Range: bytes * / total)
- *   lalu melanjutkan dari offset byte terakhir yang berhasil diterima Google Drive.
- * - Mendukung pembatalan (abort) dengan membersihkan timer dan membatalkan request aktif.
- * - Menangani 401 (token kedaluwarsa) secara terstruktur.
- *
+ * Mengunggah berkas ke Google Drive menggunakan mekanisme Resumable Upload.
  * @param {{
  *   file: File,
  *   folderId: string,
  *   namaSimpanDrive?: string,
- *   onProgress?: (persen: number, terunggah: number, total: number, infoDetail?: {
- *     kecepatanBps?: number,
- *     sisaDetik?: number,
- *     statusTeks?: string,
- *     sedangRetry?: boolean,
- *     percobaanRetry?: number,
- *     maksPercobaanRetry?: number,
- *     potonganAktif?: number,
- *     totalPotongan?: number
- *   }) => void
+ *   onProgress?: (persen: number, terunggah: number, total: number, infoDetail?: Record<string, unknown>) => void
  * }} konfigurasi
  * @returns {{ promise: Promise<{id: string, name: string, mimeType: string, size: number, webViewLink: string}>, abort: () => void }}
  */
@@ -774,24 +745,16 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
   let dibatalkanManual = false;
   let sessionUrl = null;
 
-  const promise = new Promise(async (resolve, reject) => {
-    let token;
-    try {
-      token = ambilTokenWajib();
-    } catch (err) {
-      reject(err);
-      return;
-    }
+  const promise = (async () => {
+    let token = await ambilTokenWajib();
 
     if (!(file instanceof File)) {
-      reject(new Error("Pilih berkas yang akan diunggah terlebih dahulu."));
-      return;
+      throw new Error("Pilih berkas yang akan diunggah terlebih dahulu.");
     }
 
     const folderTujuan = String(folderId || "").trim();
     if (!folderTujuan) {
-      reject(new Error("Folder kategori tujuan di Google Drive belum siap."));
-      return;
+      throw new Error("Folder kategori tujuan di Google Drive belum siap.");
     }
 
     const totalBytes = file.size;
@@ -828,14 +791,10 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
         maksPercobaanRetry: MAKS_PERCOBAAN_RETRY,
         potonganAktif: potonganKe,
         totalPotongan,
-        ...infoEkstra
+        ...infoEkstra,
       });
     };
 
-    /**
-     * Langkah 1: Inisiasi sesi upload resumable (POST)
-     * Mengembalikan URI session upload dari header Location.
-     */
     async function inisiasiSesiResumable() {
       let percobaan = 0;
       while (percobaan < MAKS_PERCOBAAN_RETRY) {
@@ -845,21 +804,16 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
           throw errBatal;
         }
 
-        try {
-          // Selalu pastikan token masih valid sebelum inisiasi sesi
-          token = ambilTokenWajib();
-        } catch (errAuth) {
-          throw errAuth;
-        }
+        token = await ambilTokenWajib();
 
         try {
           const params = new URLSearchParams({
             uploadType: "resumable",
-            fields: "id,name,mimeType,size,webViewLink"
+            fields: "id,name,mimeType,size,webViewLink",
           });
           const metadata = {
             name: namaFinal,
-            parents: [folderTujuan]
+            parents: [folderTujuan],
           };
 
           const hasilLocation = await new Promise((res, rej) => {
@@ -928,7 +882,7 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
           laporProgres(0, 0, {
             statusTeks: "Mencoba menyambung ulang...",
             sedangRetry: true,
-            percobaanRetry: percobaan
+            percobaanRetry: percobaan,
           });
 
           const jedaMs =
@@ -941,10 +895,6 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
       throw new Error("Gagal menginisiasi sesi unggah Google Drive setelah beberapa kali percobaan.");
     }
 
-    /**
-     * Langkah 2: Menanyakan status byte terakhir yang telah diterima Google Drive
-     * Menggunakan PUT Content-Range: bytes * / totalBytes.
-     */
     async function queryStatusByteDrive(urlSesi) {
       return new Promise((res, rej) => {
         const xhr = new XMLHttpRequest();
@@ -972,13 +922,11 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
                 return;
               }
             }
-            // Status 308 tanpa Range berarti belum ada byte tersimpan di Drive
             res({ selesai: false, offsetBerikutnya: 0 });
             return;
           }
 
           if (xhr.status === 200 || xhr.status === 201) {
-            // Berkas ternyata sudah selesai terunggah sepenuhnya!
             try {
               const hasil = JSON.parse(xhr.responseText || "{}");
               res({ selesai: true, hasil });
@@ -1005,9 +953,6 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
       });
     }
 
-    /**
-     * Langkah 3: Mengirim satu potongan (chunk) ke Google Drive
-     */
     function kirimSatuPotongan(urlSesi, offsetMulai, offsetAkhir) {
       return new Promise((res, rej) => {
         const xhr = new XMLHttpRequest();
@@ -1023,7 +968,7 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
           const terunggahSaatIni = Math.min(totalBytes, offsetMulai + evt.loaded);
           const persen = totalBytes > 0 ? Math.min(99, Math.round((terunggahSaatIni / totalBytes) * 100)) : 0;
           laporProgres(persen, terunggahSaatIni, {
-            statusTeks: `Mengunggah potongan (${Math.floor(offsetMulai / UKURAN_POTONGAN_RESUMABLE_BYTES) + 1}/${totalPotongan})...`
+            statusTeks: `Mengunggah potongan (${Math.floor(offsetMulai / UKURAN_POTONGAN_RESUMABLE_BYTES) + 1}/${totalPotongan})...`,
           });
         });
 
@@ -1087,7 +1032,6 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
       });
     }
 
-    // Jalankan keseluruhan alur resumable
     try {
       laporProgres(0, 0, { statusTeks: "Menyiapkan sesi unggah ke Google Drive..." });
       sessionUrl = await inisiasiSesiResumable();
@@ -1117,7 +1061,6 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
           }
 
           if (hasilPot.status === 200 || hasilPot.status === 201) {
-            // Berhasil selesai!
             const idDrive = String(hasilPot.hasil?.id || "");
             const tautanDrive =
               String(hasilPot.hasil?.webViewLink || "").trim() ||
@@ -1126,25 +1069,23 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
             laporProgres(100, totalBytes, {
               statusTeks: "Pengunggahan ke Google Drive selesai.",
               sedangRetry: false,
-              sisaDetik: 0
+              sisaDetik: 0,
             });
 
-            resolve({
+            return {
               id: idDrive,
               name: String(hasilPot.hasil?.name || namaFinal),
               mimeType: String(hasilPot.hasil?.mimeType || mimeAsli),
               size: Number.isFinite(Number(hasilPot.hasil?.size))
                 ? Number(hasilPot.hasil?.size)
                 : totalBytes,
-              webViewLink: tautanDrive
-            });
-            return;
+              webViewLink: tautanDrive,
+            };
           }
         } catch (errPot) {
           xhrAktif = null;
           if (dibatalkanManual || errPot.isAborted) throw errPot;
 
-          // Jika 401, jangan retry berulang; langsung laporkan untuk penanganan masuk ulang
           if (errPot.isTokenExpired || errPot.isUnauthorized || errPot.status === 401) {
             throw errPot;
           }
@@ -1162,17 +1103,15 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
             {
               statusTeks: "Mencoba menyambung ulang...",
               sedangRetry: true,
-              percobaanRetry: percobaanRetryPotongan
+              percobaanRetry: percobaanRetryPotongan,
             }
           );
 
-          // Exponential backoff dengan jitter
           const jedaMs =
             Math.min(30000, JEDA_RETRY_DASAR_MS * Math.pow(2, percobaanRetryPotongan - 1)) +
             Math.round(Math.random() * 400);
           await jedaPromise(jedaMs);
 
-          // Tanyakan offset status ke Google Drive untuk melanjutkan dari titik sebenarnya
           try {
             const statusDrive = await queryStatusByteDrive(sessionUrl);
             xhrAktif = null;
@@ -1185,30 +1124,28 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
               laporProgres(100, totalBytes, {
                 statusTeks: "Pengunggahan ke Google Drive selesai.",
                 sedangRetry: false,
-                sisaDetik: 0
+                sisaDetik: 0,
               });
 
-              resolve({
+              return {
                 id: idDrive,
                 name: String(statusDrive.hasil?.name || namaFinal),
                 mimeType: String(statusDrive.hasil?.mimeType || mimeAsli),
                 size: Number.isFinite(Number(statusDrive.hasil?.size))
                   ? Number(statusDrive.hasil?.size)
                   : totalBytes,
-                webViewLink: tautanDrive
-              });
-              return;
+                webViewLink: tautanDrive,
+              };
             }
 
             offset = statusDrive.offsetBerikutnya;
-            percobaanRetryPotongan = 0; // Berhasil tersambung kembali
+            percobaanRetryPotongan = 0;
           } catch (errStatus) {
             xhrAktif = null;
             if (dibatalkanManual || errStatus.isAborted) throw errStatus;
             if (errStatus.isTokenExpired || errStatus.isUnauthorized || errStatus.status === 401) {
               throw errStatus;
             }
-            // Lanjut ke loop berikutnya untuk mencoba query / kirim kembali
           }
         }
       }
@@ -1217,9 +1154,9 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
         clearTimeout(timerRetry);
         timerRetry = null;
       }
-      reject(errFatal);
+      throw errFatal;
     }
-  });
+  })();
 
   return {
     promise,
@@ -1236,32 +1173,23 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
       if (xhrAktif) {
         try {
           xhrAktif.abort();
-        } catch (_e) {
-          // Abaikan
-        }
+        } catch (_e) {}
         xhrAktif = null;
       }
-      // Kirim DELETE sesi ke Google Drive bila URL sesi sudah terbentuk (fire-and-forget)
       if (sessionUrl) {
         try {
           const xhrBatal = new XMLHttpRequest();
           xhrBatal.open("DELETE", sessionUrl, true);
           xhrBatal.setRequestHeader("Content-Length", "0");
           xhrBatal.send();
-        } catch (_eDel) {
-          // Abaikan kendala saat membatalkan sesi
-        }
+        } catch (_eDel) {}
       }
-    }
+    },
   };
 }
 
 /**
- * Fungsi utama pengunggahan berkas ke Google Drive:
- * - Secara cerdas memilih multipart sederhana jika ukuran berkas <= 5 MB (AMBANG_UNGGAH_RESUMABLE_BYTES).
- * - Menggunakan resumable upload per potongan 2 MiB dengan retry otomatis jika ukuran berkas > 5 MB.
- * - Tetap mengekspor nama dan antarmuka return { promise, abort } yang identik untuk kompatibilitas penuh.
- *
+ * Fungsi utama pengunggahan berkas ke Google Drive.
  * @param {{
  *   file: File,
  *   folderId: string,
@@ -1278,26 +1206,17 @@ export function unggahBerkasKeDrive(konfigurasi) {
   return unggahBerkasMultipartSederhana(konfigurasi);
 }
 
-/**
- * Mempertahankan fungsi ekspor unggahBerkasMultipartKeDrive yang sudah dipakai modul lain (Aturan #2 & Tugas #2):
- * Jika berkas <= 5 MB, dijalankan via multipart sederhana.
- * Jika berkas > 5 MB, otomatis dialihkan ke mekanisme resumable upload yang andal.
- * Bentuk kembalian ({ promise, abort }) dan nama fungsi tetap 100% kompatibel.
- */
 export function unggahBerkasMultipartKeDrive(konfigurasi) {
   return unggahBerkasKeDrive(konfigurasi);
 }
 
 /**
- * Fase 4: Membuat dokumen Google Docs baru di dalam folder induk "Agenda-Arsip"
- * dengan mengunggah HTML secara multipart untuk dikonversi otomatis oleh Google Drive API.
- * Meminta field id,name,webViewLink sesuai spesifikasi.
- * Jalur pembuatan ini tetap dipertahankan sesuai Aturan Tugas #2.
+ * Fase 4: Membuat dokumen Google Docs baru di dalam folder induk "Agenda-Arsip".
  * @param {{ judul: string, htmlKonten: string }} konfigurasi
  * @returns {Promise<{ id: string, name: string, webViewLink: string, parentFolderId: string }>}
  */
 export async function buatDokumenGoogleDocsDrive(konfigurasi) {
-  const token = ambilTokenWajib();
+  const token = await ambilTokenWajib();
   const rootFolderId = await pastikanFolderIndukDrive();
 
   const namaBersih = String(konfigurasi?.judul || "").trim() || "Catatan Google Docs";
@@ -1306,7 +1225,7 @@ export async function buatDokumenGoogleDocsDrive(konfigurasi) {
   const metadata = {
     name: namaBersih,
     mimeType: MIME_TYPE_GOOGLE_DOCS,
-    parents: [rootFolderId]
+    parents: [rootFolderId],
   };
 
   const boundary = `-------AgendaArsipGdocBoundary${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
@@ -1318,14 +1237,14 @@ export async function buatDokumenGoogleDocsDrive(konfigurasi) {
       `--${boundary}\r\n`,
       `Content-Type: text/html; charset=UTF-8\r\n\r\n`,
       htmlIsi,
-      `\r\n--${boundary}--`
+      `\r\n--${boundary}--`,
     ],
     { type: `multipart/related; boundary=${boundary}` }
   );
 
   const params = new URLSearchParams({
     uploadType: "multipart",
-    fields: "id,name,webViewLink"
+    fields: "id,name,webViewLink",
   });
 
   let resp;
@@ -1334,9 +1253,9 @@ export async function buatDokumenGoogleDocsDrive(konfigurasi) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": `multipart/related; boundary=${boundary}`
+        "Content-Type": `multipart/related; boundary=${boundary}`,
       },
-      body: bodyMultipart
+      body: bodyMultipart,
     });
   } catch (_netErr) {
     throw new Error(
@@ -1364,6 +1283,6 @@ export async function buatDokumenGoogleDocsDrive(konfigurasi) {
     id: docId,
     name: String(hasil?.name || namaBersih),
     webViewLink: tautan,
-    parentFolderId: rootFolderId
+    parentFolderId: rootFolderId,
   };
 }

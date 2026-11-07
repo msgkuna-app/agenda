@@ -1,26 +1,18 @@
 /**
- * Konfigurasi Firebase Web SDK & Inisialisasi Layanan (Fase 1 + Optimalisasi Pembacaan Fase 5)
- * Memakai Firebase Web SDK modular v11.4.0 dari CDN gstatic.
- * Salin nilai konfigurasi aplikasi web Anda dari Firebase Console:
- * Project Settings -> General -> Your apps -> SDK setup and configuration (Config)
+ * Konfigurasi Firebase Web SDK & Google Identity Services (GIS)
+ * (Fase 6: Pemisahan Token Drive ke GIS)
+ * Memuat Firebase App, Auth, dan Firestore modular v11 dari CDN gstatic.
  */
-import {
-  initializeApp,
-  getApps,
-  getApp
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
 import {
-  initializeFirestore,
   getFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   collection,
   doc,
-  getDoc,
-  getDocs,
   addDoc,
   setDoc,
+  getDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -29,121 +21,89 @@ import {
   orderBy,
   limit,
   startAfter,
-  startAt,
-  endAt,
-  endBefore,
   writeBatch,
-  getCountFromServer
+  getCountFromServer,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
+/**
+ * Konfigurasi Firebase Proyek Anda.
+ */
 export const firebaseConfig = {
   apiKey: "AIzaSyBtYgsCoZk5F1HpBHKCIuHIl0XIAQgcqqU",
   authDomain: "msgkuna-app-85dfb.firebaseapp.com",
   projectId: "msgkuna-app-85dfb",
-  storageBucket: "msgkuna-app-85dfb.firebasestorage.app",
+  storageBucket: "msgkuna-app-85dfb.appspot.com",
   messagingSenderId: "641787111254",
   appId: "1:641787111254:web:20e40d4bc939bc118298f7",
-  measurementId: "G-D0MXGTSEBC"
 };
 
-export const PLACEHOLDER_MARKER = "ISI_DARI_FIREBASE_CONSOLE";
-
 /**
- * Memeriksa apakah firebaseConfig sudah diisi dengan nilai asli (bukan placeholder/kosong).
- * @returns {boolean}
+ * OAuth 2.0 Web Client ID untuk Google Identity Services (GIS) Token Client.
+ * Disarankan menggunakan Client ID yang SAMA dengan yang digunakan Firebase Auth Google Provider
+ * agar berkas Google Drive lama (drive.file) tetap dapat diakses.
  */
+export const GOOGLE_CLIENT_ID = "641787111254-r1d0co4oi0i6padlerb7nsb15uhemacj.apps.googleusercontent.com";
+
 export function isFirebaseConfigured() {
-  if (!firebaseConfig || typeof firebaseConfig !== "object") {
-    return false;
-  }
-  const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"];
-  for (const key of requiredKeys) {
-    const val = String(firebaseConfig[key] || "").trim();
-    if (!val || val.includes(PLACEHOLDER_MARKER)) {
-      return false;
-    }
-  }
-  return true;
+  return (
+    Boolean(firebaseConfig) &&
+    firebaseConfig.apiKey !== "ISI_DARI_FIREBASE_CONSOLE" &&
+    firebaseConfig.projectId !== "ISI_DARI_FIREBASE_CONSOLE"
+  );
 }
 
-let cachedApp = null;
-let cachedAuth = null;
-let cachedDb = null;
+let appInstance = null;
+let authInstance = null;
+let firestoreInstance = null;
 
-/**
- * Menginisialisasi atau mengambil instance FirebaseApp.
- */
 export function getFirebaseApp() {
-  if (cachedApp) return cachedApp;
-  if (!isFirebaseConfigured()) {
-    throw new Error("Konfigurasi Firebase belum diisi di public/js/firebase-config.js.");
+  if (!appInstance) {
+    if (!isFirebaseConfigured()) {
+      throw new Error("Konfigurasi Firebase belum diisi.");
+    }
+    appInstance = initializeApp(firebaseConfig);
   }
-  cachedApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  return cachedApp;
+  return appInstance;
 }
 
-/**
- * Mengambil instance Firebase Authentication.
- */
 export function getFirebaseAuth() {
-  if (cachedAuth) return cachedAuth;
-  cachedAuth = getAuth(getFirebaseApp());
-  return cachedAuth;
-}
-
-/**
- * Mengambil instance Cloud Firestore dengan persistensi luring (offline persistence).
- */
-export function getFirestoreDb() {
-  if (cachedDb) return cachedDb;
-  const app = getFirebaseApp();
-  try {
-    cachedDb = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    });
-  } catch (_err) {
-    cachedDb = getFirestore(app);
+  if (!authInstance) {
+    authInstance = getAuth(getFirebaseApp());
   }
-  return cachedDb;
+  return authInstance;
 }
 
-/**
- * Menerjemahkan galat Firestore ke pesan Bahasa Indonesia yang jelas (Aturan #10).
- * @param {unknown} err
- * @returns {string}
- */
+export function getFirestoreDb() {
+  if (!firestoreInstance) {
+    firestoreInstance = getFirestore(getFirebaseApp());
+  }
+  return firestoreInstance;
+}
+
 export function formatPesanGalatFirestore(err) {
+  if (!navigator.onLine) {
+    return "Tidak ada koneksi internet. Periksa jaringan Anda lalu coba lagi.";
+  }
   const kode = err && typeof err === "object" && "code" in err ? String(err.code) : "";
   if (kode === "permission-denied") {
-    return "Akses ditolak oleh aturan keamanan Firestore (permission-denied). Pastikan Anda masuk dengan akun pemilik yang sah.";
+    return "Akses basis data ditolak. Pastikan Anda masuk menggunakan akun pemilik resmi.";
   }
-  if (kode === "unavailable" || !navigator.onLine) {
-    return "Layanan tidak terjangkau karena perangkat sedang luring (offline). Periksa koneksi internet Anda.";
-  }
-  if (kode === "failed-precondition") {
-    return "Operasi gagal diproses oleh Firestore (failed-precondition). Pastikan indeks atau koneksi tersedia.";
-  }
-  if (kode === "not-found") {
-    return "Data yang diminta tidak ditemukan atau sudah dihapus.";
-  }
-  if (kode === "unauthenticated") {
-    return "Sesi autentikasi telah berakhir. Silakan masuk kembali.";
+  if (kode === "unavailable") {
+    return "Layanan Firestore sedang tidak dapat dihubungi. Mencoba kembali secara otomatis...";
   }
   if (err instanceof Error && err.message) {
     return err.message;
   }
-  return "Terjadi kesalahan saat berkomunikasi dengan penyimpanan data Firestore.";
+  return "Terjadi kendala pada basis data Firestore.";
 }
 
 export {
   collection,
   doc,
-  getDoc,
-  getDocs,
   addDoc,
   setDoc,
+  getDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
   onSnapshot,
@@ -152,9 +112,6 @@ export {
   orderBy,
   limit,
   startAfter,
-  startAt,
-  endAt,
-  endBefore,
   writeBatch,
-  getCountFromServer
+  getCountFromServer,
 };
