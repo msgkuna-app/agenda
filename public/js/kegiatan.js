@@ -111,13 +111,29 @@ export function daftarkanPembukaDetailKegiatan(fn) {
  * Mengembalikan seluruh kegiatan aktif (tanpa dihapusAt) yang saat ini berada di memori
  * (gabungan listener jendela, listener halaman, dan hasil fetch).
  */
-export function getDaftarKegiatan() {
+/**
+ * Menggabungkan ketiga sumber data. Untuk id yang sama, salinan dengan updatedAt
+ * paling baru yang menang; jika sama, sumber yang lebih "hidup" (listener) menang.
+ */
+function gabungkanPetaKegiatan() {
   const gabungan = new Map();
-  petaKegiatanJendela.forEach((v, k) => gabungan.set(k, v));
-  petaKegiatanHalaman.forEach((v, k) => gabungan.set(k, v));
-  petaKegiatanTambahan.forEach((v, k) => gabungan.set(k, v));
+  const tambahkan = (peta) => {
+    peta.forEach((item, id) => {
+      const lama = gabungan.get(id);
+      if (!lama || String(item.updatedAt || "") >= String(lama.updatedAt || "")) {
+        gabungan.set(id, item);
+      }
+    });
+  };
+  // Dari prioritas terendah ke tertinggi
+  tambahkan(petaKegiatanTambahan);
+  tambahkan(petaKegiatanHalaman);
+  tambahkan(petaKegiatanJendela);
+  return gabungan;
+}
 
-  return Array.from(gabungan.values())
+export function getDaftarKegiatan() {
+  return Array.from(gabungkanPetaKegiatan().values())
     .filter((item) => !item.dihapusAt)
     .map((item) => ({ ...item }));
 }
@@ -136,12 +152,7 @@ export function getKegiatanJendela() {
  * namun fungsi ini tetap dipertahankan agar modul lain tidak patah.
  */
 export function getDaftarKegiatanDiSampah() {
-  const gabungan = new Map();
-  petaKegiatanJendela.forEach((v, k) => gabungan.set(k, v));
-  petaKegiatanHalaman.forEach((v, k) => gabungan.set(k, v));
-  petaKegiatanTambahan.forEach((v, k) => gabungan.set(k, v));
-
-  return Array.from(gabungan.values())
+  return Array.from(gabungkanPetaKegiatan().values())
     .filter((item) => Boolean(item.dihapusAt))
     .map((item) => ({ ...item }));
 }
@@ -199,16 +210,44 @@ function beritahuPerubahanKegiatan() {
   });
 }
 
+/** Menerapkan perubahan ke semua salinan lokal sebuah kegiatan. */
+function terapkanPerubahanLokalKegiatan(id, perubahan) {
+  [petaKegiatanJendela, petaKegiatanHalaman, petaKegiatanTambahan].forEach((peta) => {
+    const item = peta.get(id);
+    if (item) peta.set(id, { ...item, ...perubahan });
+  });
+}
+
 export async function ubahStatusKegiatanCepat(id, statusBaru) {
   const targetId = String(id || "").trim();
   if (!targetId || !DAFTAR_STATUS_KEGIATAN.includes(statusBaru)) {
     throw new Error("Status kegiatan tidak valid.");
   }
   const db = getFirestoreDb();
-  await updateDoc(doc(db, "kegiatan", targetId), {
-    status: statusBaru,
-    updatedAt: new Date().toISOString()
-  });
+  const sebelumnya = getDaftarKegiatan().find((item) => item.id === targetId) || null;
+  const sekarang = new Date().toISOString();
+
+  // Perbarui tampilan seketika (optimistis), lalu simpan ke Firestore
+  terapkanPerubahanLokalKegiatan(targetId, { status: statusBaru, updatedAt: sekarang });
+  renderDaftarKegiatan();
+  beritahuPerubahanKegiatan();
+
+  try {
+    await updateDoc(doc(db, "kegiatan", targetId), {
+      status: statusBaru,
+      updatedAt: sekarang
+    });
+  } catch (err) {
+    if (sebelumnya) {
+      terapkanPerubahanLokalKegiatan(targetId, {
+        status: sebelumnya.status,
+        updatedAt: sebelumnya.updatedAt
+      });
+    }
+    renderDaftarKegiatan();
+    beritahuPerubahanKegiatan();
+    throw err;
+  }
 }
 
 function formatTanggalTampilan(tanggalStr) {
@@ -535,7 +574,7 @@ export async function muatLebihBanyakKegiatan() {
     const snap = await getDocs(q);
     snap.forEach((docSnap) => {
       const d = docSnap.data() || {};
-      petaKegiatanHalaman.set(docSnap.id, {
+      petaKegiatanTambahan.set(docSnap.id, {
         id: docSnap.id,
         judul: String(d.judul || ""),
         catatan: String(d.catatan || ""),
@@ -1147,6 +1186,9 @@ export function initHalamanKegiatan() {
         const db = getFirestoreDb();
         if (idEdit) {
           await updateDoc(doc(db, "kegiatan", idEdit), { ...payload, updatedAt: sekarang });
+          terapkanPerubahanLokalKegiatan(idEdit, { ...payload, updatedAt: sekarang });
+          renderDaftarKegiatan();
+          beritahuPerubahanKegiatan();
         } else {
           // Fase 5: Selalu setel dihapusAt: null pada dokumen baru
           await addDoc(collection(db, "kegiatan"), {
