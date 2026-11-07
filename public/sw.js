@@ -1,4 +1,4 @@
-const VERSION = "agenda-arsip-v1.7.1";
+const VERSION = "agenda-arsip-v1.7.0";
 
 const APP_SHELL = [
   "/",
@@ -49,13 +49,6 @@ const APP_SHELL = [
   "/js/catatan/dialog-hapus.js",
   "/js/sampah.js",
   "/js/laporan.js",
-  "/js/laporan/index.js",
-  "/js/laporan/state.js",
-  "/js/laporan/util.js",
-  "/js/laporan/data.js",
-  "/js/laporan/sheets-ops.js",
-  "/js/laporan/render.js",
-  "/js/laporan/dialog-hapus.js",
   "/js/pengaturan.js",
   "/icons/ikon.svg",
   "/icons/favicon.svg",
