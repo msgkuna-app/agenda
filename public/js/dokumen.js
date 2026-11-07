@@ -33,14 +33,19 @@ import {
   pindahkanItemKeSampahDrive,
   pindahkanBerkasKeFolderDrive,
   unggahBerkasMultipartKeDrive,
+  unggahBerkasResumableKeDrive,
+  unggahBerkasKeDrive,
   formatPesanGalatDrive,
-  resetCacheDrive
+  resetCacheDrive,
+  AMBANG_UNGGAH_RESUMABLE_BYTES
 } from "./drive.js";
+import { loginWithGoogle, formatPesanGalatAuth } from "./auth.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
 
+export const MAKS_UKURAN_BERKAS_MB = 100;
 const UKURAN_HALAMAN_DOKUMEN = 40;
 const JEDA_RAPIKAN_MS = 280;
 
@@ -82,6 +87,9 @@ let idMenuTitikTigaTerbuka = null;
 let unggahModalTerbuka = false;
 let pengendaliUnggahAktif = null;
 let fokusSebelumModalDokumen = null;
+let berkasDriveTersimpanPending = null;
+let dataFormUploadPending = null;
+let sedangMenyimpanMetadata = false;
 
 // State modal Ubah Metadata Dokumen
 let editModalTerbuka = false;
@@ -967,15 +975,67 @@ export function terapkanFilterKategoriDokumen(targetKategoriId) {
 // Modal 1: Unggah Dokumen Baru ke Google Drive
 // ============================================================================
 
-function setPesanGalatModalUnggah(pesan) {
+function setPesanGalatModalUnggah(pesan, opsi = {}) {
   const box = document.getElementById("dokumen-upload-alert");
   const txt = document.getElementById("dokumen-upload-alert-text");
   if (!box || !txt) return;
-  txt.textContent = pesan || "";
-  box.hidden = !pesan;
+
+  const pembersih = String(pesan || "").trim();
+  if (!pembersih) {
+    txt.textContent = "";
+    box.hidden = true;
+    const existingActions = box.querySelector(".upload-alert-action-row");
+    if (existingActions) existingActions.remove();
+    return;
+  }
+
+  txt.textContent = pembersih;
+  box.hidden = false;
+
+  let actionRow = box.querySelector(".upload-alert-action-row");
+  if (!actionRow) {
+    actionRow = document.createElement("div");
+    actionRow.className = "upload-alert-action-row";
+    box.appendChild(actionRow);
+  }
+  actionRow.innerHTML = "";
+
+  if (opsi.bisaSimpanUlangMetadata) {
+    const btnSimpan = document.createElement("button");
+    btnSimpan.type = "button";
+    btnSimpan.id = "btn-upload-retry-metadata";
+    btnSimpan.className = "btn-primary btn-sm-touch";
+    btnSimpan.textContent = "Coba simpan ulang metadata";
+    btnSimpan.addEventListener("click", () => {
+      jalankanSimpanUlangMetadata();
+    });
+    actionRow.appendChild(btnSimpan);
+  }
+
+  if (opsi.butuhRelogin) {
+    const btnLogin = document.createElement("button");
+    btnLogin.type = "button";
+    btnLogin.id = "btn-upload-relogin";
+    btnLogin.className = "btn-primary btn-sm-touch";
+    btnLogin.textContent = "Masuk ulang";
+    btnLogin.addEventListener("click", async () => {
+      btnLogin.disabled = true;
+      btnLogin.textContent = "Menghubungkan...";
+      try {
+        await loginWithGoogle();
+        setPesanGalatModalUnggah(
+          "Sesi masuk berhasil diperbarui. Silakan lanjutkan pengunggahan atau klik tombol di bawah untuk menyimpan catatan.",
+          { bisaSimpanUlangMetadata: Boolean(berkasDriveTersimpanPending) }
+        );
+      } catch (errLogin) {
+        setPesanGalatModalUnggah(formatPesanGalatAuth(errLogin), { butuhRelogin: true });
+      }
+    });
+    actionRow.appendChild(btnLogin);
+  }
 }
 
-function perbaruiTampilanProgresUnggah(sedangBerjalan, persen = 0, labelStatus = "") {
+function perbaruiTampilanProgresUnggah(sedangBerjalan, persen = 0, labelStatus = "", infoDetail = null) {
   const wrap = document.getElementById("dokumen-upload-progress-wrap");
   const barFill = document.getElementById("dokumen-upload-progress-fill");
   const pctEl = document.getElementById("dokumen-upload-progress-pct");
@@ -986,9 +1046,75 @@ function perbaruiTampilanProgresUnggah(sedangBerjalan, persen = 0, labelStatus =
   if (wrap) wrap.hidden = !sedangBerjalan;
   if (barFill instanceof HTMLElement) barFill.style.width = `${Math.max(0, Math.min(100, persen))}%`;
   if (pctEl) pctEl.textContent = `${Math.max(0, Math.min(100, persen))}%`;
-  if (textEl) textEl.textContent = labelStatus || "Mengunggah ke Google Drive...";
-  if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = sedangBerjalan || !navigator.onLine;
+
+  let teks = labelStatus || "Mengunggah ke Google Drive...";
+  if (infoDetail) {
+    if (infoDetail.sedangRetry) {
+      teks = infoDetail.statusTeks || "Mencoba menyambung ulang ke Google Drive...";
+    } else if (infoDetail.sisaDetik && infoDetail.sisaDetik > 0 && persen < 100) {
+      const sisa = infoDetail.sisaDetik;
+      let sisaTeks = "";
+      if (sisa < 60) {
+        sisaTeks = `~${Math.ceil(sisa)} dtk`;
+      } else {
+        const m = Math.floor(sisa / 60);
+        const s = Math.round(sisa % 60);
+        sisaTeks = `~${m} mnt ${s > 0 ? `${s} dtk` : ""}`.trim();
+      }
+      teks = `${labelStatus || "Mengunggah ke Google Drive..."} (sisa ${sisaTeks})`;
+    }
+  }
+
+  if (textEl) textEl.textContent = teks;
+  if (submitBtn instanceof HTMLButtonElement) {
+    submitBtn.disabled = sedangBerjalan || !navigator.onLine;
+  }
   if (fileInput instanceof HTMLInputElement) fileInput.disabled = sedangBerjalan;
+}
+
+async function jalankanSimpanUlangMetadata() {
+  if (!berkasDriveTersimpanPending || !dataFormUploadPending) return;
+  if (sedangMenyimpanMetadata) return;
+
+  sedangMenyimpanMetadata = true;
+  setPesanGalatModalUnggah("");
+  perbaruiTampilanProgresUnggah(true, 100, "Menyimpan catatan dokumen ke basis data...");
+
+  const cancelBtn = document.getElementById("dokumen-upload-cancel-btn");
+  const submitBtn = document.getElementById("dokumen-upload-submit-btn");
+  if (cancelBtn) cancelBtn.textContent = "Batal";
+  if (submitBtn instanceof HTMLButtonElement) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Menyimpan Catatan...";
+  }
+
+  try {
+    const sekarangIso = new Date().toISOString();
+    const db = getFirestoreDb();
+    await addDoc(collection(db, "dokumen"), {
+      ...dataFormUploadPending,
+      tanggalUnggah: sekarangIso,
+      createdAt: sekarangIso,
+      updatedAt: sekarangIso
+    });
+
+    berkasDriveTersimpanPending = null;
+    dataFormUploadPending = null;
+    tutupModalUnggahDokumen(true);
+  } catch (errFirestore) {
+    perbaruiTampilanProgresUnggah(false, 100, "");
+    const pesanGalat = formatPesanGalatFirestore(errFirestore);
+    if (submitBtn instanceof HTMLButtonElement) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Coba Simpan Ulang Metadata";
+    }
+    setPesanGalatModalUnggah(
+      `Berkas telah berhasil diunggah ke Google Drive (${berkasDriveTersimpanPending.name || "Dokumen"}), namun gagal menyimpan catatan dokumen ke basis data: ${pesanGalat}. Silakan periksa koneksi lalu klik tombol di bawah untuk menyimpan ulang catatan tanpa mengunggah kembali berkas.`,
+      { bisaSimpanUlangMetadata: true }
+    );
+  } finally {
+    sedangMenyimpanMetadata = false;
+  }
 }
 
 export function bukaModalUnggahDokumen() {
@@ -1005,6 +1131,7 @@ export function bukaModalUnggahDokumen() {
   const katSelect = document.getElementById("dokumen-upload-kategori");
   const fileInput = document.getElementById("dokumen-upload-file");
   const fileInfo = document.getElementById("dokumen-upload-file-info");
+  const submitBtn = document.getElementById("dokumen-upload-submit-btn");
   if (!modal) return;
 
   fokusSebelumModalDokumen = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1012,6 +1139,15 @@ export function bukaModalUnggahDokumen() {
   if (fileInfo) fileInfo.textContent = "Pilih berkas dari perangkat Anda.";
   setPesanGalatModalUnggah("");
   perbaruiTampilanProgresUnggah(false, 0, "");
+
+  berkasDriveTersimpanPending = null;
+  dataFormUploadPending = null;
+  sedangMenyimpanMetadata = false;
+
+  if (submitBtn instanceof HTMLButtonElement) {
+    submitBtn.textContent = "Unggah ke Drive";
+    submitBtn.disabled = !navigator.onLine;
+  }
 
   perbaruiDropdownKategoriDokumen();
   perbaruiDropdownKegiatanTerkait("dokumen-upload-kegiatan", "");
@@ -1044,10 +1180,20 @@ function tutupModalUnggahDokumen(kembalikanFokus = true) {
     pengendaliUnggahAktif = null;
   }
 
+  berkasDriveTersimpanPending = null;
+  dataFormUploadPending = null;
+  sedangMenyimpanMetadata = false;
+
   unggahModalTerbuka = false;
   modal.hidden = true;
   setPesanGalatModalUnggah("");
   perbaruiTampilanProgresUnggah(false, 0, "");
+
+  const submitBtn = document.getElementById("dokumen-upload-submit-btn");
+  if (submitBtn instanceof HTMLButtonElement) {
+    submitBtn.textContent = "Unggah ke Drive";
+    submitBtn.disabled = !navigator.onLine;
+  }
 
   if (kembalikanFokus && fokusSebelumModalDokumen && document.contains(fokusSebelumModalDokumen)) {
     fokusSebelumModalDokumen.focus();
@@ -1488,9 +1634,25 @@ export function initHalamanDokumen() {
   if (uploadFileInput instanceof HTMLInputElement && uploadFileInfo) {
     uploadFileInput.addEventListener("change", () => {
       const f = uploadFileInput.files && uploadFileInput.files[0];
-      uploadFileInfo.textContent = f
-        ? `${f.name} • ${formatUkuranBerkas(f.size)}`
-        : "Pilih berkas dari perangkat Anda.";
+      if (!f) {
+        uploadFileInfo.textContent = "Pilih berkas dari perangkat Anda.";
+        return;
+      }
+
+      const batasBytes = MAKS_UKURAN_BERKAS_MB * 1024 * 1024;
+      if (f.size > batasBytes) {
+        const ukuranTeks = formatUkuranBerkas(f.size);
+        setPesanGalatModalUnggah(
+          `Ukuran berkas (${ukuranTeks}) melebihi batas maksimum ${MAKS_UKURAN_BERKAS_MB} MB. Silakan pilih berkas yang lebih kecil.`
+        );
+        uploadFileInput.value = "";
+        uploadFileInfo.textContent = "Pilih berkas dari perangkat Anda.";
+        return;
+      }
+
+      setPesanGalatModalUnggah("");
+      const jenisInfo = infoJenisBerkasMime(f.type, f.name);
+      uploadFileInfo.textContent = `${f.name} • ${formatUkuranBerkas(f.size)} (${jenisInfo.label})`;
     });
   }
 
@@ -1503,6 +1665,11 @@ export function initHalamanDokumen() {
       pengendaliUnggahAktif = null;
       perbaruiTampilanProgresUnggah(false, 0, "");
       setPesanGalatModalUnggah("Pengunggahan dibatalkan.");
+      const submitBtn = document.getElementById("dokumen-upload-submit-btn");
+      if (submitBtn instanceof HTMLButtonElement) {
+        submitBtn.disabled = !navigator.onLine;
+        submitBtn.textContent = "Unggah ke Drive";
+      }
       return;
     }
     tutupModalUnggahDokumen(true);
@@ -1517,6 +1684,12 @@ export function initHalamanDokumen() {
     e.preventDefault();
     setPesanGalatModalUnggah("");
 
+    // Jika berkas Drive sudah terunggah namun penulisan Firestore sebelumnya gagal
+    if (berkasDriveTersimpanPending && dataFormUploadPending) {
+      await jalankanSimpanUlangMetadata();
+      return;
+    }
+
     if (!navigator.onLine) {
       setPesanGalatModalUnggah("Tidak ada koneksi internet. Pengunggahan ke Google Drive memerlukan sambungan aktif.");
       return;
@@ -1528,25 +1701,51 @@ export function initHalamanDokumen() {
       return;
     }
 
+    const batasBytes = MAKS_UKURAN_BERKAS_MB * 1024 * 1024;
+    if (file.size > batasBytes) {
+      setPesanGalatModalUnggah(
+        `Ukuran berkas (${formatUkuranBerkas(file.size)}) melebihi batas maksimum ${MAKS_UKURAN_BERKAS_MB} MB. Silakan pilih berkas yang lebih kecil.`
+      );
+      return;
+    }
+
     const kategoriId = String(document.getElementById("dokumen-upload-kategori")?.value || "").trim();
     const namaTampilanInput = String(document.getElementById("dokumen-upload-nama")?.value || "").trim();
     const catatan = String(document.getElementById("dokumen-upload-catatan")?.value || "").trim();
     const kegiatanId = String(document.getElementById("dokumen-upload-kegiatan")?.value || "").trim();
     const cancelBtn = document.getElementById("dokumen-upload-cancel-btn");
+    const submitBtn = document.getElementById("dokumen-upload-submit-btn");
 
-    perbaruiTampilanProgresUnggah(true, 0, "Menyiapkan folder kategori di Google Drive...");
+    const namaFileTampil = file.name;
+    const ukuranFileTampil = formatUkuranBerkas(file.size);
+
+    perbaruiTampilanProgresUnggah(
+      true,
+      0,
+      `Menyiapkan folder kategori di Google Drive... (${namaFileTampil} • ${ukuranFileTampil})`
+    );
     if (cancelBtn) cancelBtn.textContent = "Batalkan Unggah";
+    if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true;
 
     try {
       const folderTujuanId = await pastikanFolderTujuanKategoriSiap(kategoriId);
 
-      perbaruiTampilanProgresUnggah(true, 2, "Mengunggah berkas ke Google Drive...");
-      const tugasUnggah = unggahBerkasMultipartKeDrive({
+      perbaruiTampilanProgresUnggah(
+        true,
+        1,
+        `Mengunggah ${namaFileTampil} (${ukuranFileTampil})...`
+      );
+
+      const tugasUnggah = unggahBerkasKeDrive({
         file,
         folderId: folderTujuanId,
         namaSimpanDrive: file.name,
-        onProgress: (persen) => {
-          perbaruiTampilanProgresUnggah(true, persen, "Mengunggah berkas ke Google Drive...");
+        onProgress: (persen, terunggah, total, infoDetail) => {
+          let label = `Mengunggah ${namaFileTampil} (${formatUkuranBerkas(terunggah)} / ${ukuranFileTampil})...`;
+          if (infoDetail?.sedangRetry) {
+            label = infoDetail.statusTeks || "Mencoba menyambung ulang ke Google Drive...";
+          }
+          perbaruiTampilanProgresUnggah(true, persen, label, infoDetail);
         }
       });
       pengendaliUnggahAktif = tugasUnggah;
@@ -1554,13 +1753,10 @@ export function initHalamanDokumen() {
       const hasilDrive = await tugasUnggah.promise;
       pengendaliUnggahAktif = null;
 
-      perbaruiTampilanProgresUnggah(true, 100, "Menyimpan catatan dokumen...");
-      const sekarangIso = new Date().toISOString();
-      const namaTampilanFinal = namaTampilanInput || hasilDrive.name || file.name;
-
-      const db = getFirestoreDb();
-      await addDoc(collection(db, "dokumen"), {
-        namaTampilan: namaTampilanFinal,
+      // Konfirmasi Drive berhasil! Simpan state sebelum menulis metadata ke Firestore
+      berkasDriveTersimpanPending = hasilDrive;
+      dataFormUploadPending = {
+        namaTampilan: namaTampilanInput || hasilDrive.name || file.name,
         namaFile: hasilDrive.name || file.name,
         driveFileId: hasilDrive.id,
         tautan: hasilDrive.webViewLink,
@@ -1568,22 +1764,26 @@ export function initHalamanDokumen() {
         ukuran: Number.isFinite(Number(hasilDrive.size)) ? Number(hasilDrive.size) : file.size,
         kategoriId,
         kegiatanId,
-        catatan,
-        tanggalUnggah: sekarangIso,
-        createdAt: sekarangIso,
-        updatedAt: sekarangIso
-      });
+        catatan
+      };
 
-      if (cancelBtn) cancelBtn.textContent = "Batal";
-      tutupModalUnggahDokumen(true);
+      await jalankanSimpanUlangMetadata();
     } catch (err) {
       pengendaliUnggahAktif = null;
       perbaruiTampilanProgresUnggah(false, 0, "");
       if (cancelBtn) cancelBtn.textContent = "Batal";
+      if (submitBtn instanceof HTMLButtonElement) {
+        submitBtn.disabled = !navigator.onLine;
+        submitBtn.textContent = "Unggah ke Drive";
+      }
+
       if (err && err.isAborted) {
         setPesanGalatModalUnggah("Pengunggahan dokumen telah dibatalkan.");
       } else {
-        setPesanGalatModalUnggah(formatPesanGalatDrive(err));
+        const is401 = Boolean(
+          err && (err.isTokenExpired || err.isUnauthorized || err.status === 401)
+        );
+        setPesanGalatModalUnggah(formatPesanGalatDrive(err), { butuhRelogin: is401 });
       }
     }
   });
