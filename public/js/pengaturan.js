@@ -34,10 +34,106 @@ import { getPreferensiTema, terapkanTema } from "./tema.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { formatTanggalLengkapIndonesia } from "./jadwal.js";
 import { escapeHtml, tampilkanToast } from "./sidebar.js";
+import {
+  DATA_HARI_LIBUR_BAWAAN,
+  HARI_BESAR_TETAP,
+  kunciEntri,
+  setelKonfigurasi,
+  ambilKonfigurasiAktif
+} from "./hari-libur.js";
 
 export const KUNCI_STORAGE_CADANGAN_TERAKHIR = "agenda_arsip_cadangan_terakhir";
 export const KUNCI_STORAGE_CADANGAN_INTERVAL = "agenda_arsip_cadangan_interval";
 export const KUNCI_STORAGE_CADANGAN_TUNDA = "agenda_arsip_cadangan_tunda_sampai";
+export const KUNCI_STORAGE_HARI_LIBUR = "agenda_arsip_hari_libur";
+
+const pemberitahuHariLibur = new Set();
+export function onPerubahanHariLibur(fn) {
+  if (typeof fn === "function") {
+    pemberitahuHariLibur.add(fn);
+    return () => pemberitahuHariLibur.delete(fn);
+  }
+  return () => {};
+}
+
+function beritahuPerubahanHariLibur(cfg) {
+  pemberitahuHariLibur.forEach((fn) => {
+    try { fn(cfg); } catch (_e) {}
+  });
+}
+
+export function bacaPengaturanHariLiburLokal() {
+  try {
+    const raw = localStorage.getItem(KUNCI_STORAGE_HARI_LIBUR);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        setelKonfigurasi(parsed);
+        return ambilKonfigurasiAktif();
+      }
+    }
+  } catch (_e) {}
+  return ambilKonfigurasiAktif();
+}
+
+export async function muatPengaturanHariLibur() {
+  bacaPengaturanHariLiburLokal();
+  try {
+    const db = getFirestoreDb();
+    const docRef = doc(db, "pengaturan", "hariLibur");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const cfg = {
+        entri: Array.isArray(data.entri) ? data.entri : [],
+        disembunyikan: Array.isArray(data.disembunyikan) ? data.disembunyikan : [],
+        tampilkanCutiMerah: typeof data.tampilkanCutiMerah === "boolean" ? data.tampilkanCutiMerah : true,
+        tampilkanHariBesar: typeof data.tampilkanHariBesar === "boolean" ? data.tampilkanHariBesar : true,
+        updatedAt: data.updatedAt || new Date().toISOString()
+      };
+      setelKonfigurasi(cfg);
+      try {
+        localStorage.setItem(KUNCI_STORAGE_HARI_LIBUR, JSON.stringify(cfg));
+      } catch (_e) {}
+      beritahuPerubahanHariLibur(cfg);
+      return cfg;
+    }
+  } catch (_err) {
+    // Mode offline: tetap menggunakan data lokal
+  }
+  return ambilKonfigurasiAktif();
+}
+
+export async function simpanPengaturanHariLibur(cfgBaru) {
+  const sekarangIso = new Date().toISOString();
+  const cfg = {
+    entri: Array.isArray(cfgBaru.entri) ? cfgBaru.entri : [],
+    disembunyikan: Array.isArray(cfgBaru.disembunyikan) ? cfgBaru.disembunyikan : [],
+    tampilkanCutiMerah: typeof cfgBaru.tampilkanCutiMerah === "boolean" ? cfgBaru.tampilkanCutiMerah : true,
+    tampilkanHariBesar: typeof cfgBaru.tampilkanHariBesar === "boolean" ? cfgBaru.tampilkanHariBesar : true,
+    updatedAt: sekarangIso
+  };
+
+  setelKonfigurasi(cfg);
+  try {
+    localStorage.setItem(KUNCI_STORAGE_HARI_LIBUR, JSON.stringify(cfg));
+  } catch (_e) {}
+
+  beritahuPerubahanHariLibur(cfg);
+  renderDaftarHariLiburPengaturan();
+
+  try {
+    const db = getFirestoreDb();
+    await setDoc(doc(db, "pengaturan", "hariLibur"), cfg, { merge: true });
+  } catch (err) {
+    console.warn("Gagal menyimpan ke Firestore pengaturan/hariLibur:", err);
+  }
+  return cfg;
+}
+
+export function ambilKonfigurasiHariLiburUntukCadangan() {
+  return ambilKonfigurasiAktif();
+}
 
 const statusCadangan = {
   terakhirEksporAt: null,
@@ -443,6 +539,100 @@ function pastikanKerangkaHalamanPengaturan() {
           </button>
         </div>
       </section>
+
+      <!-- B5. Pengaturan Hari Libur & Hari Besar -->
+      <section class="dash-card dash-area-libur" aria-labelledby="settings-libur-heading" style="grid-column: 1 / -1;">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="settings-libur-heading" class="dash-card-title">Hari Libur &amp; Hari Besar</h3>
+            <span class="dash-card-caption">Tanggal merah kalender, cuti bersama SKB 3 Menteri, dan hari besar</span>
+          </div>
+        </div>
+        <div class="dash-card-body">
+          <div class="libur-manage-container">
+            <div class="libur-manage-toggles">
+              <label class="form-checkbox-label">
+                <input type="checkbox" id="settings-libur-cuti-merah" class="form-checkbox" checked />
+                <span>Tampilkan cuti bersama berwarna merah</span>
+              </label>
+              <label class="form-checkbox-label">
+                <input type="checkbox" id="settings-libur-hari-besar" class="form-checkbox" checked />
+                <span>Tampilkan hari besar nasional (bukan libur)</span>
+              </label>
+            </div>
+
+            <div class="libur-year-filter-row">
+              <div class="libur-year-select-wrap">
+                <label for="settings-libur-tahun-select" class="filter-label">Tahun:</label>
+                <select id="settings-libur-tahun-select" class="form-select" style="min-width: 100px;"></select>
+              </div>
+              <div id="settings-libur-tambah-tahun-wrap" style="display: inline-flex; align-items: center; gap: 6px;">
+                <button type="button" id="btn-settings-tambah-tahun" class="btn-secondary btn-sm-touch">+ Tambah tahun...</button>
+                <div id="settings-libur-input-tahun-box" style="display: none; align-items: center; gap: 6px;">
+                  <input type="number" id="settings-libur-input-tahun-baru" class="form-input" placeholder="2028" min="2000" max="2100" style="width: 80px;" />
+                  <button type="button" id="btn-settings-simpan-tahun-baru" class="btn-primary btn-sm-touch">Buka</button>
+                  <button type="button" id="btn-settings-batal-tahun-baru" class="btn-secondary btn-sm-touch">&times;</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="libur-list-scroll" id="settings-libur-scroll-container">
+              <table class="libur-table" id="settings-libur-table" aria-label="Daftar hari libur dan hari besar">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width: 130px;">Tanggal</th>
+                    <th scope="col">Nama Libur / Hari Besar</th>
+                    <th scope="col" style="width: 130px;">Jenis</th>
+                    <th scope="col" style="width: 90px;">Sumber</th>
+                    <th scope="col" style="width: 130px; text-align: right;">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="settings-libur-tbody">
+                  <!-- Diisi secara dinamis oleh renderDaftarHariLiburPengaturan -->
+                </tbody>
+              </table>
+            </div>
+
+            <p class="libur-source-note">
+              * Bila ingin menggeser tanggal libur bawaan (misal penetapan hisab/rukyat berbeda), sembunyikan entri bawaan lama lalu tambahkan entri baru dengan tanggal yang diinginkan.
+            </p>
+
+            <div class="settings-subpanel" style="border-top: 1px solid var(--color-border); padding-top: 16px;">
+              <h4 class="sub-card-title" id="settings-libur-form-title">Tambah Hari Libur atau Hari Besar</h4>
+              <form id="settings-libur-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;" autocomplete="off">
+                <input type="hidden" id="settings-libur-form-id" value="" />
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                  <div class="form-field">
+                    <label for="settings-libur-input-tanggal" class="form-label">Tanggal <span class="required-mark">*</span></label>
+                    <input type="date" id="settings-libur-input-tanggal" class="form-input" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="settings-libur-input-nama" class="form-label">Nama Libur / Hari Besar <span class="required-mark">*</span></label>
+                    <input type="text" id="settings-libur-input-nama" class="form-input" placeholder="Contoh: Libur Khusus Daerah" maxlength="80" required />
+                  </div>
+                  <div class="form-field">
+                    <label for="settings-libur-input-jenis" class="form-label">Jenis <span class="required-mark">*</span></label>
+                    <select id="settings-libur-input-jenis" class="form-select">
+                      <option value="libur">Libur nasional</option>
+                      <option value="cuti">Cuti bersama</option>
+                      <option value="tambahan">Hari libur tambahan</option>
+                      <option value="besar">Hari besar (bukan libur)</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                  <button type="button" id="btn-settings-libur-batal-edit" class="btn-secondary btn-sm-touch" hidden>Batal</button>
+                  <button type="submit" id="btn-settings-libur-submit" class="btn-primary btn-sm-touch">Simpan Entri</button>
+                </div>
+              </form>
+            </div>
+
+            <p class="libur-source-note" style="border-top: 1px solid var(--color-border); padding-top: 8px;">
+              Data bawaan: SKB 3 Menteri 2026 dan 2027. Periksa SKB terbaru setiap tahun.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- C. Ekspor dan Impor Cadangan JSON -->
@@ -576,9 +766,146 @@ function pastikanKerangkaHalamanPengaturan() {
   terapkanTema(prefAwal);
 }
 
+const NAMA_HARI_TABEL = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const NAMA_BULAN_TABEL = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+let tahunLiburAktif = 2026;
+
+function formatTanggalTabel(tanggalStr) {
+  const d = parseTanggal(tanggalStr);
+  if (!d) return tanggalStr || "-";
+  return `${NAMA_HARI_TABEL[d.getDay()]}, ${d.getDate()} ${NAMA_BULAN_TABEL[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+export function renderDaftarHariLiburPengaturan() {
+  const tbody = document.getElementById("settings-libur-tbody");
+  const selectTahun = document.getElementById("settings-libur-tahun-select");
+  const chkCuti = document.getElementById("settings-libur-cuti-merah");
+  const chkHariBesar = document.getElementById("settings-libur-hari-besar");
+  if (!tbody || !selectTahun) return;
+
+  const cfg = ambilKonfigurasiAktif();
+  const himpunanDisembunyikan = new Set(cfg.disembunyikan || []);
+
+  if (chkCuti instanceof HTMLInputElement) {
+    chkCuti.checked = cfg.tampilkanCutiMerah;
+  }
+  if (chkHariBesar instanceof HTMLInputElement) {
+    chkHariBesar.checked = cfg.tampilkanHariBesar;
+  }
+
+  // Bangun daftar tahun tersedia: 2026, 2027, tahun pada entri kustom, dan tahunLiburAktif
+  const setTahun = new Set([2026, 2027, tahunLiburAktif]);
+  (cfg.entri || []).forEach((u) => {
+    if (u.tanggal) {
+      const thn = Number(u.tanggal.slice(0, 4));
+      if (Number.isFinite(thn) && thn > 1900) setTahun.add(thn);
+    }
+  });
+
+  const daftarTahun = Array.from(setTahun).sort((a, b) => a - b);
+  selectTahun.innerHTML = daftarTahun
+    .map((t) => `<option value="${t}" ${t === tahunLiburAktif ? "selected" : ""}>${t}</option>`)
+    .join("");
+
+  // Kumpulkan entri pada tahun terpilih
+  const thnStr = String(tahunLiburAktif);
+  const bawaan = DATA_HARI_LIBUR_BAWAAN.filter((b) => b.tanggal.startsWith(thnStr)).map((b) => ({
+    tanggal: b.tanggal,
+    nama: b.nama,
+    jenis: b.jenis,
+    bawaan: true,
+    sumber: "bawaan"
+  }));
+
+  const hariBesarTetap = cfg.tampilkanHariBesar
+    ? HARI_BESAR_TETAP.map((hb) => {
+        const bln = String(hb.bulan).padStart(2, "0");
+        const tgl = String(hb.tanggal).padStart(2, "0");
+        return {
+          tanggal: `${thnStr}-${bln}-${tgl}`,
+          nama: hb.nama,
+          jenis: "besar",
+          bawaan: true,
+          sumber: "bawaan"
+        };
+      })
+    : [];
+
+  const tambahan = (cfg.entri || []).filter((u) => u.tanggal && u.tanggal.startsWith(thnStr)).map((u) => ({
+    id: u.id,
+    tanggal: u.tanggal,
+    nama: u.nama,
+    jenis: u.jenis || "tambahan",
+    bawaan: false,
+    sumber: "tambahan"
+  }));
+
+  const gabungan = [...bawaan, ...hariBesarTetap, ...tambahan];
+  gabungan.sort((a, b) => {
+    const c = a.tanggal.localeCompare(b.tanggal);
+    if (c !== 0) return c;
+    return a.nama.localeCompare(b.nama, "id", { sensitivity: "base" });
+  });
+
+  if (gabungan.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--color-text-muted); padding: var(--space-4);">Tidak ada hari libur atau cuti bersama yang tercatat untuk tahun ${tahunLiburAktif}. Anda dapat menambahkannya melalui formulir di bawah.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = gabungan
+    .map((item) => {
+      const key = kunciEntri(item.tanggal, item.nama);
+      const disembunyikan = himpunanDisembunyikan.has(key);
+
+      let lencanaJenis = "";
+      if (item.jenis === "cuti") {
+        lencanaJenis = `<span class="badge-cuti">Cuti bersama</span>`;
+      } else if (item.jenis === "besar") {
+        lencanaJenis = `<span class="badge-hari-besar">Hari besar</span>`;
+      } else if (item.jenis === "tambahan") {
+        lencanaJenis = `<span class="badge-libur">Libur tambahan</span>`;
+      } else {
+        lencanaJenis = `<span class="badge-libur">Libur nasional</span>`;
+      }
+
+      const lencanaSumber = item.bawaan
+        ? `<span class="badge-hari-besar">Bawaan</span>`
+        : `<span class="badge-hari-besar" style="color: var(--color-bps-primary-blue); font-weight: 600;">Tambahan</span>`;
+
+      const statusCoret = disembunyikan ? " is-hidden-entry" : "";
+      const lencanaStatus = disembunyikan
+        ? `<span class="status-badge status-rencana" style="margin-left: 6px; font-size: 11px;">Disembunyikan</span>`
+        : "";
+
+      let tombolAksi = "";
+      if (item.bawaan) {
+        tombolAksi = `<button type="button" class="btn-secondary btn-sm-touch" data-action="toggle-hide-builtin" data-key="${escapeHtml(key)}" data-tgl="${escapeHtml(item.tanggal)}" data-nama="${escapeHtml(item.nama)}">${disembunyikan ? "Tampilkan lagi" : "Sembunyikan"}</button>`;
+      } else {
+        tombolAksi = `<div style="display: flex; gap: 4px; justify-content: flex-end;">
+          <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-custom-libur" data-id="${escapeHtml(item.id || key)}">Ubah</button>
+          <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-custom-libur" data-id="${escapeHtml(item.id || key)}">Hapus</button>
+        </div>`;
+      }
+
+      return `<tr class="${statusCoret}">
+        <td style="white-space: nowrap; font-weight: 500;">${escapeHtml(formatTanggalTabel(item.tanggal))}</td>
+        <td>
+          <span style="${disembunyikan ? "text-decoration: line-through;" : ""}">${escapeHtml(item.nama)}</span>
+          ${lencanaStatus}
+        </td>
+        <td>${lencanaJenis}</td>
+        <td>${lencanaSumber}</td>
+        <td style="text-align: right;">${tombolAksi}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
 export function segarkanTampilanPengaturan() {
   const panel = document.getElementById("section-pengaturan");
   if (!panel || !panel.querySelector("#pengaturan-grid")) return;
+
+  renderDaftarHariLiburPengaturan();
 
   const user = getCurrentUser();
   const online = navigator.onLine;
@@ -1006,6 +1333,7 @@ export async function eksporSeluruhDataJson() {
       dieksporPada: new Date().toISOString(),
       peringatan:
         "Berkas asli di Google Drive (dokumen terunggah, Google Docs, dan Google Sheets) tidak ikut diekspor dalam berkas ini; hanya metadata yang disimpan.",
+      hariLibur: ambilKonfigurasiHariLiburUntukCadangan(),
       koleksi: {
         kegiatan,
         kategoriKegiatan,
@@ -1326,9 +1654,17 @@ function uraiBerkasJsonCadangan(teksJson) {
     );
   }
 
+  const hariLiburCadangan =
+    objek.hariLibur && typeof objek.hariLibur === "object"
+      ? objek.hariLibur
+      : sumber.hariLibur && typeof sumber.hariLibur === "object"
+        ? sumber.hariLibur
+        : null;
+
   return {
     tanggalEkspor: String(objek.tanggalEkspor || ""),
     koleksi: hasilPerKoleksi,
+    hariLibur: hariLiburCadangan,
     totalValid
   };
 }
@@ -1362,13 +1698,22 @@ function tampilkanPratinjauImpor() {
     metaEl.textContent = `Berkas: ${namaBerkasImpor} • Total ${dataSiapImpor.totalValid} entri siap diperiksa${infoTgl}`;
   }
 
-  gridEl.innerHTML = KOLEKSI_CADANGAN.map((k) => {
-    const jml = dataSiapImpor.koleksi[k.key]?.length || 0;
-    return `<div class="organize-stat-item">
-      <span class="organize-stat-value">${jml}</span>
-      <span class="organize-stat-label">${escapeHtml(k.label)}</span>
-    </div>`;
-  }).join("");
+  const itemLiburHtml =
+    dataSiapImpor.hariLibur && Array.isArray(dataSiapImpor.hariLibur.entri)
+      ? `<div class="organize-stat-item">
+          <span class="organize-stat-value">${dataSiapImpor.hariLibur.entri.length}</span>
+          <span class="organize-stat-label">Hari Libur Tambahan</span>
+        </div>`
+      : "";
+
+  gridEl.innerHTML =
+    KOLEKSI_CADANGAN.map((k) => {
+      const jml = dataSiapImpor.koleksi[k.key]?.length || 0;
+      return `<div class="organize-stat-item">
+        <span class="organize-stat-value">${jml}</span>
+        <span class="organize-stat-label">${escapeHtml(k.label)}</span>
+      </div>`;
+    }).join("") + itemLiburHtml;
 
   if (btnConfirm instanceof HTMLButtonElement) {
     btnConfirm.disabled = dataSiapImpor.totalValid === 0;
@@ -1459,6 +1804,27 @@ async function jalankanImporDataBatch() {
       }
     } else {
       perbaruiProgres("Tidak ada perubahan baru yang perlu ditulis.", 100);
+    }
+
+    if (dataSiapImpor.hariLibur) {
+      perbaruiProgres("Memperbarui konfigurasi hari libur...", 94);
+      const cfgImpor = dataSiapImpor.hariLibur;
+      const cfgSaatIni = ambilKonfigurasiAktif();
+      if (modeTimpa) {
+        await simpanPengaturanHariLibur({
+          entri: Array.isArray(cfgImpor.entri) ? cfgImpor.entri : [],
+          disembunyikan: Array.isArray(cfgImpor.disembunyikan) ? cfgImpor.disembunyikan : [],
+          tampilkanCutiMerah: typeof cfgImpor.tampilkanCutiMerah === "boolean" ? cfgImpor.tampilkanCutiMerah : true,
+          tampilkanHariBesar: typeof cfgImpor.tampilkanHariBesar === "boolean" ? cfgImpor.tampilkanHariBesar : true
+        });
+      } else {
+        if ((!cfgSaatIni.entri || cfgSaatIni.entri.length === 0) && Array.isArray(cfgImpor.entri) && cfgImpor.entri.length > 0) {
+          await simpanPengaturanHariLibur({
+            ...cfgSaatIni,
+            entri: [...cfgImpor.entri]
+          });
+        }
+      }
     }
 
     batalkanPratinjauImpor();
@@ -1563,6 +1929,190 @@ export function initHalamanPengaturan() {
   onPerubahanKegiatan(() => segarkanTampilanPengaturan());
   onPerubahanDokumen(() => segarkanTampilanPengaturan());
   onPerubahanCatatan(() => segarkanTampilanPengaturan());
+
+  // Event handler untuk kartu Pengaturan Hari Libur & Hari Besar
+  const chkCuti = document.getElementById("settings-libur-cuti-merah");
+  if (chkCuti) {
+    chkCuti.addEventListener("change", async () => {
+      const cfg = ambilKonfigurasiAktif();
+      cfg.tampilkanCutiMerah = chkCuti.checked;
+      await simpanPengaturanHariLibur(cfg);
+      tampilkanToast("Pengaturan cuti bersama diperbarui.", "success");
+    });
+  }
+
+  const chkHariBesar = document.getElementById("settings-libur-hari-besar");
+  if (chkHariBesar) {
+    chkHariBesar.addEventListener("change", async () => {
+      const cfg = ambilKonfigurasiAktif();
+      cfg.tampilkanHariBesar = chkHariBesar.checked;
+      await simpanPengaturanHariLibur(cfg);
+      tampilkanToast("Pengaturan hari besar diperbarui.", "success");
+    });
+  }
+
+  const selectTahun = document.getElementById("settings-libur-tahun-select");
+  if (selectTahun) {
+    selectTahun.addEventListener("change", () => {
+      const v = Number(selectTahun.value);
+      if (Number.isFinite(v) && v > 1900) {
+        tahunLiburAktif = v;
+        renderDaftarHariLiburPengaturan();
+      }
+    });
+  }
+
+  const btnTambahTahun = document.getElementById("btn-settings-tambah-tahun");
+  const boxTahunBaru = document.getElementById("settings-libur-input-tahun-box");
+  const inputTahunBaru = document.getElementById("settings-libur-input-tahun-baru");
+  const btnSimpanTahunBaru = document.getElementById("btn-settings-simpan-tahun-baru");
+  const btnBatalTahunBaru = document.getElementById("btn-settings-batal-tahun-baru");
+
+  if (btnTambahTahun && boxTahunBaru) {
+    btnTambahTahun.addEventListener("click", () => {
+      btnTambahTahun.style.display = "none";
+      boxTahunBaru.style.display = "inline-flex";
+      if (inputTahunBaru instanceof HTMLInputElement) {
+        inputTahunBaru.value = String(tahunLiburAktif + 1);
+        inputTahunBaru.focus();
+      }
+    });
+  }
+  if (btnBatalTahunBaru && boxTahunBaru && btnTambahTahun) {
+    btnBatalTahunBaru.addEventListener("click", () => {
+      boxTahunBaru.style.display = "none";
+      btnTambahTahun.style.display = "inline-block";
+    });
+  }
+  if (btnSimpanTahunBaru && inputTahunBaru && boxTahunBaru && btnTambahTahun) {
+    btnSimpanTahunBaru.addEventListener("click", () => {
+      const val = Number(inputTahunBaru.value);
+      if (Number.isFinite(val) && val >= 1970 && val <= 2100) {
+        tahunLiburAktif = val;
+        boxTahunBaru.style.display = "none";
+        btnTambahTahun.style.display = "inline-block";
+        renderDaftarHariLiburPengaturan();
+      } else {
+        tampilkanToast("Masukkan tahun antara 1970 dan 2100.", "warning");
+      }
+    });
+  }
+
+  const formLibur = document.getElementById("settings-libur-form");
+  const formLiburId = document.getElementById("settings-libur-form-id");
+  const formLiburTgl = document.getElementById("settings-libur-input-tanggal");
+  const formLiburNama = document.getElementById("settings-libur-input-nama");
+  const formLiburJenis = document.getElementById("settings-libur-input-jenis");
+  const formLiburTitle = document.getElementById("settings-libur-form-title");
+  const btnLiburSubmit = document.getElementById("btn-settings-libur-submit");
+  const btnLiburBatal = document.getElementById("btn-settings-libur-batal-edit");
+
+  function resetFormLibur() {
+    if (formLiburId instanceof HTMLInputElement) formLiburId.value = "";
+    if (formLiburNama instanceof HTMLInputElement) formLiburNama.value = "";
+    if (formLiburJenis instanceof HTMLSelectElement) formLiburJenis.value = "libur";
+    if (formLiburTitle) formLiburTitle.textContent = "Tambah Hari Libur atau Hari Besar";
+    if (btnLiburSubmit) btnLiburSubmit.textContent = "Simpan Entri";
+    if (btnLiburBatal) btnLiburBatal.hidden = true;
+  }
+
+  if (btnLiburBatal) {
+    btnLiburBatal.addEventListener("click", () => resetFormLibur());
+  }
+
+  if (formLibur) {
+    formLibur.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const tgl = formLiburTgl instanceof HTMLInputElement ? formLiburTgl.value.trim() : "";
+      const nama = formLiburNama instanceof HTMLInputElement ? formLiburNama.value.trim().slice(0, 80) : "";
+      const jenis = formLiburJenis instanceof HTMLSelectElement ? formLiburJenis.value : "libur";
+      const editId = formLiburId instanceof HTMLInputElement ? formLiburId.value.trim() : "";
+
+      if (!tgl || !parseTanggal(tgl)) {
+        tampilkanToast("Pilih tanggal yang sah.", "warning");
+        return;
+      }
+      if (!nama) {
+        tampilkanToast("Nama hari libur / hari besar wajib diisi.", "warning");
+        return;
+      }
+
+      const cfg = ambilKonfigurasiAktif();
+      if (editId) {
+        const idx = cfg.entri.findIndex((u) => u.id === editId);
+        if (idx >= 0) {
+          cfg.entri[idx] = { ...cfg.entri[idx], tanggal: tgl, nama, jenis };
+        } else {
+          cfg.entri.push({ id: editId, tanggal: tgl, nama, jenis });
+        }
+        tampilkanToast(`Perubahan "${nama}" berhasil disimpan.`, "success");
+      } else {
+        const idBaru = `libur-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        cfg.entri.push({ id: idBaru, tanggal: tgl, nama, jenis });
+        tampilkanToast(`"${nama}" berhasil ditambahkan.`, "success");
+      }
+
+      const thnEntri = Number(tgl.slice(0, 4));
+      if (Number.isFinite(thnEntri)) {
+        tahunLiburAktif = thnEntri;
+      }
+
+      resetFormLibur();
+      await simpanPengaturanHariLibur(cfg);
+    });
+  }
+
+  const tbodyLibur = document.getElementById("settings-libur-tbody");
+  if (tbodyLibur) {
+    tbodyLibur.addEventListener("click", async (e) => {
+      const target = e.target instanceof Element ? e.target.closest("button[data-action]") : null;
+      if (!target) return;
+
+      const aksi = target.getAttribute("data-action");
+      const cfg = ambilKonfigurasiAktif();
+
+      if (aksi === "toggle-hide-builtin") {
+        const key = target.getAttribute("data-key");
+        const nama = target.getAttribute("data-nama") || "Entri";
+        if (!key) return;
+        const setHide = new Set(cfg.disembunyikan || []);
+        if (setHide.has(key)) {
+          setHide.delete(key);
+          tampilkanToast(`"${nama}" ditampilkan kembali.`, "success");
+        } else {
+          setHide.add(key);
+          tampilkanToast(`"${nama}" disembunyikan dari jadwal.`, "info");
+        }
+        cfg.disembunyikan = Array.from(setHide);
+        await simpanPengaturanHariLibur(cfg);
+      } else if (aksi === "edit-custom-libur") {
+        const id = target.getAttribute("data-id");
+        const item = (cfg.entri || []).find((u) => u.id === id);
+        if (!item) return;
+
+        if (formLiburId instanceof HTMLInputElement) formLiburId.value = item.id;
+        if (formLiburTgl instanceof HTMLInputElement) formLiburTgl.value = item.tanggal;
+        if (formLiburNama instanceof HTMLInputElement) formLiburNama.value = item.nama;
+        if (formLiburJenis instanceof HTMLSelectElement) formLiburJenis.value = item.jenis || "libur";
+        if (formLiburTitle) formLiburTitle.textContent = "Ubah Hari Libur / Hari Besar";
+        if (btnLiburSubmit) btnLiburSubmit.textContent = "Simpan Perubahan";
+        if (btnLiburBatal) btnLiburBatal.hidden = false;
+
+        formLiburNama?.focus();
+        formLibur?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else if (aksi === "delete-custom-libur") {
+        const id = target.getAttribute("data-id");
+        const item = (cfg.entri || []).find((u) => u.id === id);
+        const nama = item ? item.nama : "Entri";
+        cfg.entri = (cfg.entri || []).filter((u) => u.id !== id);
+        tampilkanToast(`"${nama}" telah dihapus.`, "info");
+        await simpanPengaturanHariLibur(cfg);
+        if (formLiburId instanceof HTMLInputElement && formLiburId.value === id) {
+          resetFormLibur();
+        }
+      }
+    });
+  }
 
   window.addEventListener("online", segarkanTampilanPengaturan);
   window.addEventListener("offline", segarkanTampilanPengaturan);

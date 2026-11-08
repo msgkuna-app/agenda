@@ -44,6 +44,7 @@ import {
   formatTanggalCatatan,
   tautanAmanGoogleDocs
 } from "./catatan.js";
+import { infoHari } from "./hari-libur.js";
 
 export const DAFTAR_STATUS_KEGIATAN = ["Rencana", "Berjalan", "Selesai"];
 export const UKURAN_HALAMAN_KEGIATAN = 50;
@@ -784,6 +785,52 @@ function setPesanGalatFormKegiatan(pesan) {
   box.hidden = !pesan;
 }
 
+function perbaruiPetunjukHariLiburForm(tanggalStr) {
+  let el = document.getElementById("kegiatan-tanggal-hint-libur");
+  const tanggalInput = document.getElementById("kegiatan-tanggal-input");
+  if (!tanggalInput) return;
+
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "kegiatan-tanggal-hint-libur";
+    el.className = "field-hint-libur";
+    el.setAttribute("aria-live", "polite");
+    tanggalInput.insertAdjacentElement("afterend", el);
+  }
+
+  if (!tanggalStr || !parseTanggal(tanggalStr)) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "field-hint-libur";
+    return;
+  }
+
+  const info = infoHari(tanggalStr);
+  if (info.merah) {
+    el.hidden = false;
+    el.className = "field-hint-libur is-libur";
+    const liburNasional = (info.libur || []).filter((item) => item.jenis === "libur" || item.jenis === "tambahan");
+    const cutiBersama = (info.libur || []).filter((item) => item.jenis === "cuti");
+    if (liburNasional.length > 0) {
+      el.textContent = `Tanggal ini libur nasional: ${liburNasional.map((l) => l.nama).join(", ")}`;
+    } else if (cutiBersama.length > 0) {
+      el.textContent = `Tanggal ini cuti bersama: ${cutiBersama.map((c) => c.nama).join(", ")}`;
+    } else if (info.minggu) {
+      el.textContent = "Hari Minggu";
+    } else {
+      el.textContent = info.keterangan || "Hari libur";
+    }
+  } else if (info.hariBesar && info.hariBesar.length > 0) {
+    el.hidden = false;
+    el.className = "field-hint-libur is-hari-besar";
+    el.textContent = `Hari besar: ${info.hariBesar.map((h) => h.nama).join(", ")}`;
+  } else {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "field-hint-libur";
+  }
+}
+
 export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
   const modal = document.getElementById("kegiatan-form-modal");
   const titleEl = document.getElementById("kegiatan-form-title");
@@ -844,6 +891,10 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
     if (catatanInput) catatanInput.value = "";
   }
 
+  if (tanggalInput) {
+    perbaruiPetunjukHariLiburForm(tanggalInput.value);
+  }
+
   formModalTerbuka = true;
   modal.hidden = false;
   requestAnimationFrame(() => {
@@ -857,6 +908,13 @@ function tutupModalFormKegiatan(kembalikanFokus = true) {
   formModalTerbuka = false;
   modal.hidden = true;
   setPesanGalatFormKegiatan("");
+
+  const hintEl = document.getElementById("kegiatan-tanggal-hint-libur");
+  if (hintEl) {
+    hintEl.hidden = true;
+    hintEl.textContent = "";
+    hintEl.className = "field-hint-libur";
+  }
 
   if (kembalikanFokus && fokusSebelumModalKegiatan && document.contains(fokusSebelumModalKegiatan)) {
     fokusSebelumModalKegiatan.focus();
@@ -1162,6 +1220,16 @@ export function initHalamanKegiatan() {
   if (formModal) {
     formModal.addEventListener("click", (e) => {
       if (e.target === formModal) tutupModalFormKegiatan(true);
+    });
+  }
+
+  const tanggalInputEl = document.getElementById("kegiatan-tanggal-input");
+  if (tanggalInputEl) {
+    tanggalInputEl.addEventListener("input", () => {
+      perbaruiPetunjukHariLiburForm(tanggalInputEl.value);
+    });
+    tanggalInputEl.addEventListener("change", () => {
+      perbaruiPetunjukHariLiburForm(tanggalInputEl.value);
     });
   }
 

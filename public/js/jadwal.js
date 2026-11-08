@@ -1,11 +1,10 @@
 /**
- * Modul Halaman Jadwal & Dialog Rincian Kegiatan (Fase 2 + Optimalisasi Pembacaan Fase 5)
- * - Dua tampilan: Kalender Bulanan (buatan sendiri, awal pekan Senin, bahasa Indonesia,
- *   penanda hari ini, maks 3 titik warna kategori + "+N", ringkas di HP & sel besar berisi
- *   nama kegiatan singkat di tablet/desktop) dan Daftar Agenda 30 hari ke depan.
- * - Semua perhitungan tanggal HANYA memakai util-tanggal.js (Aturan #6).
- * - Fase 5: Memanggil sinkronkanJendelaTanggalKegiatan(tahun, bulan) saat navigasi bulan
- *   agar listener jendela Firestore hanya membaca data bulan aktif (+/- 1 bulan).
+ * Modul Halaman Jadwal & Dialog Rincian Kegiatan (Fase 2 + Integrasi Hari Libur & Tanggal Merah)
+ * - Dua tampilan: Kalender Bulanan (awal pekan Senin, bahasa Indonesia, penanda hari libur nasional,
+ *   cuti bersama, hari Minggu bertanggal merah, nama libur di layar lebar, panel tanggal terpilih)
+ *   dan Daftar Agenda 30 hari ke depan dengan judul tanggal merah bila libur.
+ * - Catatan kecil bila data tahun belum tersedia (misal tahun 2028).
+ * - Seluruh perhitungan tanggal HANYA memakai util-tanggal.js.
  */
 import { formatPesanGalatFirestore } from "./firebase-config.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
@@ -22,6 +21,7 @@ import {
   kelasBadgeStatus,
   sinkronkanJendelaTanggalKegiatan
 } from "./kegiatan.js";
+import { infoHari, adaDataTahun } from "./hari-libur.js";
 
 const NAMA_BULAN_PANJANG = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -110,7 +110,7 @@ function pastikanKerangkaHalamanJadwal() {
   if (!panel || panel.querySelector("#jadwal-view-switcher")) return;
 
   const headerKolomHari = KOLOM_HARI_SENIN.map(
-    (h) => `<div class="cal-weekday-cell" role="columnheader" aria-label="${escapeHtml(h.penuh)}"><span class="cal-dow-full">${escapeHtml(h.penuh)}</span><span class="cal-dow-short" aria-hidden="true">${escapeHtml(h.pendek)}</span></div>`
+    (h) => `<div class="cal-weekday-cell${h.pendek === "Min" ? " cal-weekday-min" : ""}" role="columnheader" aria-label="${escapeHtml(h.penuh)}"><span class="cal-dow-full">${escapeHtml(h.penuh)}</span><span class="cal-dow-short" aria-hidden="true">${escapeHtml(h.pendek)}</span></div>`
   ).join("");
 
   panel.innerHTML = `<div class="page-stack">
@@ -129,6 +129,7 @@ function pastikanKerangkaHalamanJadwal() {
     </div>
     <div id="jadwal-page-error" class="alert-box" role="alert" hidden>${IKON_GALAT}<span id="jadwal-page-error-text"></span></div>
     <div id="jadwal-kalender-view" class="jadwal-view-panel">
+      <div id="jadwal-nodata-notice" role="status" hidden></div>
       <div class="calendar-card">
         <div class="calendar-toolbar">
           <div class="calendar-nav-group">
@@ -230,7 +231,22 @@ function renderKalenderBulanan(petaPerTanggal) {
   const judulBulanEl = document.getElementById("jadwal-judul-bulan");
   const gridEl = document.getElementById("jadwal-calendar-grid");
   const panelTanggalEl = document.getElementById("jadwal-selected-date-panel");
+  const noticeEl = document.getElementById("jadwal-nodata-notice");
   if (!gridEl || !panelTanggalEl) return;
+
+  // Catatan bila tahun tidak tercakup data libur bawaan/tambahan
+  if (noticeEl) {
+    if (!adaDataTahun(tahunKalender)) {
+      noticeEl.innerHTML = `<div class="calendar-nodata-notice" role="status">
+        <span>Data hari libur tahun ${tahunKalender} belum tersedia. Hari Minggu tetap ditandai merah.</span>
+        <button type="button" class="btn-link-filter" data-action="ke-pengaturan-libur">Kelola hari libur &rarr;</button>
+      </div>`;
+      noticeEl.hidden = false;
+    } else {
+      noticeEl.innerHTML = "";
+      noticeEl.hidden = true;
+    }
+  }
 
   const strHariIni = hariIni();
   if (!tanggalTerpilih || !parseTanggal(tanggalTerpilih)) tanggalTerpilih = strHariIni;
@@ -245,8 +261,9 @@ function renderKalenderBulanan(petaPerTanggal) {
       const total = kegiatanHari.length;
       const adalahHariIni = sel.tanggalStr === strHariIni;
       const adalahTerpilih = sel.tanggalStr === tanggalTerpilih;
+      const infoH = infoHari(sel.tanggalStr);
 
-      // Penanda warna kategori per hari: maks 3 titik, sisanya "+N"
+      // Penanda warna kategori per hari: maks 3 titik, sisanya "+N". Bila tanpa kegiatan namun hari libur, beri titik merah di HP
       const maksTitik = 3;
       const titikHtml = kegiatanHari.slice(0, maksTitik).map((k) => {
         const infoKat = manajerKategoriKegiatan.cariInfoKategori(k.kategoriId);
@@ -255,7 +272,20 @@ function renderKalenderBulanan(petaPerTanggal) {
       const sisaTitik = total > maksTitik ? total - maksTitik : 0;
       const penandaKategoriHtml = total > 0
         ? `<span class="cal-dots-row" aria-hidden="true">${titikHtml}${sisaTitik > 0 ? `<span class="cal-dot-more">+${sisaTitik}</span>` : ""}</span>`
-        : `<span class="cal-dots-row cal-dots-empty" aria-hidden="true"></span>`;
+        : infoH.libur.length > 0
+          ? `<span class="cal-dots-row" aria-hidden="true"><span class="cal-dot cal-dot-${infoH.libur[0].jenis === "cuti" ? "cuti" : "libur"}" aria-hidden="true"></span></span>`
+          : `<span class="cal-dots-row cal-dots-empty" aria-hidden="true"></span>`;
+
+      // Nama hari libur / cuti / hari besar kecil (satu baris, ellipsis) di dalam sel pada layar lebar
+      let holidayLabelHtml = "";
+      if (infoH.libur.length > 0) {
+        const liburPertama = infoH.libur[0];
+        const clsJenis = liburPertama.jenis === "cuti" ? " cal-holiday-cuti" : "";
+        holidayLabelHtml = `<span class="cal-holiday-label${clsJenis}" title="${escapeHtml(liburPertama.nama)}">${escapeHtml(liburPertama.nama)}</span>`;
+      } else if (infoH.hariBesar.length > 0) {
+        const hbPertama = infoH.hariBesar[0];
+        holidayLabelHtml = `<span class="cal-holiday-label cal-holiday-neutral" title="${escapeHtml(hbPertama.nama)}">${escapeHtml(hbPertama.nama)}</span>`;
+      }
 
       // Nama kegiatan singkat dalam sel untuk tablet & desktop (>=600px)
       const maksChipDesktop = 3;
@@ -267,19 +297,29 @@ function renderKalenderBulanan(petaPerTanggal) {
           }).join("")}${total > maksChipDesktop ? `<button type="button" class="cal-more-chip" data-action="pilih-tanggal" data-tanggal="${escapeHtml(sel.tanggalStr)}">+${total - maksChipDesktop} kegiatan lainnya</button>` : ""}</div>`
         : "";
 
-      const labelAksesibel = `${formatTanggalLengkapIndonesia(sel.tanggalStr)}${adalahHariIni ? ", Hari ini" : ""}, ${total} kegiatan`;
+      let labelAksesibel = `${formatTanggalLengkapIndonesia(sel.tanggalStr)}`;
+      if (infoH.keterangan) {
+        labelAksesibel += `, ${infoH.keterangan}`;
+      }
+      if (adalahHariIni) {
+        labelAksesibel += ", Hari ini";
+      }
+      labelAksesibel += `, ${total} kegiatan`;
+
       const kelasSel = [
         "cal-day-cell",
         sel.dalamBulan ? "" : "is-outside-month",
         adalahHariIni ? "is-today" : "",
-        adalahTerpilih ? "is-selected" : ""
+        adalahTerpilih ? "is-selected" : "",
+        infoH.merah ? "is-libur" : ""
       ].filter(Boolean).join(" ");
 
       return `<div class="${kelasSel}" role="gridcell" data-tanggal="${escapeHtml(sel.tanggalStr)}">
-        <button type="button" class="cal-day-select-btn" data-action="pilih-tanggal" data-tanggal="${escapeHtml(sel.tanggalStr)}" aria-pressed="${adalahTerpilih ? "true" : "false"}" aria-label="${escapeHtml(labelAksesibel)}">
+        <button type="button" class="cal-day-select-btn" data-action="pilih-tanggal" data-tanggal="${escapeHtml(sel.tanggalStr)}" aria-pressed="${adalahTerpilih ? "true" : "false"}" aria-label="${escapeHtml(labelAksesibel)}" ${infoH.keterangan ? `title="${escapeHtml(infoH.keterangan)}"` : ""}>
           <span class="cal-day-top"><span class="cal-day-number">${sel.hariAngka}</span>${adalahHariIni ? `<span class="cal-today-tag">Hari ini</span>` : ""}</span>
           ${penandaKategoriHtml}
         </button>
+        ${holidayLabelHtml}
         ${daftarChipHtml}
       </div>`;
     }).join("");
@@ -292,20 +332,53 @@ function renderKalenderBulanan(petaPerTanggal) {
   const kegiatanTerpilih = petaPerTanggal.get(tanggalTerpilih) || [];
   const labelHariIni = tanggalTerpilih === strHariIni ? "Hari ini • " : "";
   const judulTanggalTerpilih = `${labelHariIni}${formatTanggalLengkapIndonesia(tanggalTerpilih)}`;
+  const infoTerpilih = infoHari(tanggalTerpilih);
+
+  // Lencana informasi hari libur / cuti bersama / hari besar pada panel terpilih
+  let bannerLiburHtml = "";
+  if (infoTerpilih.libur.length > 0 || infoTerpilih.minggu || infoTerpilih.hariBesar.length > 0) {
+    const daftarLencana = [];
+    if (infoTerpilih.minggu && infoTerpilih.libur.length === 0) {
+      daftarLencana.push(`<span class="badge-libur">Hari Minggu</span>`);
+    }
+    for (const l of infoTerpilih.libur) {
+      if (l.jenis === "cuti") {
+        daftarLencana.push(`<span class="badge-cuti" title="Cuti Bersama">Cuti bersama: ${escapeHtml(l.nama)}</span>`);
+      } else if (l.jenis === "tambahan") {
+        daftarLencana.push(`<span class="badge-libur" title="Libur Tambahan">Libur: ${escapeHtml(l.nama)}</span>`);
+      } else {
+        daftarLencana.push(`<span class="badge-libur" title="Libur Nasional">Libur nasional: ${escapeHtml(l.nama)}</span>`);
+      }
+    }
+    for (const hb of infoTerpilih.hariBesar) {
+      daftarLencana.push(`<span class="badge-hari-besar" title="Hari Besar Nasional (bukan libur)">${escapeHtml(hb.nama)}</span>`);
+    }
+    bannerLiburHtml = `<div class="selected-date-holidays" role="note" aria-label="Informasi hari libur dan hari besar">
+      <span class="selected-date-holidays-title">Keterangan Hari:</span>
+      <div class="holiday-badges-list">${daftarLencana.join("")}</div>
+    </div>`;
+  }
 
   if (!isKegiatanSudahDimuat()) {
-    panelTanggalEl.innerHTML = `<div class="selected-date-header"><div class="selected-date-heading-wrap"><h3 id="jadwal-selected-date-heading" class="selected-date-title">${escapeHtml(judulTanggalTerpilih)}</h3><p class="selected-date-subtitle">Memuat kegiatan...</p></div></div>
+    panelTanggalEl.innerHTML = `<div class="selected-date-header">
+      <div class="selected-date-heading-wrap">
+        <h3 id="jadwal-selected-date-heading" class="selected-date-title${infoTerpilih.merah ? " text-libur" : ""}">${escapeHtml(judulTanggalTerpilih)}</h3>
+        <p class="selected-date-subtitle">Memuat kegiatan...</p>
+      </div>
+    </div>
+    ${bannerLiburHtml}
     <div class="skeleton-card" role="status" aria-label="Memuat jadwal kegiatan"><div class="skeleton-line skeleton-w-40"></div><div class="skeleton-line skeleton-w-70"></div></div>`;
     return;
   }
 
   panelTanggalEl.innerHTML = `<div class="selected-date-header">
     <div class="selected-date-heading-wrap">
-      <h3 id="jadwal-selected-date-heading" class="selected-date-title">${escapeHtml(judulTanggalTerpilih)}</h3>
+      <h3 id="jadwal-selected-date-heading" class="selected-date-title${infoTerpilih.merah ? " text-libur" : ""}">${escapeHtml(judulTanggalTerpilih)}</h3>
       <p class="selected-date-subtitle">${kegiatanTerpilih.length > 0 ? `${kegiatanTerpilih.length} kegiatan terjadwal pada tanggal ini` : "Belum ada kegiatan terjadwal pada tanggal ini"}</p>
     </div>
     <button type="button" class="btn-primary btn-sm-touch" data-action="tambah-kegiatan-tanggal" data-tanggal="${escapeHtml(tanggalTerpilih)}">${IKON_TAMBAH(16)}<span>Tambah kegiatan</span></button>
   </div>
+  ${bannerLiburHtml}
   ${kegiatanTerpilih.length === 0
     ? `<div class="empty-stage-card empty-stage-compact"><p class="empty-stage-desc">Tidak ada kegiatan pada <strong>${escapeHtml(formatTanggalLengkapIndonesia(tanggalTerpilih))}</strong>. Tekan tombol <strong>Tambah kegiatan</strong> untuk mencatat agenda di tanggal ini.</p></div>`
     : `<div class="kegiatan-list-grid">${kegiatanTerpilih.map((item) => renderKartuItemJadwal(item)).join("")}</div>`}`;
@@ -348,10 +421,30 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
 
   const grupHtml = Array.from(grupTanggal.entries()).map(([tgl, daftarItem]) => {
     const penandaRelatif = tgl === strAwal ? "Hari ini • " : tgl === strBesok ? "Besok • " : "";
+    const infoGrup = infoHari(tgl);
+
+    let labelLiburAgenda = "";
+    if (infoGrup.libur.length > 0) {
+      labelLiburAgenda = infoGrup.libur
+        .map((l) => (l.jenis === "cuti" ? `Cuti bersama: ${l.nama}` : l.nama))
+        .join(", ");
+    } else if (infoGrup.minggu) {
+      labelLiburAgenda = "Hari Minggu";
+    }
+
+    let labelHariBesarAgenda = "";
+    if (infoGrup.hariBesar.length > 0) {
+      labelHariBesarAgenda = infoGrup.hariBesar.map((h) => h.nama).join(", ");
+    }
+
     return `<section class="agenda-day-group" aria-label="${escapeHtml(formatTanggalLengkapIndonesia(tgl))}">
       <div class="agenda-day-header">
         <div class="agenda-day-title-wrap">
-          <h3 class="agenda-day-title">${escapeHtml(penandaRelatif)}${escapeHtml(formatTanggalLengkapIndonesia(tgl))}</h3>
+          <h3 class="agenda-day-title${infoGrup.merah ? " text-libur" : ""}">
+            ${escapeHtml(penandaRelatif)}${escapeHtml(formatTanggalLengkapIndonesia(tgl))}
+            ${labelLiburAgenda ? ` • <span class="agenda-holiday-tag">${escapeHtml(labelLiburAgenda)}</span>` : ""}
+            ${labelHariBesarAgenda ? ` • <span class="agenda-haribesar-tag">${escapeHtml(labelHariBesarAgenda)}</span>` : ""}
+          </h3>
           <span class="agenda-day-count">${daftarItem.length} kegiatan</span>
         </div>
       </div>
@@ -623,6 +716,15 @@ export function initHalamanJadwal() {
         inisialisasiStateTanggalAwal();
         sinkronkanJendelaTanggalKegiatan(tahunKalender, bulanKalender);
         renderHalamanJadwal();
+        return;
+      }
+
+      if (targetEl.closest("[data-action='ke-pengaturan-libur']")) {
+        pindahKeBagian("pengaturan");
+        requestAnimationFrame(() => {
+          const el = document.getElementById("settings-libur-card");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        });
         return;
       }
 

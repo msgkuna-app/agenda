@@ -98,7 +98,11 @@ import {
   apakahSedangMenundaCadangan,
   onPerubahanCadangan,
   eksporSeluruhDataJson,
+  muatPengaturanHariLibur,
+  bacaPengaturanHariLiburLokal,
+  onPerubahanHariLibur,
 } from "./pengaturan.js";
+import { infoHari } from "./hari-libur.js";
 import { resetCacheDrive } from "./drive.js";
 import {
   renderTimelineHarian,
@@ -665,16 +669,39 @@ function renderDashboard() {
   const strHariIni = hariIni();
   const strBesok = tambahHari(1);
   const strTujuhHari = tambahHari(7);
+  const infoHariIni = infoHari(strHariIni);
 
   const subtitleEl = document.getElementById("dashboard-subtitle-tanggal");
   if (subtitleEl) {
-    subtitleEl.textContent = `Ikhtisar jadwal, catatan, dan arsip dokumen Anda pada ${formatTanggalLengkapIndonesia(strHariIni)}.`;
+    let teksTgl = formatTanggalLengkapIndonesia(strHariIni);
+    if (infoHariIni.libur.length > 0) {
+      teksTgl += ` (${infoHariIni.libur.map((l) => l.nama).join(", ")})`;
+    } else if (infoHariIni.minggu) {
+      teksTgl += ` (Hari Minggu)`;
+    } else if (infoHariIni.hariBesar.length > 0) {
+      teksTgl += ` (${infoHariIni.hariBesar.map((h) => h.nama).join(", ")})`;
+    }
+    subtitleEl.textContent = `Ikhtisar jadwal, catatan, dan arsip dokumen Anda pada ${teksTgl}.`;
+    subtitleEl.classList.toggle("text-libur", infoHariIni.merah);
   }
 
   const metaHariIniEl = document.getElementById("dash-meta-hari-ini");
   const meta7HariEl = document.getElementById("dash-meta-7hari");
-  if (metaHariIniEl)
-    metaHariIniEl.textContent = formatTanggalRingkasIndonesia(strHariIni);
+  if (metaHariIniEl) {
+    metaHariIniEl.classList.toggle("text-libur", infoHariIni.merah);
+    const teksRingkas = formatTanggalRingkasIndonesia(strHariIni);
+    if (infoHariIni.libur.length > 0) {
+      const namaLibur = infoHariIni.libur.map((l) => l.nama).join(", ");
+      metaHariIniEl.innerHTML = `${escapeHtml(teksRingkas)} • <span class="badge-libur-inline">${escapeHtml(namaLibur)}</span>`;
+    } else if (infoHariIni.minggu) {
+      metaHariIniEl.innerHTML = `${escapeHtml(teksRingkas)} • <span class="badge-libur-inline">Minggu</span>`;
+    } else if (infoHariIni.hariBesar.length > 0) {
+      const namaBesar = infoHariIni.hariBesar.map((h) => h.nama).join(", ");
+      metaHariIniEl.textContent = `${teksRingkas} • ${namaBesar}`;
+    } else {
+      metaHariIniEl.textContent = teksRingkas;
+    }
+  }
   if (meta7HariEl)
     meta7HariEl.textContent = `${formatTanggalRingkasIndonesia(strBesok)} – ${formatTanggalRingkasIndonesia(strTujuhHari)}`;
 
@@ -1421,6 +1448,13 @@ function mulaiAplikasi() {
   daftarkanPembukaDetailKegiatan(bukaDialogDetailKegiatan);
   daftarkanPembukaDetailKegiatanCatatan(bukaDialogDetailKegiatan);
 
+  bacaPengaturanHariLiburLokal();
+  onPerubahanHariLibur(() => {
+    renderDashboard();
+    renderHalamanJadwal();
+    segarkanTampilanPengaturan();
+  });
+
   initHalamanKegiatan();
   initHalamanJadwal();
   initHalamanDokumen();
@@ -1500,6 +1534,11 @@ function mulaiAplikasi() {
         },
       });
       muatPengaturanCadangan();
+      muatPengaturanHariLibur().then(() => {
+        renderDashboard();
+        renderHalamanJadwal();
+        segarkanTampilanPengaturan();
+      });
       segarkanTampilanPengaturan();
       jalankanAksiPintasanSetelahLayarTampil();
     });
