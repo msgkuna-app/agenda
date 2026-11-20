@@ -27,7 +27,7 @@ import {
   getDocs,
   getCountFromServer,
   formatPesanGalatFirestore
-} from "./firebase-config.js";
+} from "./services/firestoreService.js";
 import {
   buatManajerKategori,
   inisialisasiDialogKelolaKategori,

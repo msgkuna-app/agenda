@@ -6,7 +6,7 @@
  * - Catatan kecil bila data tahun belum tersedia (misal tahun 2028).
  * - Seluruh perhitungan tanggal HANYA memakai util-tanggal.js.
  */
-import { formatPesanGalatFirestore } from "./firebase-config.js";
+import { formatPesanGalatFirestore } from "./services/firestoreService.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import { pindahKeBagian } from "./sidebar.js";
 import { escapeHtml, svgIkon, NAMA_HARI, NAMA_BULAN, NAMA_BULAN_PENDEK } from "./util-html.js";

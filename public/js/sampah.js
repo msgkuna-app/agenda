@@ -18,7 +18,7 @@ import {
   query,
   where,
   formatPesanGalatFirestore
-} from "./firebase-config.js";
+} from "./services/firestoreService.js";
 import {
   pulihkanKegiatan,
   hapusPermanenKegiatan

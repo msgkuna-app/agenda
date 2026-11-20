@@ -15,7 +15,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { getFirebaseAuth, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID } from "./firebase-config.js";
+import { getFirebaseAuth, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID } from "./services/firestoreService.js";
 
 // Bersihkan sisa kunci lama di sessionStorage saat modul dimuat
 try {
@@ -201,7 +201,7 @@ export async function mintaTokenDrive(opsi = { senyap: false }) {
     const clientId = typeof GOOGLE_CLIENT_ID === "string" ? GOOGLE_CLIENT_ID.trim() : "";
     if (!clientId || clientId === PLACEHOLDER_GOOGLE_CLIENT_ID) {
       throw new Error(
-        "OAuth Client ID belum dikonfigurasi pada GOOGLE_CLIENT_ID di firebase-config.js. Harap isi OAuth Client ID Web Anda."
+        "OAuth Client ID belum dikonfigurasi pada GOOGLE_CLIENT_ID di js/config/firebase.js. Harap isi OAuth Client ID Web Anda."
       );
     }
 

@@ -30,7 +30,7 @@ import {
   startAfter,
   getDocs,
   formatPesanGalatFirestore
-} from "./firebase-config.js";
+} from "./services/firestoreService.js";
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./auth.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
 import { tampilkanToast } from "./shared/toast.js";

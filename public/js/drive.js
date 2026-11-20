@@ -13,7 +13,7 @@ import {
   getDoc,
   setDoc,
   formatPesanGalatFirestore,
-} from "./firebase-config.js";
+} from "./services/firestoreService.js";
 import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./auth.js";
 
 let cacheRootFolderId = null;

@@ -6,7 +6,7 @@
  */
 import { INTERVAL_CEK_TOKEN_DRIVE_MS, KUNCI_STORAGE_TAMPILAN_HARI_INI } from "./config/constants.js";
 import { daftarkanServiceWorker, perbaruiVisibilitasSpandukSw } from "./pwa.js";
-import { isFirebaseConfigured } from "./firebase-config.js";
+import { isFirebaseConfigured } from "./services/firestoreService.js";
 import {
   AUTHORIZED_EMAIL,
   initAuth,
