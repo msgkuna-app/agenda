@@ -35,7 +35,8 @@ import {
 import { getPreferensiTema, terapkanTema } from "./tema.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { formatTanggalLengkapIndonesia } from "./jadwal.js";
-import { escapeHtml, tampilkanToast } from "./sidebar.js";
+import { escapeHtml } from "./sidebar.js";
+import { tampilkanToast } from "./shared/toast.js";
 import {
   DATA_HARI_LIBUR_BAWAAN,
   HARI_BESAR_TETAP,

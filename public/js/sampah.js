@@ -29,7 +29,7 @@ import {
   JENIS_CATATAN_GDOC
 } from "./catatan.js";
 import { parseTanggal, hariIni } from "./util-tanggal.js";
-import { tampilkanToast } from "./sidebar.js";
+import { tampilkanToast } from "./shared/toast.js";
 import {
   escapeHtml,
   svgIkon,

@@ -24,8 +24,8 @@ import {
   perbaruiStatusKoneksiSidebar,
   tutupDrawerMobile,
   pindahKeBagian,
-  tampilkanToast,
 } from "./sidebar.js";
+import { tampilkanToast } from "./shared/toast.js";
 import {
   escapeHtml,
   svgIkon,

@@ -33,7 +33,8 @@ import {
 } from "./firebase-config.js";
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./auth.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml, tampilkanToast } from "./sidebar.js";
+import { escapeHtml } from "./sidebar.js";
+import { tampilkanToast } from "./shared/toast.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import {
   buatDokumenGoogleDocsDrive,
