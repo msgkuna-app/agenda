@@ -728,6 +728,7 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3853,6 +3854,7 @@ html[data-drawer="open"] .app-sidebar {
   color: var(--color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -4843,6 +4845,7 @@ html[data-drawer="open"] .sw-update-banner {
   color: var(--color-text-secondary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.4;
@@ -5136,6 +5139,7 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;

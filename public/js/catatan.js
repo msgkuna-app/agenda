@@ -47,12 +47,9 @@ import {
   bangunHtmlTemplatDokumen
 } from "./templat-dokumen.js";
 import { initFilterPanel } from "./filter-panel.js";
+import { svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
 
-const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
+// svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 
 const IKON_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
 const IKON_GDOC = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/><line x1="8" y1="19" x2="12" y2="19"/>', 20);

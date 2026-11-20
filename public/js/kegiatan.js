@@ -36,6 +36,7 @@ import {
 } from "./kategori.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian, tampilkanToast } from "./sidebar.js";
+import { svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
 import { initFilterPanel } from "./filter-panel.js";
 import {
   JENIS_CATATAN_GDOC,
@@ -48,11 +49,7 @@ import {
 } from "./catatan.js";
 import { infoHari } from "./hari-libur.js";
 
-const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
-const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
+// svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 
 const IKON_KALENDER_META = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 15);
 const IKON_JAM_META = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);

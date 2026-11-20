@@ -58,11 +58,9 @@ import {
   pindahkanBerkasKeFolderDrive,
   formatPesanGalatDrive
 } from "./drive.js";
+import { svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
 
-const NAMA_BULAN_PENDEK = [
-  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-  "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
-];
+// NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 
 export const DAFTAR_JENIS_LAPORAN = [
   {
@@ -91,8 +89,6 @@ export const DAFTAR_JENIS_LAPORAN = [
 ];
 DAFTAR_JENIS_LAPORAN[3].namaTab = "Daftar Catatan";
 
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 const IKON_TABEL = svgIkon('<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/>', 18);
 const IKON_UNDUH = svgIkon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>', 18);

@@ -292,6 +292,7 @@ import {
 import { getDaftarLaporan } from "./laporan.js";
 import { formatPesanGalatDrive } from "./drive.js";
 import { periksaPembaruan } from "./pwa.js";
+import { svgIkon } from "./util-html.js";
 
 export const KOLEKSI_CADANGAN = [
   { key: "kategoriKegiatan", label: "Kategori Kegiatan" },
@@ -302,8 +303,7 @@ export const KOLEKSI_CADANGAN = [
   { key: "laporan", label: "Riwayat Laporan (Metadata Sheets)" }
 ];
 
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
+// svgIkon kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 
 const IKON_MATAHARI = svgIkon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>', 17);
 const IKON_BULAN = svgIkon('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>', 17);

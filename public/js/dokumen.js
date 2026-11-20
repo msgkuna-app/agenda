@@ -54,14 +54,9 @@ import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
+import { svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
 
-const NAMA_BULAN_PENDEK = [
-  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-  "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
-];
-
-const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
-  `<svg${cls ? ` class="${cls}"` : ""} viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
+// svgIkon & NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 
 const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 

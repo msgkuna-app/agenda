@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.7.1";
+const VERSION = "agenda-arsip-v1.7.2";
 
 const APP_SHELL = [
   "/",
