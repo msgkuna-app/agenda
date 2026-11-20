@@ -9,7 +9,7 @@
 import { formatPesanGalatFirestore } from "./firebase-config.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
 import { pindahKeBagian } from "./sidebar.js";
-import { escapeHtml } from "./util-html.js";
+import { escapeHtml, svgIkon, NAMA_HARI, NAMA_BULAN, NAMA_BULAN_PENDEK } from "./util-html.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,
@@ -24,12 +24,8 @@ import {
 } from "./kegiatan.js";
 import { infoHari, adaDataTahun } from "./hari-libur.js";
 
-const NAMA_BULAN_PANJANG = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-];
-const NAMA_BULAN_RINGKAS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const NAMA_HARI_DARI_MINGGU = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+// Nama hari/bulan & svgIkon kini diimpor dari util-html.js (Tahap 4: deduplikasi).
+// NAMA_HARI_DARI_MINGGU -> NAMA_HARI, NAMA_BULAN_PANJANG -> NAMA_BULAN, NAMA_BULAN_RINGKAS -> NAMA_BULAN_PENDEK.
 
 // Kolom kalender dimulai dari hari Senin (0 = Senin ... 6 = Minggu)
 const KOLOM_HARI_SENIN = [
@@ -41,9 +37,6 @@ const KOLOM_HARI_SENIN = [
   { penuh: "Sabtu", pendek: "Sab" },
   { penuh: "Minggu", pendek: "Min" }
 ];
-
-const svgIkon = (isi, uk = 18, tebal = 2) =>
-  `<svg viewBox="0 0 24 24" width="${uk}" height="${uk}" fill="none" stroke="currentColor" stroke-width="${tebal}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isi}</svg>`;
 
 const IKON_KALENDER = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 16);
 const IKON_DAFTAR = svgIkon('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>', 16);
@@ -76,14 +69,14 @@ function inisialisasiStateTanggalAwal() {
 export function formatTanggalLengkapIndonesia(tanggalStr) {
   const obj = parseTanggal(tanggalStr);
   if (!obj) return tanggalStr || "-";
-  return `${NAMA_HARI_DARI_MINGGU[obj.getDay()]}, ${obj.getDate()} ${NAMA_BULAN_PANJANG[obj.getMonth()]} ${obj.getFullYear()}`;
+  return `${NAMA_HARI[obj.getDay()]}, ${obj.getDate()} ${NAMA_BULAN[obj.getMonth()]} ${obj.getFullYear()}`;
 }
 
 export function formatTanggalRingkasIndonesia(tanggalStr) {
   const obj = parseTanggal(tanggalStr);
   if (!obj) return tanggalStr || "-";
   const indeksSenin = (obj.getDay() + 6) % 7;
-  return `${KOLOM_HARI_SENIN[indeksSenin].pendek}, ${obj.getDate()} ${NAMA_BULAN_RINGKAS[obj.getMonth()]} ${obj.getFullYear()}`;
+  return `${KOLOM_HARI_SENIN[indeksSenin].pendek}, ${obj.getDate()} ${NAMA_BULAN_PENDEK[obj.getMonth()]} ${obj.getFullYear()}`;
 }
 
 export function urutkanKegiatanKronologis(daftar) {
@@ -251,7 +244,7 @@ function renderKalenderBulanan(petaPerTanggal) {
 
   const strHariIni = hariIni();
   if (!tanggalTerpilih || !parseTanggal(tanggalTerpilih)) tanggalTerpilih = strHariIni;
-  if (judulBulanEl) judulBulanEl.textContent = `${NAMA_BULAN_PANJANG[bulanKalender]} ${tahunKalender}`;
+  if (judulBulanEl) judulBulanEl.textContent = `${NAMA_BULAN[bulanKalender]} ${tahunKalender}`;
 
   const daftarSel = bangunDaftarSelBulan(tahunKalender, bulanKalender);
   const barisHtml = [];
