@@ -52,9 +52,9 @@ import {
 import { loginWithGoogle, formatPesanGalatAuth } from "./auth.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import { pindahKeBagian } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
-import { svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
+import { escapeHtml, svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
 
 // svgIkon & NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 

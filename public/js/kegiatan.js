@@ -35,9 +35,9 @@ import {
   TANPA_KATEGORI_INFO
 } from "./kategori.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
-import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import { pindahKeBagian } from "./sidebar.js";
 import { tampilkanToast } from "./shared/toast.js";
-import { svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
+import { escapeHtml, svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
 import { initFilterPanel } from "./filter-panel.js";
 import {
   JENIS_CATATAN_GDOC,

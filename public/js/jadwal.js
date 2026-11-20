@@ -8,7 +8,8 @@
  */
 import { formatPesanGalatFirestore } from "./firebase-config.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml, pindahKeBagian } from "./sidebar.js";
+import { pindahKeBagian } from "./sidebar.js";
+import { escapeHtml } from "./util-html.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,

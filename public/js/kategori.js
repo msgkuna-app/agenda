@@ -20,7 +20,7 @@ import {
   getCountFromServer,
   formatPesanGalatFirestore
 } from "./firebase-config.js";
-import { escapeHtml } from "./sidebar.js";
+import { escapeHtml } from "./util-html.js";
 
 /**
  * Daftar warna preset kategori yang dipetakan ke CSS Custom Properties di style.css

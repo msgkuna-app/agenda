@@ -33,7 +33,6 @@ import {
 } from "./firebase-config.js";
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./auth.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml } from "./sidebar.js";
 import { tampilkanToast } from "./shared/toast.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import {
@@ -48,7 +47,7 @@ import {
   bangunHtmlTemplatDokumen
 } from "./templat-dokumen.js";
 import { initFilterPanel } from "./filter-panel.js";
-import { svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
+import { escapeHtml, svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
 
 // svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 

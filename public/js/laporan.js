@@ -25,7 +25,6 @@ import {
   formatPesanGalatAuth
 } from "./auth.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
-import { escapeHtml } from "./sidebar.js";
 import { urutkanDaftarKategori } from "./kategori.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
@@ -58,7 +57,7 @@ import {
   pindahkanBerkasKeFolderDrive,
   formatPesanGalatDrive
 } from "./drive.js";
-import { svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
+import { escapeHtml, svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
 
 // NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
 

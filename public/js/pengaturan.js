@@ -35,7 +35,6 @@ import {
 import { getPreferensiTema, terapkanTema } from "./tema.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { formatTanggalLengkapIndonesia } from "./jadwal.js";
-import { escapeHtml } from "./sidebar.js";
 import { tampilkanToast } from "./shared/toast.js";
 import {
   DATA_HARI_LIBUR_BAWAAN,
@@ -293,7 +292,7 @@ import {
 import { getDaftarLaporan } from "./laporan.js";
 import { formatPesanGalatDrive } from "./drive.js";
 import { periksaPembaruan } from "./pwa.js";
-import { svgIkon } from "./util-html.js";
+import { escapeHtml, svgIkon } from "./util-html.js";
 
 export const KOLEKSI_CADANGAN = [
   { key: "kategoriKegiatan", label: "Kategori Kegiatan" },
