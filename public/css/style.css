@@ -5504,3 +5504,69 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
   padding: var(--space-2) 0;
 }
 
+
+/* ==========================================================================
+   Tambalan B8: alias token & kelas yang dipakai JS tetapi belum terdefinisi
+   Alias memakai var() sehingga otomatis mengikuti Tema Terang/Gelap.
+   ========================================================================== */
+:root {
+  --color-primary: var(--color-accent);
+  --color-primary-text: var(--color-accent-text);
+  --color-success: var(--color-success-text);
+  --color-danger: var(--color-danger-text);
+  --color-bps-primary-blue: var(--color-accent-text);
+}
+
+.active-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.btn-link-action {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.btn-link-action:hover:not(:disabled) {
+  color: var(--color-accent-hover);
+}
+
+.form-checkbox-label {
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.form-checkbox {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.alert-box:has(> .upload-alert-action-row) {
+  flex-wrap: wrap;
+}
+.alert-box:has(> .upload-alert-action-row) > span {
+  flex: 1 1 calc(100% - 2rem);
+  min-width: 0;
+}
+.upload-alert-action-row {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

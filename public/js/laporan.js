@@ -8,6 +8,7 @@
  * - Riwayat Laporan real-time pada koleksi "laporan" (hapus riwayat tidak menghapus file di Drive)
  * - Unduh CSV lokal (UTF-8 dengan BOM) tetap berfungsi tanpa internet
  */
+import { SHEETS_API_BASE, KOLEKSI } from "./config/constants.js";
 import {
   getFirestoreDb,
   collection,
@@ -57,8 +58,6 @@ import {
   pindahkanBerkasKeFolderDrive,
   formatPesanGalatDrive
 } from "./drive.js";
-
-const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
 const NAMA_BULAN_PENDEK = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -1011,7 +1010,7 @@ async function buatLaporanKeGoogleSheets() {
 
     setTahap("Menyimpan catatan ke Riwayat Laporan...");
     const db = getFirestoreDb();
-    await addDoc(collection(db, "laporan"), {
+    await addDoc(collection(db, KOLEKSI.LAPORAN), {
       nama: judulSpreadsheet,
       jenis: paket.infoJenis.id,
       jenisLabel: paket.infoJenis.judulPendek,
@@ -1330,7 +1329,7 @@ async function konfirmasiHapusRiwayatLaporan() {
 
   try {
     const db = getFirestoreDb();
-    await deleteDoc(doc(db, "laporan", itemRiwayatAkanDihapus.id));
+    await deleteDoc(doc(db, KOLEKSI.LAPORAN, itemRiwayatAkanDihapus.id));
     tutupModalHapusRiwayat(true);
   } catch (err) {
     if (alertBox && alertText) {
@@ -1593,7 +1592,7 @@ export function subscribeLaporan() {
 
   const db = getFirestoreDb();
   unsubscribeSnapshotLaporan = onSnapshot(
-    collection(db, "laporan"),
+    collection(db, KOLEKSI.LAPORAN),
     (snapshot) => {
       daftarRiwayatLaporan = snapshot.docs.map((dok) => {
         const d = dok.data() || {};

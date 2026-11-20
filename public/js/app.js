@@ -4,6 +4,8 @@
  * Dokumen, Catatan, Laporan, Pengaturan, konfirmasi keluar, indikator koneksi, toast, dan Service Worker.
  * Menggunakan util-html.js terpusat untuk escapeHtml, svgIkon, dan nama hari/bulan Indonesia.
  */
+import { INTERVAL_CEK_TOKEN_DRIVE_MS, KUNCI_STORAGE_TAMPILAN_HARI_INI } from "./config/constants.js";
+import { daftarkanServiceWorker, perbaruiVisibilitasSpandukSw } from "./pwa.js";
 import { isFirebaseConfigured } from "./firebase-config.js";
 import {
   AUTHORIZED_EMAIL,
@@ -121,10 +123,6 @@ import {
   bersihkanPencarianGlobal,
 } from "./pencarian-global.js";
 
-const KUNCI_TUNDA_UPDATE_SW = "agenda_arsip_update_ditunda";
-const INTERVAL_CEK_UPDATE_SW_MS = 60 * 60 * 1000;
-const KUNCI_STORAGE_TAMPILAN_HARI_INI = "agenda_arsip_dashboard_hari_ini";
-
 function ambilPreferensiTampilanHariIni() {
   try {
     const tersimpan = localStorage.getItem(KUNCI_STORAGE_TAMPILAN_HARI_INI);
@@ -149,12 +147,6 @@ let logoutDialogOpen = false;
 let focusBeforeModal = null;
 let dashboardSudahDiikat = false;
 let statusOnlineTerakhir = navigator.onLine;
-let swRegistration = null;
-let registrasiSwDipantau = null;
-let swUpdateMenunggu = false;
-let swUpdateIntervalId = null;
-let sedangMuatUlangSw = false;
-let spandukSwSudahDiikat = false;
 const DAFTAR_PUTIH_AKSI_PINTASAN = ["tambah-kegiatan", "catatan-baru"];
 let aksiPintasanTertunda = null;
 let aksiPintasanSudahDijalankan = false;
@@ -940,7 +932,7 @@ function mulaiPemantauTokenDrive() {
     periksaStatusTokenDrive();
   }
 
-  tokenCheckIntervalId = window.setInterval(periksaStatusTokenDrive, 30 * 1000);
+  tokenCheckIntervalId = window.setInterval(periksaStatusTokenDrive, INTERVAL_CEK_TOKEN_DRIVE_MS);
 }
 
 function hentikanPemantauTokenDrive() {
@@ -1192,229 +1184,6 @@ function initPwaInstallPrompt() {
       }
     });
   }
-}
-
-function apakahUpdateSwDitunda() {
-  try {
-    return sessionStorage.getItem(KUNCI_TUNDA_UPDATE_SW) === "1";
-  } catch (_err) {
-    return false;
-  }
-}
-
-function simpanPenandaTundaUpdateSw() {
-  try {
-    sessionStorage.setItem(KUNCI_TUNDA_UPDATE_SW, "1");
-  } catch (_err) {}
-}
-
-function hapusPenandaTundaUpdateSw() {
-  try {
-    sessionStorage.removeItem(KUNCI_TUNDA_UPDATE_SW);
-  } catch (_err) {}
-}
-
-function apakahLayarAplikasiAktif() {
-  const layarApp = document.getElementById("app-shell");
-  return Boolean(layarApp && !layarApp.hidden);
-}
-
-function perbaruiVisibilitasSpandukSw() {
-  const spanduk = document.getElementById("sw-update-banner");
-  if (!spanduk) return;
-
-  const tampil =
-    swUpdateMenunggu &&
-    apakahLayarAplikasiAktif() &&
-    !apakahUpdateSwDitunda();
-
-  spanduk.hidden = !tampil;
-  if (tampil) {
-    document.documentElement.setAttribute("data-sw-banner", "visible");
-  } else {
-    document.documentElement.removeAttribute("data-sw-banner");
-  }
-}
-
-function tandaiPembaruanSwMenunggu() {
-  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
-    return;
-  }
-  swUpdateMenunggu = true;
-  perbaruiVisibilitasSpandukSw();
-}
-
-function pantauWorkerInstalling(workerBaru) {
-  if (!workerBaru) return;
-  workerBaru.addEventListener("statechange", () => {
-    if (
-      workerBaru.state === "installed" &&
-      navigator.serviceWorker.controller
-    ) {
-      hapusPenandaTundaUpdateSw();
-      tandaiPembaruanSwMenunggu();
-    }
-  });
-}
-
-function ikatRegistrasiServiceWorker(registration) {
-  if (!registration) return;
-  swRegistration = registration;
-
-  if (registration.waiting && navigator.serviceWorker.controller) {
-    tandaiPembaruanSwMenunggu();
-  }
-
-  if (registrasiSwDipantau === registration) return;
-  registrasiSwDipantau = registration;
-
-  if (registration.installing) {
-    pantauWorkerInstalling(registration.installing);
-  }
-
-  registration.addEventListener("updatefound", () => {
-    pantauWorkerInstalling(registration.installing);
-  });
-}
-
-async function periksaPembaruanSwBerkala() {
-  if (!swRegistration) return;
-  try {
-    await swRegistration.update();
-    if (swRegistration.waiting && navigator.serviceWorker.controller) {
-      tandaiPembaruanSwMenunggu();
-    }
-  } catch (_err) {}
-}
-
-function ikatTombolSpandukSw() {
-  if (spandukSwSudahDiikat) return;
-  spandukSwSudahDiikat = true;
-
-  const btnMuatUlang = document.getElementById("sw-update-reload-btn");
-  const btnNanti = document.getElementById("sw-update-later-btn");
-
-  if (btnMuatUlang) {
-    btnMuatUlang.addEventListener("click", () => {
-      if (!("serviceWorker" in navigator) || sedangMuatUlangSw) return;
-      const waitingWorker = swRegistration && swRegistration.waiting;
-      if (!waitingWorker) {
-        swUpdateMenunggu = false;
-        perbaruiVisibilitasSpandukSw();
-        return;
-      }
-
-      sedangMuatUlangSw = true;
-      if (btnMuatUlang instanceof HTMLButtonElement) {
-        btnMuatUlang.disabled = true;
-        btnMuatUlang.textContent = "Memuat ulang...";
-      }
-      if (btnNanti instanceof HTMLButtonElement) {
-        btnNanti.disabled = true;
-      }
-
-      let sudahReload = false;
-      navigator.serviceWorker.addEventListener(
-        "controllerchange",
-        () => {
-          if (sudahReload) return;
-          sudahReload = true;
-          location.reload();
-        },
-        { once: true },
-      );
-
-      waitingWorker.postMessage({ type: "SKIP_WAITING" });
-    });
-  }
-
-  if (btnNanti) {
-    btnNanti.addEventListener("click", () => {
-      simpanPenandaTundaUpdateSw();
-      perbaruiVisibilitasSpandukSw();
-    });
-  }
-}
-
-export async function periksaPembaruan() {
-  if (!("serviceWorker" in navigator)) {
-    return null;
-  }
-
-  let registration =
-    swRegistration || (await navigator.serviceWorker.getRegistration());
-  if (!registration) {
-    registration = await navigator.serviceWorker.register("/sw.js", {
-      scope: "/",
-      updateViaCache: "none",
-    });
-  }
-  ikatRegistrasiServiceWorker(registration);
-
-  const hasilUpdate = await registration.update();
-  const regAktif = hasilUpdate || registration;
-  ikatRegistrasiServiceWorker(regAktif);
-
-  if (regAktif.installing) {
-    await new Promise((resolve) => {
-      const workerBaru = regAktif.installing;
-      if (
-        !workerBaru ||
-        workerBaru.state === "installed" ||
-        workerBaru.state === "redundant"
-      ) {
-        resolve();
-        return;
-      }
-      const saatStatusBerubah = () => {
-        if (
-          workerBaru.state === "installed" ||
-          workerBaru.state === "redundant"
-        ) {
-          workerBaru.removeEventListener("statechange", saatStatusBerubah);
-          resolve();
-        }
-      };
-      workerBaru.addEventListener("statechange", saatStatusBerubah);
-    });
-  }
-
-  if (regAktif.waiting && navigator.serviceWorker.controller) {
-    hapusPenandaTundaUpdateSw();
-    tandaiPembaruanSwMenunggu();
-  }
-
-  return regAktif;
-}
-
-function daftarkanServiceWorker() {
-  ikatTombolSpandukSw();
-  if (!("serviceWorker" in navigator)) return;
-
-  window.addEventListener("load", async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("/sw.js", {
-        scope: "/",
-        updateViaCache: "none",
-      });
-      ikatRegistrasiServiceWorker(registration);
-
-      if (swUpdateIntervalId !== null) {
-        window.clearInterval(swUpdateIntervalId);
-      }
-      swUpdateIntervalId = window.setInterval(() => {
-        periksaPembaruanSwBerkala();
-      }, INTERVAL_CEK_UPDATE_SW_MS);
-    } catch (err) {
-      console.warn("Pendaftaran Service Worker gagal:", err);
-    }
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      periksaPembaruanSwBerkala();
-    }
-  });
 }
 
 function mulaiAplikasi() {

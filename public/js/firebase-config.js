@@ -25,32 +25,8 @@ import {
   getCountFromServer,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
-/**
- * Konfigurasi Firebase Proyek Anda.
- */
-export const firebaseConfig = {
-  apiKey: "AIzaSyBtYgsCoZk5F1HpBHKCIuHIl0XIAQgcqqU",
-  authDomain: "msgkuna-app-85dfb.firebaseapp.com",
-  projectId: "msgkuna-app-85dfb",
-  storageBucket: "msgkuna-app-85dfb.appspot.com",
-  messagingSenderId: "641787111254",
-  appId: "1:641787111254:web:20e40d4bc939bc118298f7",
-};
-
-/**
- * OAuth 2.0 Web Client ID untuk Google Identity Services (GIS) Token Client.
- * Disarankan menggunakan Client ID yang SAMA dengan yang digunakan Firebase Auth Google Provider
- * agar berkas Google Drive lama (drive.file) tetap dapat diakses.
- */
-export const GOOGLE_CLIENT_ID = "641787111254-r1d0co4oi0i6padlerb7nsb15uhemacj.apps.googleusercontent.com";
-
-export function isFirebaseConfigured() {
-  return (
-    Boolean(firebaseConfig) &&
-    firebaseConfig.apiKey !== "ISI_DARI_FIREBASE_CONSOLE" &&
-    firebaseConfig.projectId !== "ISI_DARI_FIREBASE_CONSOLE"
-  );
-}
+import { firebaseConfig, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID, isFirebaseConfigured } from "./config/firebase.js";
+export { firebaseConfig, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID, isFirebaseConfigured };
 
 let appInstance = null;
 let authInstance = null;

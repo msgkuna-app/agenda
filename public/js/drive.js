@@ -5,6 +5,8 @@
  * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google.
  * - Memperbarui token otomatis sebelum kedaluwarsa (lazy refresh via mintaTokenDrive di ambilTokenWajib).
  */
+import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "./config/constants.js";
+export { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES };
 import {
   getFirestoreDb,
   doc,
@@ -13,23 +15,6 @@ import {
   formatPesanGalatFirestore,
 } from "./firebase-config.js";
 import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./auth.js";
-
-export const NAMA_FOLDER_INDUK = "Agenda-Arsip";
-export const NAMA_FOLDER_TANPA_KATEGORI = "Tanpa Kategori";
-export const MIME_TYPE_FOLDER_DRIVE = "application/vnd.google-apps.folder";
-export const MIME_TYPE_GOOGLE_DOCS = "application/vnd.google-apps.document";
-
-/** Ambang ukuran berkas untuk beralih dari multipart sederhana ke resumable (5 MB) */
-export const AMBANG_UNGGAH_RESUMABLE_BYTES = 5 * 1024 * 1024;
-
-/** Ukuran tiap potongan unggahan resumable: 2 MiB (kelipatan wajib 256 KiB) */
-export const UKURAN_POTONGAN_RESUMABLE_BYTES = 2 * 1024 * 1024;
-
-const MAKS_PERCOBAAN_RETRY = 5;
-const JEDA_RETRY_DASAR_MS = 1000;
-
-const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
-const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 
 let cacheRootFolderId = null;
 let cacheUncategorizedFolderId = null;
@@ -245,7 +230,7 @@ async function panggilDriveJson(url, opsi = {}) {
  */
 export async function ambilPengaturanDriveFirestore() {
   const db = getFirestoreDb();
-  const ref = doc(db, "pengaturan", "drive");
+  const ref = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     return null;
@@ -264,7 +249,7 @@ export async function ambilPengaturanDriveFirestore() {
  */
 async function simpanPengaturanDriveFirestore(dataParsial) {
   const db = getFirestoreDb();
-  const ref = doc(db, "pengaturan", "drive");
+  const ref = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE);
   await setDoc(
     ref,
     {
@@ -528,6 +513,24 @@ export async function pindahkanItemKeSampahDrive(itemId) {
   return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
     method: "PATCH",
     body: JSON.stringify({ trashed: true }),
+  });
+}
+
+/**
+ * Mengembalikan file atau folder dari Sampah Google Drive (trashed = false).
+ * @param {string} itemId
+ */
+export async function pulihkanItemDariSampahDrive(itemId) {
+  const idBersih = String(itemId || "").trim();
+  if (!idBersih) {
+    throw new Error("ID item Google Drive tidak ditemukan.");
+  }
+  const params = new URLSearchParams({
+    fields: "id,trashed",
+  });
+  return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
+    method: "PATCH",
+    body: JSON.stringify({ trashed: false }),
   });
 }
 

@@ -10,6 +10,8 @@
  *   3. Jembatan ambilSemuaDokumenSekaliPakai() untuk Laporan, Pencarian, dan Ekspor
  *   4. Penghitung kategori dokumen memakai getCountFromServer (hitungDokumenPemakaiServer)
  */
+import { MAKS_UKURAN_BERKAS_MB, UKURAN_HALAMAN_DOKUMEN, JEDA_RAPIKAN_MS, KOLEKSI } from "./config/constants.js";
+export { MAKS_UKURAN_BERKAS_MB, UKURAN_HALAMAN_DOKUMEN };
 import {
   getFirestoreDb,
   collection,
@@ -53,10 +55,6 @@ import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { escapeHtml, pindahKeBagian } from "./sidebar.js";
 import { initFilterPanel } from "./filter-panel.js";
 
-export const MAKS_UKURAN_BERKAS_MB = 100;
-export const UKURAN_HALAMAN_DOKUMEN = 100;
-const JEDA_RAPIKAN_MS = 280;
-
 const NAMA_BULAN_PENDEK = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
@@ -68,8 +66,8 @@ const svgIkon = (isi, uk = 18, tebal = 2, cls = "") =>
 const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 
 export const manajerKategoriDokumen = buatManajerKategori({
-  namaKoleksiKategori: "kategoriDokumen",
-  namaKoleksiPemakai: "dokumen",
+  namaKoleksiKategori: KOLEKSI.KATEGORI_DOKUMEN,
+  namaKoleksiPemakai: KOLEKSI.DOKUMEN,
   labelItemPemakai: "dokumen",
   daftarBawaan: KATEGORI_DOKUMEN_BAWAAN,
   pakaiFolderDrive: true
@@ -80,6 +78,7 @@ const petaDokumenHalaman = new Map();
 const petaDokumenTambahan = new Map();
 
 let lastDocDokumenHalaman = null;
+let kursorDokumenTambahan = null;
 let adaLebihBanyakDokumenHalaman = false;
 let sedangMuatLebihDokumen = false;
 
@@ -118,9 +117,13 @@ let sedangMerapikan = false;
 let batalkanRapikan = false;
 
 export function getDaftarDokumen() {
+  // Salinan dengan updatedAt terbaru menang; bila sama, data listener realtime (Halaman) menang.
   const gabungan = new Map();
   petaDokumenHalaman.forEach((v, k) => gabungan.set(k, v));
-  petaDokumenTambahan.forEach((v, k) => gabungan.set(k, v));
+  petaDokumenTambahan.forEach((v, k) => {
+    const lama = gabungan.get(k);
+    if (!lama || String(v.updatedAt || "") > String(lama.updatedAt || "")) gabungan.set(k, v);
+  });
   return Array.from(gabungan.values()).map((d) => ({ ...d }));
 }
 
@@ -152,11 +155,11 @@ export async function hitungDokumenPemakaiServer(kategoriId) {
   try {
     const db = getFirestoreDb();
     if (!target) {
-      const q = query(collection(db, "dokumen"), where("kategoriId", "==", ""));
+      const q = query(collection(db, KOLEKSI.DOKUMEN), where("kategoriId", "==", ""));
       const snap = await getCountFromServer(q);
       return snap.data().count;
     }
-    const q = query(collection(db, "dokumen"), where("kategoriId", "==", target));
+    const q = query(collection(db, KOLEKSI.DOKUMEN), where("kategoriId", "==", target));
     const snap = await getCountFromServer(q);
     return snap.data().count;
   } catch (_e) {
@@ -168,22 +171,23 @@ export async function hitungDokumenPemakaiServer(kategoriId) {
  * Memuat batch dokumen berikutnya (paginasi).
  */
 export async function muatLebihBanyakDokumen() {
-  if (sedangMuatLebihDokumen || !lastDocDokumenHalaman) return;
+  const kursorAwal = kursorDokumenTambahan || lastDocDokumenHalaman;
+  if (sedangMuatLebihDokumen || !kursorAwal) return;
   sedangMuatLebihDokumen = true;
   renderDaftarDokumen();
 
   try {
     const db = getFirestoreDb();
     const q = query(
-      collection(db, "dokumen"),
+      collection(db, KOLEKSI.DOKUMEN),
       orderBy("tanggalUnggah", "desc"),
-      startAfter(lastDocDokumenHalaman),
+      startAfter(kursorAwal),
       limit(UKURAN_HALAMAN_DOKUMEN)
     );
     const snap = await getDocs(q);
     snap.forEach((docSnap) => {
       const d = docSnap.data() || {};
-      petaDokumenHalaman.set(docSnap.id, {
+      petaDokumenTambahan.set(docSnap.id, {
         id: docSnap.id,
         namaTampilan: String(d.namaTampilan || d.namaFile || ""),
         namaFile: String(d.namaFile || ""),
@@ -201,7 +205,7 @@ export async function muatLebihBanyakDokumen() {
     });
 
     if (!snap.empty) {
-      lastDocDokumenHalaman = snap.docs[snap.docs.length - 1];
+      kursorDokumenTambahan = snap.docs[snap.docs.length - 1];
     }
     adaLebihBanyakDokumenHalaman = snap.docs.length >= UKURAN_HALAMAN_DOKUMEN;
     beritahuPerubahanDokumen();
@@ -219,7 +223,7 @@ export async function muatLebihBanyakDokumen() {
  */
 export async function ambilSemuaDokumenSekaliPakai() {
   const db = getFirestoreDb();
-  const q = query(collection(db, "dokumen"), orderBy("tanggalUnggah", "desc"));
+  const q = query(collection(db, KOLEKSI.DOKUMEN), orderBy("tanggalUnggah", "desc"));
   const snap = await getDocs(q);
   snap.forEach((docSnap) => {
     const d = docSnap.data() || {};
@@ -1180,7 +1184,7 @@ async function jalankanSimpanUlangMetadata() {
   try {
     const sekarangIso = new Date().toISOString();
     const db = getFirestoreDb();
-    await addDoc(collection(db, "dokumen"), {
+    await addDoc(collection(db, KOLEKSI.DOKUMEN), {
       ...dataFormUploadPending,
       tanggalUnggah: sekarangIso,
       createdAt: sekarangIso,
@@ -1922,7 +1926,7 @@ export function initHalamanDokumen() {
       }
 
       const db = getFirestoreDb();
-      await updateDoc(doc(db, "dokumen", dokLama.id), {
+      await updateDoc(doc(db, KOLEKSI.DOKUMEN, dokLama.id), {
         namaTampilan: namaTampilanBaru,
         kategoriId: idEfektifBaru,
         catatan: catatanBaru,
@@ -1978,7 +1982,7 @@ export function initHalamanDokumen() {
       }
 
       const db = getFirestoreDb();
-      await deleteDoc(doc(db, "dokumen", target.id));
+      await deleteDoc(doc(db, KOLEKSI.DOKUMEN, target.id));
       petaDokumenHalaman.delete(target.id);
       petaDokumenTambahan.delete(target.id);
       tutupDialogHapusDokumen(false);
@@ -2052,7 +2056,7 @@ export function subscribeDokumen() {
   const db = getFirestoreDb();
   // Fase 5: Listener dibatasi 100 dokumen terbaru
   const q = query(
-    collection(db, "dokumen"),
+    collection(db, KOLEKSI.DOKUMEN),
     orderBy("tanggalUnggah", "desc"),
     limit(UKURAN_HALAMAN_DOKUMEN)
   );
@@ -2083,7 +2087,9 @@ export function subscribeDokumen() {
       if (!snapshot.empty) {
         lastDocDokumenHalaman = snapshot.docs[snapshot.docs.length - 1];
       }
-      adaLebihBanyakDokumenHalaman = snapshot.docs.length >= UKURAN_HALAMAN_DOKUMEN;
+      if (!kursorDokumenTambahan) {
+        adaLebihBanyakDokumenHalaman = snapshot.docs.length >= UKURAN_HALAMAN_DOKUMEN;
+      }
       sudahDimuatPertamaKali = true;
       tampilkanGalatHalamanDokumen("");
       renderDaftarDokumen();
@@ -2114,6 +2120,7 @@ export function unsubscribeDokumen() {
   petaDokumenHalaman.clear();
   petaDokumenTambahan.clear();
   lastDocDokumenHalaman = null;
+  kursorDokumenTambahan = null;
   adaLebihBanyakDokumenHalaman = false;
   sedangMuatLebihDokumen = false;
   sudahDimuatPertamaKali = false;

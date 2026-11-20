@@ -14,6 +14,8 @@
  *   konfirmasi eksplisit, writeBatch maksimal 500 operasi per batch, progres, dan ringkasan.
  * - C3. Peringatan jelas bahwa berkas asli di Google Drive tidak ikut diekspor, hanya metadatanya.
  */
+import { KUNCI_STORAGE_CADANGAN_TERAKHIR, KUNCI_STORAGE_CADANGAN_INTERVAL, KUNCI_STORAGE_CADANGAN_TUNDA, KUNCI_STORAGE_HARI_LIBUR, VERSI_CADANGAN_SW, BATAS_OPERASI_BATCH, KOLEKSI, DOK_PENGATURAN } from "./config/constants.js";
+export { KUNCI_STORAGE_CADANGAN_TERAKHIR, KUNCI_STORAGE_CADANGAN_INTERVAL, KUNCI_STORAGE_CADANGAN_TUNDA, KUNCI_STORAGE_HARI_LIBUR };
 import {
   getFirestoreDb,
   collection,
@@ -41,11 +43,6 @@ import {
   setelKonfigurasi,
   ambilKonfigurasiAktif
 } from "./hari-libur.js";
-
-export const KUNCI_STORAGE_CADANGAN_TERAKHIR = "agenda_arsip_cadangan_terakhir";
-export const KUNCI_STORAGE_CADANGAN_INTERVAL = "agenda_arsip_cadangan_interval";
-export const KUNCI_STORAGE_CADANGAN_TUNDA = "agenda_arsip_cadangan_tunda_sampai";
-export const KUNCI_STORAGE_HARI_LIBUR = "agenda_arsip_hari_libur";
 
 const pemberitahuHariLibur = new Set();
 export function onPerubahanHariLibur(fn) {
@@ -80,7 +77,7 @@ export async function muatPengaturanHariLibur() {
   bacaPengaturanHariLiburLokal();
   try {
     const db = getFirestoreDb();
-    const docRef = doc(db, "pengaturan", "hariLibur");
+    const docRef = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data();
@@ -124,7 +121,7 @@ export async function simpanPengaturanHariLibur(cfgBaru) {
 
   try {
     const db = getFirestoreDb();
-    await setDoc(doc(db, "pengaturan", "hariLibur"), cfg, { merge: true });
+    await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR), cfg, { merge: true });
   } catch (err) {
     console.warn("Gagal menyimpan ke Firestore pengaturan/hariLibur:", err);
   }
@@ -194,7 +191,7 @@ export async function muatPengaturanCadangan() {
 
   try {
     const db = getFirestoreDb();
-    const docRef = doc(db, "pengaturan", "cadangan");
+    const docRef = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data();
@@ -236,7 +233,7 @@ export async function simpanIntervalCadangan(intervalBaru) {
 
   try {
     const db = getFirestoreDb();
-    await setDoc(doc(db, "pengaturan", "cadangan"), {
+    await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN), {
       intervalHari: inv,
       updatedAt: new Date().toISOString()
     }, { merge: true });
@@ -294,10 +291,7 @@ import {
 } from "./catatan.js";
 import { getDaftarLaporan } from "./laporan.js";
 import { formatPesanGalatDrive } from "./drive.js";
-import { periksaPembaruan } from "./app.js";
-
-const VERSI_CADANGAN_SW = "agenda-arsip-v2.0.0";
-const BATAS_OPERASI_BATCH = 500;
+import { periksaPembaruan } from "./pwa.js";
 
 export const KOLEKSI_CADANGAN = [
   { key: "kategoriKegiatan", label: "Kategori Kegiatan" },
@@ -1369,7 +1363,7 @@ export async function eksporSeluruhDataJson() {
 
     try {
       const db = getFirestoreDb();
-      await setDoc(doc(db, "pengaturan", "cadangan"), {
+      await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN), {
         terakhirEksporAt: sekarangIso,
         updatedAt: sekarangIso
       }, { merge: true });
@@ -1411,8 +1405,8 @@ export async function jalankanMigrasiDihapusAt() {
   try {
     const db = getFirestoreDb();
     const [snapKegiatan, snapCatatan] = await Promise.all([
-      getDocs(collection(db, "kegiatan")),
-      getDocs(collection(db, "catatan"))
+      getDocs(collection(db, KOLEKSI.KEGIATAN)),
+      getDocs(collection(db, KOLEKSI.CATATAN))
     ]);
 
     const butuhMigrasiKegiatan = [];
@@ -1445,8 +1439,8 @@ export async function jalankanMigrasiDihapusAt() {
     }
 
     const semuaRef = [...butuhMigrasiKegiatan, ...butuhMigrasiCatatan];
-    for (let i = 0; i < semuaRef.length; i += 500) {
-      const chunk = semuaRef.slice(i, i + 500);
+    for (let i = 0; i < semuaRef.length; i += BATAS_OPERASI_BATCH) {
+      const chunk = semuaRef.slice(i, i + BATAS_OPERASI_BATCH);
       const batch = writeBatch(db);
       chunk.forEach((ref) => {
         batch.update(ref, { dihapusAt: null });
@@ -1532,6 +1526,7 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
         lokasi: String(mentah.lokasi || "").trim().slice(0, 140),
         kategoriId: String(mentah.kategoriId || "").trim(),
         status,
+        dihapusAt: null,
         createdAt: String(mentah.createdAt || sekarang),
         updatedAt: String(mentah.updatedAt || sekarang)
       }
@@ -1578,6 +1573,7 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
       kegiatanId: String(mentah.kegiatanId || "").trim(),
       disematkan: Boolean(mentah.disematkan),
       tanggal,
+      dihapusAt: null,
       createdAt: String(mentah.createdAt || sekarang),
       updatedAt: String(mentah.updatedAt || sekarang)
     };

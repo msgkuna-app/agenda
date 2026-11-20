@@ -8,6 +8,7 @@
  * - Menyediakan subscribeSampah() dan unsubscribeSampah() untuk pemantauan real-time.
  * - Menjaga fitur: pemulihan, hapus permanen, kosongkan tempat sampah, filter segmen, dan pembersihan otomatis >30 hari.
  */
+import { TIGA_PULUH_HARI_MS, SATU_HARI_MS, BATAS_OPERASI_BATCH, KOLEKSI } from "./config/constants.js";
 import {
   getFirestoreDb,
   collection,
@@ -35,9 +36,6 @@ import {
   NAMA_HARI_PENDEK,
   NAMA_BULAN_PENDEK,
 } from "./util-html.js";
-
-const TIGA_PULUH_HARI_MS = 30 * 24 * 60 * 60 * 1000;
-const SATU_HARI_MS = 24 * 60 * 60 * 1000;
 
 const IKON_KEGIATAN = svgIkon('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', 20);
 const IKON_CATATAN_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
@@ -107,8 +105,8 @@ function hitungInformasiHariSampah(dihapusAt) {
  * @param {Array<{ koleksi: string, id: string }>} daftarRef
  */
 async function hapusBatchMaks500(db, daftarRef) {
-  for (let i = 0; i < daftarRef.length; i += 500) {
-    const chunk = daftarRef.slice(i, i + 500);
+  for (let i = 0; i < daftarRef.length; i += BATAS_OPERASI_BATCH) {
+    const chunk = daftarRef.slice(i, i + BATAS_OPERASI_BATCH);
     const batch = writeBatch(db);
     chunk.forEach((ref) => {
       batch.delete(doc(db, ref.koleksi, ref.id));
@@ -329,7 +327,7 @@ export function renderHalamanSampah() {
           : IKON_CATATAN_SINGKAT;
 
     const tglInfo = item.tanggal ? formatTanggalTeks(item.tanggal) : "-";
-    const badgeKelas = item.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
+    const badgeKelas = infoHari.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
 
     return `
       <div class="kegiatan-card sampah-card" data-sampah-tipe="${escapeHtml(item._tipe)}" data-sampah-id="${escapeHtml(item.id)}">
@@ -378,7 +376,7 @@ export function renderHalamanSampah() {
     `;
   }).join("");
 
-  region.innerHTML = `<div class="kegiatan-grid-list">${htmlKartu}</div>`;
+  region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>`;
 }
 
 function bukaDialogHapusPermanen(tipe, id) {
@@ -503,7 +501,7 @@ export function initHalamanSampah() {
           petaKegiatanSampah.delete(id);
           tampilkanToast("Kegiatan berhasil dipulihkan", "success");
         } else {
-          const hasil = await pulihkanCatatan(id);
+          const hasil = await pulihkanCatatan(id, petaCatatanSampah.get(id));
           petaCatatanSampah.delete(id);
           if (hasil && hasil.pesanDrive) {
             tampilkanToast(`Catatan dipulihkan. ${hasil.pesanDrive}`, "warning");
@@ -586,8 +584,8 @@ export function initHalamanSampah() {
       const kegSampah = getDaftarKegiatanDiSampah();
       const catSampah = getDaftarCatatanDiSampah();
       const daftarRef = [
-        ...kegSampah.map((k) => ({ koleksi: "kegiatan", id: k.id })),
-        ...catSampah.map((c) => ({ koleksi: "catatan", id: c.id }))
+        ...kegSampah.map((k) => ({ koleksi: KOLEKSI.KEGIATAN, id: k.id })),
+        ...catSampah.map((c) => ({ koleksi: KOLEKSI.CATATAN, id: c.id }))
       ];
 
       if (daftarRef.length === 0) {
@@ -644,7 +642,7 @@ export function subscribeSampah() {
   // Query kegiatan di tempat sampah
   try {
     const qKegiatanSampah = query(
-      collection(db, "kegiatan"),
+      collection(db, KOLEKSI.KEGIATAN),
       where("dihapusAt", "!=", null)
     );
 
@@ -685,7 +683,7 @@ export function subscribeSampah() {
   // Query catatan di tempat sampah
   try {
     const qCatatanSampah = query(
-      collection(db, "catatan"),
+      collection(db, KOLEKSI.CATATAN),
       where("dihapusAt", "!=", null)
     );
 
@@ -703,8 +701,10 @@ export function subscribeSampah() {
             kategori: String(d.kategori || ""),
             tag: Array.isArray(d.tag) ? d.tag : [],
             kegiatanId: String(d.kegiatanId || ""),
-            driveDocId: String(d.driveDocId || ""),
-            tautanDocs: String(d.tautanDocs || ""),
+            templat: String(d.templat || ""),
+            docId: String(d.docId || ""),
+            tautan: String(d.tautan || ""),
+            driveDiSampah: Boolean(d.driveDiSampah),
             disematkan: Boolean(d.disematkan),
             tanggal: String(d.tanggal || ""),
             createdAt: d.createdAt || "",
@@ -771,8 +771,8 @@ export async function jalankanPembersihanSampahOtomatis() {
     });
 
     const daftarHapus = [
-      ...kadaluwarsaKegiatan.map((k) => ({ koleksi: "kegiatan", id: k.id })),
-      ...kadaluwarsaCatatan.map((c) => ({ koleksi: "catatan", id: c.id }))
+      ...kadaluwarsaKegiatan.map((k) => ({ koleksi: KOLEKSI.KEGIATAN, id: k.id })),
+      ...kadaluwarsaCatatan.map((c) => ({ koleksi: KOLEKSI.CATATAN, id: c.id }))
     ];
 
     if (daftarHapus.length > 0) {

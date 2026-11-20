@@ -7,19 +7,15 @@
  * - Memiliki fungsi mintaTokenDrive({ senyap }) dengan lazy refresh (margin 2 menit).
  * - Memvalidasi kepemilikan akun tunggal (AUTHORIZED_EMAIL) dan mencabut token jika tidak cocok.
  */
+import { AUTHORIZED_EMAIL, DRIVE_SCOPE, STORAGE_TOKEN_KEY_LAMA, STORAGE_TOKEN_TS_KEY_LAMA, MARGIN_KEDALUWARSA_MS, GOOGLE_USERINFO_URL } from "./config/constants.js";
+export { AUTHORIZED_EMAIL, DRIVE_SCOPE };
 import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { getFirebaseAuth, GOOGLE_CLIENT_ID } from "./firebase-config.js";
-
-export const AUTHORIZED_EMAIL = "msgkuna.app@gmail.com";
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-
-const STORAGE_TOKEN_KEY_LAMA = "agenda_arsip_drive_token";
-const STORAGE_TOKEN_TS_KEY_LAMA = "agenda_arsip_drive_token_ts";
+import { getFirebaseAuth, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID } from "./firebase-config.js";
 
 // Bersihkan sisa kunci lama di sessionStorage saat modul dimuat
 try {
@@ -30,8 +26,6 @@ try {
 // Penyimpanan token eksklusif HANYA di memori modul
 let driveAccessToken = null;
 let driveTokenExpiresAt = 0; // Epoch milliseconds waktu kedaluwarsa nyata
-const MARGIN_KEDALUWARSA_MS = 2 * 60 * 1000; // 2 menit
-
 let currentUser = null;
 let lastAuthErrorMessage = "";
 let authListenerUnsub = null;
@@ -166,7 +160,7 @@ export function formatPesanGalatAuth(err) {
  */
 async function validasiEmailPemilikToken(token) {
   try {
-    const resp = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    const resp = await fetch(GOOGLE_USERINFO_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) return false;
@@ -205,7 +199,7 @@ export async function mintaTokenDrive(opsi = { senyap: false }) {
     }
 
     const clientId = typeof GOOGLE_CLIENT_ID === "string" ? GOOGLE_CLIENT_ID.trim() : "";
-    if (!clientId || clientId === "ISI_DARI_GOOGLE_CLOUD_CONSOLE") {
+    if (!clientId || clientId === PLACEHOLDER_GOOGLE_CLIENT_ID) {
       throw new Error(
         "OAuth Client ID belum dikonfigurasi pada GOOGLE_CLIENT_ID di firebase-config.js. Harap isi OAuth Client ID Web Anda."
       );

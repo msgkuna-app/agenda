@@ -7,10 +7,9 @@
  * - Memperbarui indikator online/offline di bagian bawah sidebar secara tidak mengganggu.
  */
 
+import { STORAGE_SIDEBAR_KEY } from "./config/constants.js";
 import { escapeHtml, escapeAtribut } from "./util-html.js";
 export { escapeHtml, escapeAtribut };
-
-const STORAGE_SIDEBAR_KEY = "agenda_arsip_sidebar";
 
 export const MENU_SECTIONS = [
   {

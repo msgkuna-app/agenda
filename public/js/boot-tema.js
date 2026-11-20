@@ -10,6 +10,7 @@
   var root = document.documentElement;
   var prefTema = "system";
   try {
+    // Kunci harus sama dengan STORAGE_KEY_TEMA di js/config/constants.js (skrip klasik tidak bisa mengimpor)
     var t = localStorage.getItem("agenda_arsip_tema");
     if (t === "light" || t === "dark" || t === "system") prefTema = t;
   } catch (_e) {}
@@ -37,6 +38,7 @@
 
   var statusSidebar = null;
   try {
+    // Kunci harus sama dengan STORAGE_SIDEBAR_KEY di js/config/constants.js
     var s = localStorage.getItem("agenda_arsip_sidebar");
     if (s === "expanded" || s === "collapsed") statusSidebar = s;
   } catch (_e2) {}

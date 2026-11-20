@@ -460,8 +460,8 @@ export function renderTimelineHarian(wadah, daftarKegiatan, opsi = {}) {
     });
   }
 
-  // Event handler klik blok dan chip kegiatan
-  wadah.addEventListener("click", (e) => {
+  // Event handler klik blok dan chip kegiatan (dilepas lagi lewat _timelineCleanup agar tidak menumpuk)
+  const saatKlikKegiatan = (e) => {
     const targetEl = e.target instanceof Element ? e.target : null;
     if (!targetEl) return;
     const btnKegiatan = targetEl.closest("button[data-kegiatan-id]");
@@ -471,7 +471,8 @@ export function renderTimelineHarian(wadah, daftarKegiatan, opsi = {}) {
     if (idKegiatan) {
       saatKlik(idKegiatan);
     }
-  });
+  };
+  wadah.addEventListener("click", saatKlikKegiatan);
 
   // Pembaruan garis "sekarang" setiap 60 detik + penghentian saat visibilitychange hidden
   let intervalId = null;
@@ -538,6 +539,7 @@ export function renderTimelineHarian(wadah, daftarKegiatan, opsi = {}) {
 
   // Simpan pembersih untuk dipanggil saat re-render atau komponen dibuang
   wadah._timelineCleanup = () => {
+    wadah.removeEventListener("click", saatKlikKegiatan);
     hentikanTimer();
     document.removeEventListener("visibilitychange", onVisibilityChange);
   };

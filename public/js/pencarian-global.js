@@ -5,6 +5,7 @@
  * Bebas dependensi melingkar (fungsi penyedia data disuntikkan via initPencarianGlobal).
  * Menggunakan util-html.js terpusat untuk escapeHtml dan svgIkon.
  */
+import { DEBOUNCE_DELAY_MS, BATAS_HASIL_PER_KELOMPOK, MAKS_PANJANG_CUPLIKAN } from "./config/constants.js";
 import { pindahKeBagian } from "./sidebar.js";
 import { ambilSemuaKegiatanSekaliPakai } from "./kegiatan.js";
 import { ambilSemuaCatatanSekaliPakai } from "./catatan.js";
@@ -12,10 +13,6 @@ import { ambilSemuaDokumenSekaliPakai } from "./dokumen.js";
 import { escapeHtml, svgIkon } from "./util-html.js";
 
 export { escapeHtml };
-
-const DEBOUNCE_DELAY_MS = 120;
-const BATAS_HASIL_PER_KELOMPOK = 5;
-const MAKS_PANJANG_CUPLIKAN = 90;
 
 const IKON_KEGIATAN = svgIkon(
   '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',

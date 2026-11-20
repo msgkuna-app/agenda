@@ -273,7 +273,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // PENGATURAN (dua dokumen: "cadangan" dan "drive")
+    // PENGATURAN (tiga dokumen: "cadangan", "drive", dan "hariLibur")
     // =========================================================================
 
     function validPengaturanCadangan(d) {
@@ -292,6 +292,15 @@ service cloud.firestore {
       && strOps(d, 'updatedAt', 50);
     }
 
+    function validPengaturanHariLibur(d) {
+      return d.keys().hasOnly(['entri', 'disembunyikan', 'tampilkanCutiMerah', 'tampilkanHariBesar', 'updatedAt'])
+      && (!('entri' in d) || (d.entri is list && d.entri.size() <= 500))
+      && (!('disembunyikan' in d) || (d.disembunyikan is list && d.disembunyikan.size() <= 1000))
+      && (!('tampilkanCutiMerah' in d) || d.tampilkanCutiMerah is bool)
+      && (!('tampilkanHariBesar' in d) || d.tampilkanHariBesar is bool)
+      && strOps(d, 'updatedAt', 50);
+    }
+
     function validPengaturanUbah(id, d) {
       let u = d.diff(resource.data).affectedKeys();
       return (id == 'cadangan'
@@ -305,7 +314,8 @@ service cloud.firestore {
           && strUbah(d, u, 'rootFolderId', 100)
           && strUbah(d, u, 'uncategorizedFolderId', 100)
           && strUbah(d, u, 'createdAt', 50)
-          && strUbah(d, u, 'updatedAt', 50));
+          && strUbah(d, u, 'updatedAt', 50))
+        || (id == 'hariLibur' && validPengaturanHariLibur(d));
     }
 
     // =========================================================================
@@ -360,7 +370,8 @@ service cloud.firestore {
       allow read: if isOwner();
       allow create: if isOwner() && (
         (id == 'cadangan' && validPengaturanCadangan(request.resource.data)) ||
-        (id == 'drive' && validPengaturanDrive(request.resource.data))
+        (id == 'drive' && validPengaturanDrive(request.resource.data)) ||
+        (id == 'hariLibur' && validPengaturanHariLibur(request.resource.data))
       );
       allow update: if isOwner() && validPengaturanUbah(id, request.resource.data);
       allow delete: if isOwner();

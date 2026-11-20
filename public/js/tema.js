@@ -3,7 +3,7 @@
  * Menyimpan preferensi di localStorage dan memperbarui atribut data-theme pada <html>.
  */
 
-const STORAGE_KEY_TEMA = "agenda_arsip_tema";
+import { STORAGE_KEY_TEMA } from "./config/constants.js";
 
 /**
  * Membaca preferensi tema tersimpan.

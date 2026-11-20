@@ -9,6 +9,8 @@
  *    untuk Laporan, Pencarian, dan Ekspor Cadangan tanpa listener permanen.
  * 4. Penghitung kategori akurat menggunakan getCountFromServer.
  */
+import { DAFTAR_STATUS_KEGIATAN, UKURAN_HALAMAN_KEGIATAN, KOLEKSI } from "./config/constants.js";
+export { DAFTAR_STATUS_KEGIATAN, UKURAN_HALAMAN_KEGIATAN };
 import {
   getFirestoreDb,
   collection,
@@ -46,9 +48,6 @@ import {
 } from "./catatan.js";
 import { infoHari } from "./hari-libur.js";
 
-export const DAFTAR_STATUS_KEGIATAN = ["Rencana", "Berjalan", "Selesai"];
-export const UKURAN_HALAMAN_KEGIATAN = 50;
-
 const NAMA_HARI_PENDEK = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const NAMA_BULAN_PENDEK = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -64,8 +63,8 @@ const IKON_TAB_BARU = svgIkon('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8
 const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 
 export const manajerKategoriKegiatan = buatManajerKategori({
-  namaKoleksiKategori: "kategoriKegiatan",
-  namaKoleksiPemakai: "kegiatan",
+  namaKoleksiKategori: KOLEKSI.KATEGORI_KEGIATAN,
+  namaKoleksiPemakai: KOLEKSI.KEGIATAN,
   labelItemPemakai: "kegiatan",
   daftarBawaan: KATEGORI_KEGIATAN_BAWAAN
 });
@@ -162,7 +161,7 @@ export async function hapusLunakKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
   const db = getFirestoreDb();
-  await updateDoc(doc(db, "kegiatan", targetId), {
+  await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
     dihapusAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
@@ -176,7 +175,7 @@ export async function pulihkanKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
   const db = getFirestoreDb();
-  await updateDoc(doc(db, "kegiatan", targetId), {
+  await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
     dihapusAt: null,
     updatedAt: new Date().toISOString()
   });
@@ -186,7 +185,7 @@ export async function hapusPermanenKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
   const db = getFirestoreDb();
-  await deleteDoc(doc(db, "kegiatan", targetId));
+  await deleteDoc(doc(db, KOLEKSI.KEGIATAN, targetId));
   petaKegiatanJendela.delete(targetId);
   petaKegiatanHalaman.delete(targetId);
   petaKegiatanTambahan.delete(targetId);
@@ -234,7 +233,7 @@ export async function ubahStatusKegiatanCepat(id, statusBaru) {
   beritahuPerubahanKegiatan();
 
   try {
-    await updateDoc(doc(db, "kegiatan", targetId), {
+    await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
       status: statusBaru,
       updatedAt: sekarang
     });
@@ -274,7 +273,7 @@ export async function hitungKegiatanPemakaiServer(kategoriId) {
     if (!target) {
       // Tanpa kategori: kategoriId == ""
       const q = query(
-        collection(db, "kegiatan"),
+        collection(db, KOLEKSI.KEGIATAN),
         where("kategoriId", "==", ""),
         where("dihapusAt", "==", null)
       );
@@ -282,7 +281,7 @@ export async function hitungKegiatanPemakaiServer(kategoriId) {
       return snap.data().count;
     }
     const q = query(
-      collection(db, "kegiatan"),
+      collection(db, KOLEKSI.KEGIATAN),
       where("kategoriId", "==", target),
       where("dihapusAt", "==", null)
     );
@@ -566,7 +565,7 @@ export async function muatLebihBanyakKegiatan() {
   try {
     const db = getFirestoreDb();
     const q = query(
-      collection(db, "kegiatan"),
+      collection(db, KOLEKSI.KEGIATAN),
       where("dihapusAt", "==", null),
       orderBy("tanggal", "desc"),
       startAfter(lastDocKegiatanHalaman),
@@ -611,7 +610,7 @@ export async function muatLebihBanyakKegiatan() {
 export async function ambilSemuaKegiatanSekaliPakai() {
   const db = getFirestoreDb();
   const q = query(
-    collection(db, "kegiatan"),
+    collection(db, KOLEKSI.KEGIATAN),
     where("dihapusAt", "==", null),
     orderBy("tanggal", "desc")
   );
@@ -644,7 +643,7 @@ export async function ambilSemuaKegiatanSekaliPakai() {
 export async function ambilKegiatanRentangTanggal(tanggalDari, tanggalSampai) {
   const db = getFirestoreDb();
   const q = query(
-    collection(db, "kegiatan"),
+    collection(db, KOLEKSI.KEGIATAN),
     where("dihapusAt", "==", null),
     where("tanggal", ">=", tanggalDari),
     where("tanggal", "<=", tanggalSampai),
@@ -1253,13 +1252,13 @@ export function initHalamanKegiatan() {
       try {
         const db = getFirestoreDb();
         if (idEdit) {
-          await updateDoc(doc(db, "kegiatan", idEdit), { ...payload, updatedAt: sekarang });
+          await updateDoc(doc(db, KOLEKSI.KEGIATAN, idEdit), { ...payload, updatedAt: sekarang });
           terapkanPerubahanLokalKegiatan(idEdit, { ...payload, updatedAt: sekarang });
           renderDaftarKegiatan();
           beritahuPerubahanKegiatan();
         } else {
           // Fase 5: Selalu setel dihapusAt: null pada dokumen baru
-          await addDoc(collection(db, "kegiatan"), {
+          await addDoc(collection(db, KOLEKSI.KEGIATAN), {
             ...payload,
             dihapusAt: null,
             createdAt: sekarang,
@@ -1363,7 +1362,7 @@ function mulaiLanggananJendelaKegiatan(tglAwal, tglAkhir) {
 
   const db = getFirestoreDb();
   const q = query(
-    collection(db, "kegiatan"),
+    collection(db, KOLEKSI.KEGIATAN),
     where("dihapusAt", "==", null),
     where("tanggal", ">=", tglAwal),
     where("tanggal", "<=", tglAkhir),
@@ -1415,7 +1414,7 @@ function mulaiLanggananHalamanKegiatan() {
 
   const db = getFirestoreDb();
   const q = query(
-    collection(db, "kegiatan"),
+    collection(db, KOLEKSI.KEGIATAN),
     where("dihapusAt", "==", null),
     orderBy("tanggal", "desc"),
     limit(UKURAN_HALAMAN_KEGIATAN)
