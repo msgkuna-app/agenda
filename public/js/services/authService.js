@@ -1,13 +1,13 @@
 /**
- * Modul Autentikasi Firebase & Token Google Drive via Google Identity Services (GIS)
- * (Fase 6: Pemisahan Token Drive dari Firebase Auth)
+ * Layanan Autentikasi Firebase & Token Google Drive via Google Identity Services (GIS)
+ * (Tahap 2c: dipindah dari js/auth.js tanpa perubahan logika)
  * - Firebase Auth murni untuk identitas pengguna dan keamanan aturan Firestore.
  * - GIS Token Client untuk hak akses Google Drive (scope: drive.file).
  * - Token disimpan HANYA di memori modul, membersihkan sisa sessionStorage lama saat startup.
  * - Memiliki fungsi mintaTokenDrive({ senyap }) dengan lazy refresh (margin 2 menit).
  * - Memvalidasi kepemilikan akun tunggal (AUTHORIZED_EMAIL) dan mencabut token jika tidak cocok.
  */
-import { AUTHORIZED_EMAIL, DRIVE_SCOPE, STORAGE_TOKEN_KEY_LAMA, STORAGE_TOKEN_TS_KEY_LAMA, MARGIN_KEDALUWARSA_MS, GOOGLE_USERINFO_URL } from "./config/constants.js";
+import { AUTHORIZED_EMAIL, DRIVE_SCOPE, STORAGE_TOKEN_KEY_LAMA, STORAGE_TOKEN_TS_KEY_LAMA, MARGIN_KEDALUWARSA_MS, GOOGLE_USERINFO_URL } from "../config/constants.js";
 export { AUTHORIZED_EMAIL, DRIVE_SCOPE };
 import {
   GoogleAuthProvider,
@@ -15,7 +15,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import { getFirebaseAuth, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID } from "./services/firestoreService.js";
+import { getFirebaseAuth, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID } from "./firestoreService.js";
 
 // Bersihkan sisa kunci lama di sessionStorage saat modul dimuat
 try {

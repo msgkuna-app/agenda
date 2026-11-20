@@ -31,7 +31,7 @@ import {
   getDocs,
   formatPesanGalatFirestore
 } from "./services/firestoreService.js";
-import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./auth.js";
+import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./services/authService.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
 import { tampilkanToast } from "./shared/toast.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
@@ -40,7 +40,7 @@ import {
   pindahkanItemKeSampahDrive,
   pulihkanItemDariSampahDrive,
   formatPesanGalatDrive
-} from "./drive.js";
+} from "./services/driveService.js";
 import {
   DAFTAR_TEMPLAT_DOKUMEN,
   ambilInfoTemplatDokumen,

@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.7.7";
+const VERSION = "agenda-arsip-v1.8.0";
 
 const APP_SHELL = [
   "/",
@@ -14,7 +14,7 @@ const APP_SHELL = [
   "/js/config/firebase.js",
   "/js/pencarian-global.js",
   "/js/pwa.js",
-  "/js/auth.js",
+  "/js/services/authService.js",
   "/js/util-tanggal.js",
   "/js/hari-libur.js",
   "/js/tema.js",
@@ -25,7 +25,7 @@ const APP_SHELL = [
   "/js/kegiatan.js",
   "/js/timeline-harian.js",
   "/js/jadwal.js",
-  "/js/drive.js",
+  "/js/services/driveService.js",
   "/js/dokumen.js",
   "/js/templat-dokumen.js",
   "/js/catatan.js",

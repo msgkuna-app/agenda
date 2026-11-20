@@ -16,7 +16,7 @@ import {
   mintaTokenDrive,
   consumeLastAuthError,
   formatPesanGalatAuth,
-} from "./auth.js";
+} from "./services/authService.js";
 import { initTema } from "./tema.js";
 import {
   initSidebar,
@@ -105,7 +105,7 @@ import {
   onPerubahanHariLibur,
 } from "./pengaturan.js";
 import { infoHari } from "./hari-libur.js";
-import { resetCacheDrive } from "./drive.js";
+import { resetCacheDrive } from "./services/driveService.js";
 import {
   renderTimelineHarian,
   bersihkanTimelineHarian,

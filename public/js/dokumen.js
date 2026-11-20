@@ -48,8 +48,8 @@ import {
   formatPesanGalatDrive,
   resetCacheDrive,
   AMBANG_UNGGAH_RESUMABLE_BYTES
-} from "./drive.js";
-import { loginWithGoogle, formatPesanGalatAuth } from "./auth.js";
+} from "./services/driveService.js";
+import { loginWithGoogle, formatPesanGalatAuth } from "./services/authService.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { pindahKeBagian } from "./sidebar.js";

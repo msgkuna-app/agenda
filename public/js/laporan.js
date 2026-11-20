@@ -23,7 +23,7 @@ import {
   isDriveTokenExpired,
   loginWithGoogle,
   formatPesanGalatAuth
-} from "./auth.js";
+} from "./services/authService.js";
 import { tanggalLokal, hariIni, parseTanggal } from "./util-tanggal.js";
 import { urutkanDaftarKategori } from "./kategori.js";
 import {
@@ -56,7 +56,7 @@ import {
   pastikanFolderIndukDrive,
   pindahkanBerkasKeFolderDrive,
   formatPesanGalatDrive
-} from "./drive.js";
+} from "./services/driveService.js";
 import { escapeHtml, svgIkon, NAMA_BULAN_PENDEK } from "./util-html.js";
 
 // NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)

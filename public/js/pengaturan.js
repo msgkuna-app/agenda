@@ -31,7 +31,7 @@ import {
   isDriveTokenExpired,
   loginWithGoogle,
   formatPesanGalatAuth
-} from "./auth.js";
+} from "./services/authService.js";
 import { getPreferensiTema, terapkanTema } from "./tema.js";
 import { hariIni, parseTanggal, tanggalLokal, tambahHari } from "./util-tanggal.js";
 import { formatTanggalLengkapIndonesia } from "./jadwal.js";
@@ -290,7 +290,7 @@ import {
   ambilSemuaCatatanSekaliPakai
 } from "./catatan.js";
 import { getDaftarLaporan } from "./laporan.js";
-import { formatPesanGalatDrive } from "./drive.js";
+import { formatPesanGalatDrive } from "./services/driveService.js";
 import { periksaPembaruan } from "./pwa.js";
 import { escapeHtml, svgIkon } from "./util-html.js";
 

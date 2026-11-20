@@ -1,11 +1,11 @@
 /**
- * Modul Operasi Google Drive API v3 & Struktur Folder Kategori (Fase 3 + Fase 4 Google Docs & Resumable Upload + Fase 6 GIS)
+ * Layanan Operasi Google Drive API v3 & Struktur Folder Kategori (Tahap 2c: dipindah dari js/drive.js)
  * - Seluruh operasi memakai ID (folderId, fileId).
  * - Tidak pernah menyimpan access token di storage / Firestore.
  * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google.
  * - Memperbarui token otomatis sebelum kedaluwarsa (lazy refresh via mintaTokenDrive di ambilTokenWajib).
  */
-import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "./config/constants.js";
+import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
 export { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES };
 import {
   getFirestoreDb,
@@ -13,8 +13,8 @@ import {
   getDoc,
   setDoc,
   formatPesanGalatFirestore,
-} from "./services/firestoreService.js";
-import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./auth.js";
+} from "./firestoreService.js";
+import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./authService.js";
 
 let cacheRootFolderId = null;
 let cacheUncategorizedFolderId = null;
