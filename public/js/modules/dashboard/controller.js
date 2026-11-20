@@ -26,7 +26,7 @@ import {
   eksporSeluruhDataJson,
   tundaPengingatCadangan,
   onPerubahanCadangan,
-} from "../../pengaturan.js";
+} from "../pengaturan/index.js";
 import { renderHalamanSampah, jalankanPembersihanSampahOtomatis } from "../../sampah.js";
 import {
   setModeTampilanHariIni,

@@ -36,7 +36,7 @@ import {
   getStatusCadangan,
   hitungSelisihHariCadangan,
   apakahSedangMenundaCadangan,
-} from "../../pengaturan.js";
+} from "../pengaturan/index.js";
 import {
   renderTimelineHarian,
   bersihkanTimelineHarian,

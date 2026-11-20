@@ -74,7 +74,7 @@ import {
   muatPengaturanHariLibur,
   bacaPengaturanHariLiburLokal,
   onPerubahanHariLibur,
-} from "./pengaturan.js";
+} from "./modules/pengaturan/index.js";
 import { resetCacheDrive } from "./services/driveService.js";
 import {
   initHalamanSampah,
