@@ -84,7 +84,7 @@ import {
   subscribeSampah,
   unsubscribeSampah,
   resetPembersihanSampah,
-} from "./sampah.js";
+} from "./modules/sampah/index.js";
 import {
   initPencarianGlobal,
   bersihkanPencarianGlobal,

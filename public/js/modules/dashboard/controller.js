@@ -27,7 +27,7 @@ import {
   tundaPengingatCadangan,
   onPerubahanCadangan,
 } from "../pengaturan/index.js";
-import { renderHalamanSampah, jalankanPembersihanSampahOtomatis } from "../../sampah.js";
+import { renderHalamanSampah, jalankanPembersihanSampahOtomatis } from "../sampah/index.js";
 import {
   setModeTampilanHariIni,
   dashboardSudahDiikat,
