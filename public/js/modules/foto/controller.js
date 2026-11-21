@@ -4,7 +4,7 @@
  * Firestore, penghapusan foto, pencarian, dan filter halaman Foto.
  */
 import { MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
-import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, pindahkanItemKeSampahDrive } from "../../services/driveService.js";
+import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, pindahkanItemKeSampahDrive, ambilThumbnailFotoDrive } from "../../services/driveService.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import { escapeHtml } from "../../util-html.js";
 import { getDaftarKegiatan, onPerubahanKegiatan } from "../kegiatan/index.js";
@@ -38,12 +38,42 @@ function petaJudulKegiatan() {
   return peta;
 }
 
-function renderSemua() {
+function renderDaftar() {
   renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
     filterKegiatanId,
     kataKunci: kataKunciCari,
   });
+  muatThumbnailTampil();
+}
+
+function renderSemua() {
+  renderDaftar();
   perbaruiOpsiFilterKegiatan();
+}
+
+/**
+ * Memuat thumbnail setiap foto melalui Drive API (token OAuth) dan mengganti
+ * atribut src. Hasil di-cache di driveService sehingga render ulang tidak
+ * memicu unduhan berulang.
+ */
+function muatThumbnailTampil() {
+  const daftarEl = document.getElementById("foto-list-region");
+  if (!daftarEl) return;
+  daftarEl.querySelectorAll("img[data-thumb-drive]").forEach((img) => {
+    if (!(img instanceof HTMLImageElement)) return;
+    if (img.src) return;
+    const fileId = img.getAttribute("data-thumb-drive");
+    if (!fileId) return;
+    ambilThumbnailFotoDrive(fileId)
+      .then((urlLokal) => {
+        if (document.contains(img)) img.src = urlLokal;
+      })
+      .catch(() => {
+        // Biarkan placeholder; pengguna tetap bisa membuka foto di Drive.
+        const wadah = img.parentElement;
+        if (wadah) wadah.classList.add("foto-kartu-gagal");
+      });
+  });
 }
 
 function perbaruiOpsiFilterKegiatan() {
@@ -226,18 +256,12 @@ export function initFoto() {
 
   inputCari?.addEventListener("input", () => {
     kataKunciCari = inputCari.value || "";
-    renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
-      filterKegiatanId,
-      kataKunci: kataKunciCari,
-    });
+    renderDaftar();
   });
 
   selectFilter?.addEventListener("change", () => {
     filterKegiatanId = selectFilter.value || "ALL";
-    renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
-      filterKegiatanId,
-      kataKunci: kataKunciCari,
-    });
+    renderDaftar();
   });
 
   // --- Modal unggah ---

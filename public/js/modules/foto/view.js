@@ -67,18 +67,13 @@ function formatUkuran(bytes) {
 }
 
 function kartuFotoHtml(f, judulGrup) {
-  const cadangan = f.driveFileId
-    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w220`
-    : "";
-  // thumbnailLink Drive berakhiran "=s220"; ganti agar konsisten memakai lebar kecil.
-  const thumb = f.thumbnailLink
-    ? f.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/i, "=w220")
-    : cadangan;
-  const tautan = f.tautan || thumb;
+  const tautan = f.tautan || (f.driveFileId ? `https://drive.google.com/file/d/${encodeURIComponent(f.driveFileId)}/view` : "#");
   const tanggal = String(f.createdAt || "").slice(0, 10);
   return `<figure class="foto-kartu" data-id-foto="${escapeHtml(f.id)}">
       <a class="foto-kartu-gambar" href="${escapeHtml(tautan)}" target="_blank" rel="noopener" title="Buka foto di Drive">
-        ${thumb ? `<img src="${thumb}" alt="${escapeHtml(f.namaFile)}" loading="lazy" />` : `<span class="foto-kartu-kosong">${svgIkon(IKON_GAMBAR, 28)}</span>`}
+        ${f.driveFileId
+          ? `<img alt="${escapeHtml(f.namaFile)}" loading="lazy" data-thumb-drive="${escapeHtml(f.driveFileId)}" />`
+          : `<span class="foto-kartu-kosong">${svgIkon(IKON_GAMBAR, 28)}</span>`}
       </a>
       <button type="button" class="tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}" title="Hapus foto" aria-label="Hapus foto ${escapeHtml(f.namaFile)}">${svgIkon(IKON_HAPUS, 16)}</button>
       <figcaption class="foto-kartu-meta">

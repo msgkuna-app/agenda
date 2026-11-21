@@ -29,6 +29,7 @@ export function resetCacheDrive() {
   cacheRootFolderId = null;
   cacheUncategorizedFolderId = null;
   cacheFotoFolderId = null;
+  resetCacheThumbnailDrive();
   janjiPastikanInduk = null;
   janjiPastikanTanpaKategori = null;
 }
@@ -282,6 +283,88 @@ export async function ambilMetadataItemDrive(fileId) {
   return panggilDriveJson(`${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`, {
     method: "GET",
   });
+}
+
+// --- Thumbnail foto via API (autentikasi token, aman untuk semua perangkat) ---
+
+const cacheBlobUrlThumbnail = new Map();
+const janjiThumbnail = new Map();
+
+/**
+ * Mengambil thumbnail berkas foto lewat Drive API memakai token OAuth, lalu
+ * mengembalikan blob URL lokal. Tidak bergantung pada cookie peramban, sehingga
+ * tetap tampil di tablet/ponsel yang belum masuk akun Google. Hasil di-cache.
+ * @param {string} fileId
+ * @returns {Promise<string>} blob URL untuk src elemen <img>
+ */
+export async function ambilThumbnailFotoDrive(fileId) {
+  const idBersih = String(fileId || "").trim();
+  if (!idBersih) throw new Error("ID berkas foto kosong.");
+
+  if (cacheBlobUrlThumbnail.has(idBersih)) {
+    return cacheBlobUrlThumbnail.get(idBersih);
+  }
+  if (janjiThumbnail.has(idBersih)) {
+    return janjiThumbnail.get(idBersih);
+  }
+
+  const janji = (async () => {
+    // 1) Minta thumbnailLink dari metadata berkas.
+    const params = new URLSearchParams({ fields: "thumbnailLink,mimeType" });
+    const meta = await panggilDriveJson(
+      `${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`,
+      { method: "GET" }
+    );
+
+    // Gambar kecil (s/d ~4 MP) tidak punya thumbnailLink — unduh berkas aslinya.
+    let urlSumber = meta?.thumbnailLink || "";
+    if (!urlSumber) {
+      urlSumber = `${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?alt=media`;
+    }
+    // Samakan ukuran: "=s220" -> lebar kecil agar muat cepat.
+    urlSumber = urlSumber.replace(/=s\d+(-[a-z]+)?$/i, "=w220");
+
+    // 2) Unduh gambar dengan header Authorization.
+    const token = await ambilTokenWajib();
+    let resp;
+    try {
+      resp = await fetch(urlSumber, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (_netErr) {
+      throw new Error(!navigator.onLine
+        ? "Tidak ada koneksi internet."
+        : "Gagal menghubungi Google Drive saat mengambil thumbnail.");
+    }
+    if (!resp.ok) {
+      throw await uraiResponsGalatDrive(resp);
+    }
+
+    const blob = await resp.blob();
+    const urlLokal = URL.createObjectURL(blob);
+    cacheBlobUrlThumbnail.set(idBersih, urlLokal);
+    return urlLokal;
+  })();
+
+  janjiThumbnail.set(idBersih, janji);
+  try {
+    return await janji;
+  } finally {
+    janjiThumbnail.delete(idBersih);
+  }
+}
+
+/**
+ * Mengosongkan cache blob URL thumbnail (dipanggil saat keluar sesi).
+ */
+export function resetCacheThumbnailDrive() {
+  cacheBlobUrlThumbnail.forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (_err) {}
+  });
+  cacheBlobUrlThumbnail.clear();
+  janjiThumbnail.clear();
 }
 
 /**
