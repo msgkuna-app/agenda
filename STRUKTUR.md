@@ -4,7 +4,7 @@
 > lalu hapus versi lama di Project dan unggah versi baru.
 
 Terakhir diperbarui: 2026-11-21
-Tahap saat ini: **Foto dipindah ke kartu Kegiatan (2026-11-21)** — tombol + thumbnail per kegiatan, modal unggah tanpa pilihan kegiatan (judul saja), halaman/section "Foto" DIHAPUS, SW v1.8.28. Sisa opsional: Tahap 2 (CRUD bermakna menggantikan re-export SDK di firestoreService.js)
+Tahap saat ini: **Filter halaman Kegiatan & Sampah dirapikan (2026-11-21)** — urutan tanggal kegiatan default "Terbaru → Terlama"; filter Tempat Sampah memakai bentuk standar (pencarian + panel Filter collapsible), segmented control dihapus; SW v1.8.29. Sisa opsional: Tahap 2 (CRUD bermakna menggantikan re-export SDK di firestoreService.js)
 
 ## 1. Ringkasan aplikasi
 - Nama: Agenda & Arsip

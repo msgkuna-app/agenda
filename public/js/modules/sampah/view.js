@@ -16,9 +16,14 @@ const IKON_PULIHKAN = svgIkon('<polyline points="1 4 1 10 7 10"/><path d="M3.51 
 const IKON_HAPUS_PERMANEN = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16);
 
 let filterSegmenAktif = "semua"; // "semua" | "kegiatan" | "catatan"
+let kataKunciSampah = "";
 
 export function setFilterSegmenSampah(nilai) {
   filterSegmenAktif = nilai || "semua";
+}
+
+export function setKataKunciSampah(nilai) {
+  kataKunciSampah = String(nilai == null ? "" : nilai);
 }
 
 export function pastikanKerangkaHalamanSampah() {
@@ -45,38 +50,45 @@ export function pastikanKerangkaHalamanSampah() {
         <span id="sampah-page-error-text"></span>
       </div>
 
-      <div id="sampah-toolbar" class="filter-card">
-        <div class="segmented-control" role="tablist" aria-label="Pilih jenis item tempat sampah">
+      <div id="sampah-toolbar" class="filter-card filter-toolbar-shell">
+        <div class="compact-toolbar-row">
+          <div class="search-field-wrap compact-search-wrap">
+            <label for="sampah-search-input" class="sr-only">Cari item tempat sampah</label>
+            ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
+            <input type="search" id="sampah-search-input" class="form-input input-with-icon" placeholder="Cari judul atau isi item..." autocomplete="off" />
+          </div>
           <button
             type="button"
-            class="segmented-btn is-active"
-            role="tab"
-            aria-selected="true"
-            data-sampah-segment="semua"
-            id="sampah-tab-semua"
+            id="sampah-filter-toggle-btn"
+            class="btn-secondary btn-filter-toggle"
+            data-filter-toggle
+            aria-expanded="false"
+            aria-controls="sampah-filter-panel"
           >
-            Semua (<span id="sampah-count-semua">0</span>)
+            ${svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16)}
+            <span class="btn-filter-label">Filter</span>
+            <span id="sampah-filter-count-badge" class="filter-count-badge" data-filter-badge hidden>0</span>
           </button>
-          <button
-            type="button"
-            class="segmented-btn"
-            role="tab"
-            aria-selected="false"
-            data-sampah-segment="kegiatan"
-            id="sampah-tab-kegiatan"
-          >
-            Kegiatan (<span id="sampah-count-kegiatan">0</span>)
-          </button>
-          <button
-            type="button"
-            class="segmented-btn"
-            role="tab"
-            aria-selected="false"
-            data-sampah-segment="catatan"
-            id="sampah-tab-catatan"
-          >
-            Catatan (<span id="sampah-count-catatan">0</span>)
-          </button>
+        </div>
+
+        <div id="sampah-filter-panel" class="filter-collapsible" data-filter-panel role="region" aria-label="Filter tempat sampah" aria-hidden="true" inert>
+          <div class="filter-collapsible-inner">
+            <div class="filter-panel-content">
+              <div class="filter-controls-grid">
+                <div class="filter-control-item">
+                  <label for="sampah-filter-jenis" class="filter-label">Jenis Item</label>
+                  <select id="sampah-filter-jenis" class="form-select" data-default="semua">
+                    <option value="semua">Semua Jenis</option>
+                    <option value="kegiatan">Kegiatan</option>
+                    <option value="catatan">Catatan</option>
+                  </select>
+                </div>
+              </div>
+              <div class="filter-panel-actions">
+                <button type="button" id="sampah-filter-reset-desktop-btn" class="btn-secondary btn-sm-touch" data-filter-reset>Atur ulang</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -142,9 +154,6 @@ export function renderHalamanSampah() {
 
   const region = document.getElementById("sampah-list-region");
   const btnKosongkan = document.getElementById("sampah-btn-kosongkan");
-  const countSemuaEl = document.getElementById("sampah-count-semua");
-  const countKegEl = document.getElementById("sampah-count-kegiatan");
-  const countCatEl = document.getElementById("sampah-count-catatan");
   const barSummary = document.getElementById("sampah-active-filter-bar");
   const txtSummary = document.getElementById("sampah-result-summary");
 
@@ -166,10 +175,6 @@ export function renderHalamanSampah() {
   const totalCatatan = catatanSampah.length;
   const totalSemua = totalKegiatan + totalCatatan;
 
-  if (countSemuaEl) countSemuaEl.textContent = String(totalSemua);
-  if (countKegEl) countKegEl.textContent = String(totalKegiatan);
-  if (countCatEl) countCatEl.textContent = String(totalCatatan);
-
   if (btnKosongkan instanceof HTMLButtonElement) {
     btnKosongkan.disabled = totalSemua === 0;
   }
@@ -183,6 +188,15 @@ export function renderHalamanSampah() {
     daftarTampil = [...kegiatanSampah, ...catatanSampah];
   }
 
+  // Saring berdasarkan kata kunci pencarian (judul, catatan, isi)
+  const kunci = kataKunciSampah.trim().toLowerCase();
+  if (kunci) {
+    daftarTampil = daftarTampil.filter((item) => {
+      const gabungan = `${item.judul || ""} ${item.catatan || ""} ${item.isi || ""}`.toLowerCase();
+      return gabungan.includes(kunci);
+    });
+  }
+
   // Urutkan item dari yang paling baru dihapus
   daftarTampil.sort((a, b) => {
     const tA = Date.parse(a.dihapusAt) || 0;
@@ -191,12 +205,12 @@ export function renderHalamanSampah() {
   });
 
   if (barSummary && txtSummary) {
+    const adaFilter = kunci !== "" || filterSegmenAktif !== "semua";
     if (totalSemua > 0) {
       barSummary.hidden = false;
-      txtSummary.textContent =
-        filterSegmenAktif === "semua"
-          ? `Menampilkan total ${totalSemua} item di Tempat Sampah`
-          : `Menampilkan ${daftarTampil.length} dari ${totalSemua} item di Tempat Sampah`;
+      txtSummary.textContent = adaFilter
+        ? `Menampilkan ${daftarTampil.length} dari ${totalSemua} item di Tempat Sampah`
+        : `Menampilkan total ${totalSemua} item di Tempat Sampah`;
     } else {
       barSummary.hidden = true;
     }
@@ -216,8 +230,8 @@ export function renderHalamanSampah() {
   if (daftarTampil.length === 0) {
     region.innerHTML = `
       <div class="empty-stage-card">
-        <h3 class="empty-stage-title">Tidak Ada Item pada Kategori Ini</h3>
-        <p class="empty-stage-desc">Tidak ditemukan item ${filterSegmenAktif} di Tempat Sampah.</p>
+        <h3 class="empty-stage-title">Tidak Ada Item yang Cocok</h3>
+        <p class="empty-stage-desc">Tidak ditemukan item di Tempat Sampah yang sesuai dengan pencarian atau filter jenis item.</p>
       </div>
     `;
     return;

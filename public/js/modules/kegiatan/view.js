@@ -36,7 +36,7 @@ const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 1
 let kataKunciCari = "";
 let filterKategoriId = "ALL";
 let filterStatus = "ALL";
-let urutanTanggal = "asc";
+let urutanTanggal = "desc";
 let pengendaliFilterKegiatan = null;
 
 export function getKataKunciCari() {
@@ -156,9 +156,9 @@ export function pastikanKerangkaHalamanKegiatan() {
               </div>
               <div class="filter-control-item">
                 <label for="kegiatan-sort-tanggal" class="filter-label">Urutan Tanggal</label>
-                <select id="kegiatan-sort-tanggal" class="form-select compact-sort-select" data-default="asc" aria-label="Urutan tanggal kegiatan" title="Urutan tanggal">
-                  <option value="asc">Terlama &rarr; Terbaru</option>
+                <select id="kegiatan-sort-tanggal" class="form-select compact-sort-select" data-default="desc" aria-label="Urutan tanggal kegiatan" title="Urutan tanggal">
                   <option value="desc">Terbaru &rarr; Terlama</option>
+                  <option value="asc">Terlama &rarr; Terbaru</option>
                 </select>
               </div>
             </div>

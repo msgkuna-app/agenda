@@ -17,14 +17,17 @@ import {
   lepasLanggananSampah,
   resetFlagPembersihanSampah
 } from "./state.js";
+import { initFilterPanel } from "../../filter-panel.js";
 import {
   pastikanKerangkaHalamanSampah,
   tampilkanGalatHalamanSampah,
   renderHalamanSampah,
-  setFilterSegmenSampah
+  setFilterSegmenSampah,
+  setKataKunciSampah
 } from "./view.js";
 
 let antarmukaSampahDiikat = false;
+let pengendaliFilterSampah = null;
 
 let itemAkanDihapusPermanen = null; // { tipe: "kegiatan" | "catatan", item: any }
 let fokusSebelumModalSampah = null;
@@ -100,32 +103,36 @@ function tutupDialogKosongkanSampah(kembalikanFokus = true) {
 
 export function initHalamanSampah() {
   pastikanKerangkaHalamanSampah();
+  pengendaliFilterSampah = initFilterPanel(document.getElementById("sampah-toolbar"));
   if (antarmukaSampahDiikat) return;
   antarmukaSampahDiikat = true;
 
   const panel = document.getElementById("section-sampah");
   if (!panel) return;
 
-  // Delegasi tab segmen
+  // Pencarian & filter jenis item
+  const inputCari = document.getElementById("sampah-search-input");
+  if (inputCari instanceof HTMLInputElement) {
+    inputCari.addEventListener("input", () => {
+      setKataKunciSampah(inputCari.value);
+      renderHalamanSampah();
+    });
+  }
+
+  const selectJenis = document.getElementById("sampah-filter-jenis");
+  if (selectJenis instanceof HTMLSelectElement) {
+    selectJenis.addEventListener("change", () => {
+      setFilterSegmenSampah(selectJenis.value);
+      renderHalamanSampah();
+    });
+  }
+
+  // Delegasi klik
   panel.addEventListener("click", async (e) => {
     const target = e.target instanceof Element ? e.target : null;
     if (!target) return;
 
-    // 1. Klik tab segmen
-    const segBtn = target.closest("button[data-sampah-segment]");
-    if (segBtn) {
-      const seg = segBtn.getAttribute("data-sampah-segment") || "semua";
-      setFilterSegmenSampah(seg);
-      panel.querySelectorAll(".segmented-btn[data-sampah-segment]").forEach((b) => {
-        const aktif = b.getAttribute("data-sampah-segment") === seg;
-        b.classList.toggle("is-active", aktif);
-        b.setAttribute("aria-selected", aktif ? "true" : "false");
-      });
-      renderHalamanSampah();
-      return;
-    }
-
-    // 2. Tombol Kosongkan
+    // 1. Tombol Kosongkan
     if (target.closest("#sampah-btn-kosongkan")) {
       bukaDialogKosongkanSampah();
       return;
@@ -290,6 +297,14 @@ export function unsubscribeSampah() {
 export function resetPembersihanSampah() {
   resetFlagPembersihanSampah();
   setFilterSegmenSampah("semua");
+  setKataKunciSampah("");
+
+  const inputCari = document.getElementById("sampah-search-input");
+  if (inputCari instanceof HTMLInputElement) inputCari.value = "";
+  const selectJenis = document.getElementById("sampah-filter-jenis");
+  if (selectJenis instanceof HTMLSelectElement) selectJenis.value = "semua";
+  pengendaliFilterSampah?.perbaruiLencana();
+
   itemAkanDihapusPermanen = null;
   tutupDialogHapusPermanen(false);
   tutupDialogKosongkanSampah(false);
