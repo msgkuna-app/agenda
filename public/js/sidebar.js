@@ -1,8 +1,8 @@
 /**
  * Modul Navigasi Sidebar, Drawer Mobile, Tooltip Ciut, dan Status Koneksi (Fase 6 + Refaktor Fase 7A + Tahap 4b)
  * Mematuhi Aturan #9, #13, #14 & Bagian A1, A2, A3, D, E:
- * - Menggunakan modul terpusat util-html.js untuk escapeHtml & escapeAtribut (tetap di-re-export demi kompatibilitas).
- * - tampilkanToast kini berada di shared/toast.js, di-re-export demi kompatibilitas (bertahap dihapus).
+ * - Menggunakan modul terpusat util-html.js untuk escapeHtml & escapeAtribut (impor internal, tanpa re-export).
+ * - tampilkanToast kini berada di shared/toast.js; re-export kompatibilitas SUDAH DIHAPUS (pembersihan jembatan 2026-11-21).
  * - Saat berpindah halaman, gulungan area konten utama (#workspace-scroll) dikembalikan ke atas (scrollTop = 0).
  * - Memperbarui indikator online/offline di bagian bawah sidebar secara tidak mengganggu.
  */
@@ -10,7 +10,6 @@
 import { STORAGE_SIDEBAR_KEY } from "./config/constants.js";
 import { escapeHtml, escapeAtribut } from "./util-html.js";
 import { tampilkanToast } from "./shared/toast.js";
-export { escapeHtml, escapeAtribut, tampilkanToast };
 
 export const MENU_SECTIONS = [
   {
