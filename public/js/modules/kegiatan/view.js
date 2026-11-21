@@ -12,6 +12,8 @@ import { initFilterPanel } from "../../filter-panel.js";
 import { parseTanggal } from "../../util-tanggal.js";
 import { infoHari } from "../../hari-libur.js";
 import { getCatatanTerkaitKegiatan } from "../../modules/catatan/index.js";
+import { getDaftarFoto } from "../foto/state.js";
+import { htmlFotoKegiatan } from "../foto/view.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,
@@ -322,6 +324,7 @@ export function renderDaftarKegiatan() {
         ${catatanTerkait.length > 0 ? `<span class="kegiatan-meta-item">${IKON_CATATAN_META}<span>${catatanTerkait.length} catatan terkait</span></span>` : ""}
       </div>
       ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
+      ${htmlFotoKegiatan(item.id, getDaftarFoto().filter((f) => f.kegiatanId === item.id))}
       <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
         <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
         <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>

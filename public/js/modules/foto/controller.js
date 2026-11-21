@@ -1,13 +1,14 @@
 /**
  * Controller Modul Foto (fitur foto kegiatan)
  * Menangani modal unggah berkas ke Google Drive, penyimpanan metadata ke
- * Firestore, penghapusan foto, pencarian, dan filter halaman Foto.
+ * Firestore, penghapusan foto, serta pemuatan thumbnail yang ditampilkan di
+ * dalam kartu kegiatan. Halaman Foto tersendiri sudah dihapus.
  */
 import { MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
 import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, pindahkanItemKeSampahDrive, ambilThumbnailFotoDrive } from "../../services/driveService.js";
 import { tampilkanToast } from "../../shared/toast.js";
-import { escapeHtml } from "../../util-html.js";
-import { getDaftarKegiatan, onPerubahanKegiatan } from "../kegiatan/index.js";
+import { getDaftarKegiatan } from "../kegiatan/index.js";
+import { renderDaftarKegiatan } from "../kegiatan/view.js";
 import {
   getDaftarFoto,
   onPerubahanFoto,
@@ -17,9 +18,6 @@ import {
   hapusDokumenFoto,
 } from "./state.js";
 import {
-  pasangElemenFoto,
-  pastikanKerangkaHalamanFoto,
-  renderDaftarFoto,
   renderPratinjauUnggah,
   bersihkanFormUnggahFoto,
   setelSedangUnggahFoto,
@@ -28,86 +26,8 @@ import {
 let sudahDipasang = false;
 let sedangUnggah = false;
 let modalTerbuka = false;
-let filterKegiatanId = "ALL";
-let kataKunciCari = "";
+let kegiatanIdSaatIni = "";
 let fokusSebelumModal = null;
-
-function petaJudulKegiatan() {
-  const peta = new Map();
-  getDaftarKegiatan().forEach((k) => peta.set(k.id, k));
-  return peta;
-}
-
-function renderDaftar() {
-  renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
-    filterKegiatanId,
-    kataKunci: kataKunciCari,
-  });
-  muatThumbnailTampil();
-}
-
-function renderSemua() {
-  renderDaftar();
-  perbaruiOpsiFilterKegiatan();
-}
-
-/**
- * Memuat thumbnail setiap foto melalui Drive API (token OAuth) dan mengganti
- * atribut src. Hasil di-cache di driveService sehingga render ulang tidak
- * memicu unduhan berulang.
- */
-function muatThumbnailTampil() {
-  const daftarEl = document.getElementById("foto-list-region");
-  if (!daftarEl) return;
-  daftarEl.querySelectorAll("img[data-thumb-drive]").forEach((img) => {
-    if (!(img instanceof HTMLImageElement)) return;
-    if (img.src) return;
-    const fileId = img.getAttribute("data-thumb-drive");
-    if (!fileId) return;
-    ambilThumbnailFotoDrive(fileId)
-      .then((urlLokal) => {
-        if (document.contains(img)) img.src = urlLokal;
-      })
-      .catch(() => {
-        // Sembunyikan elemen gambar (hindari ikon rusak); teks meta tetap tampil
-        // dan foto tetap dapat dibuka lewat tautan Drive.
-        img.style.display = "none";
-        const wadah = img.parentElement;
-        if (wadah) wadah.classList.add("foto-kartu-gagal");
-      });
-  });
-}
-
-function perbaruiOpsiFilterKegiatan() {
-  const select = document.getElementById("filter-foto-kegiatan");
-  if (!(select instanceof HTMLSelectElement)) return;
-  const daftar = getDaftarKegiatan()
-    .slice()
-    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
-  select.innerHTML =
-    '<option value="ALL">Semua kegiatan</option>' +
-    daftar
-      .map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.judul)}${k.tanggal ? ` (${escapeHtml(k.tanggal)})` : ""}</option>`)
-      .join("");
-  select.value = filterKegiatanId === "ALL" || daftar.some((k) => k.id === filterKegiatanId) ? filterKegiatanId : "ALL";
-  if (select.value !== filterKegiatanId) filterKegiatanId = "ALL";
-}
-
-/** Mengisi dropdown kegiatan pada modal unggah. */
-function perbaruiDropdownKegiatanModal() {
-  const select = document.getElementById("foto-upload-kegiatan");
-  if (!(select instanceof HTMLSelectElement)) return;
-  const nilaiLama = select.value;
-  const daftar = getDaftarKegiatan()
-    .slice()
-    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
-  select.innerHTML =
-    '<option value="">— Pilih kegiatan —</option>' +
-    daftar
-      .map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.judul)}${k.tanggal ? ` (${escapeHtml(k.tanggal)})` : ""}</option>`)
-      .join("");
-  if (daftar.some((k) => k.id === nilaiLama)) select.value = nilaiLama;
-}
 
 function setPesanGalatModal(pesan) {
   const box = document.getElementById("foto-upload-alert");
@@ -123,7 +43,14 @@ function setPesanGalatModal(pesan) {
   box.hidden = false;
 }
 
-export function bukaModalUnggahFoto() {
+/** Membuka modal unggah untuk satu kegiatan tertentu (dipanggil dari kartu). */
+export function bukaModalUnggahFoto(kegiatanId) {
+  const id = String(kegiatanId || "").trim();
+  const kegiatan = getDaftarKegiatan().find((k) => k.id === id);
+  if (!id || !kegiatan) {
+    tampilkanToast("Kegiatan tidak ditemukan.", "galat");
+    return;
+  }
   if (!navigator.onLine) {
     tampilkanToast("Tidak ada koneksi internet. Unggah foto memerlukan sambungan aktif.", "galat");
     return;
@@ -132,15 +59,19 @@ export function bukaModalUnggahFoto() {
   if (!modal) return;
 
   fokusSebelumModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  kegiatanIdSaatIni = id;
+
+  const judulEl = document.getElementById("foto-upload-kegiatan-judul");
+  if (judulEl) judulEl.textContent = kegiatan.judul || "(Tanpa judul)";
+
   bersihkanFormUnggahFoto();
   setPesanGalatModal("");
   setelSedangUnggahFoto(false);
-  perbaruiDropdownKegiatanModal();
 
   modalTerbuka = true;
   modal.hidden = false;
   requestAnimationFrame(() => {
-    document.getElementById("foto-upload-kegiatan")?.focus();
+    document.getElementById("foto-upload-file")?.focus();
   });
 }
 
@@ -149,6 +80,7 @@ function tutupModalUnggahFoto(kembalikanFokus = true) {
   if (!modal || !modalTerbuka) return;
   modalTerbuka = false;
   modal.hidden = true;
+  kegiatanIdSaatIni = "";
   bersihkanFormUnggahFoto();
   setPesanGalatModal("");
   if (kembalikanFokus && fokusSebelumModal && document.contains(fokusSebelumModal)) {
@@ -238,46 +170,73 @@ async function hapusFoto(id) {
   }
 }
 
-/** Memasang antarmuka halaman Foto (dipanggil sekali saat boot). */
+/**
+ * Memuat thumbnail setiap foto pada cakupan dokumen melalui Drive API
+ * (token OAuth) dan mengganti atribut src. Hasil di-cache di driveService
+ * sehingga render ulang tidak memicu unduhan berulang.
+ */
+export function muatThumbnailDalam(root = document) {
+  const cakupan = root instanceof Element ? root : document;
+  cakupan.querySelectorAll("img[data-thumb-drive]").forEach((img) => {
+    if (!(img instanceof HTMLImageElement)) return;
+    if (img.src) return;
+    const fileId = img.getAttribute("data-thumb-drive");
+    if (!fileId) return;
+    ambilThumbnailFotoDrive(fileId)
+      .then((urlLokal) => {
+        if (document.contains(img)) img.src = urlLokal;
+      })
+      .catch(() => {
+        // Sembunyikan elemen gambar (hindari ikon rusak); foto tetap dapat
+        // dibuka lewat tautan Drive.
+        img.style.display = "none";
+        const wadah = img.parentElement;
+        if (wadah) wadah.classList.add("foto-kartu-gagal");
+      });
+  });
+}
+
+/** Render ulang daftar kegiatan setelah data foto berubah. */
+function renderUlangKegiatan() {
+  renderDaftarKegiatan();
+  muatThumbnailDalam(document);
+}
+
+/** Memasang antarmuka modul foto (dipanggil sekali saat boot). */
 export function initFoto() {
   if (sudahDipasang) return;
   sudahDipasang = true;
 
-  pastikanKerangkaHalamanFoto();
+  // --- Tombol unggah foto pada kartu kegiatan (delegasi dokumen) ---
+  document.addEventListener("click", (evt) => {
+    const target = evt.target instanceof Element ? evt.target : null;
+    if (!target) return;
 
-  const daftarEl = document.getElementById("foto-list-region");
-  const pratinjauEl = document.getElementById("foto-upload-pratinjau");
-  const inputBerkas = document.getElementById("foto-upload-file");
-  const inputCari = document.getElementById("foto-search-input");
-  const selectFilter = document.getElementById("filter-foto-kegiatan");
+    const tombolUnggah = target.closest('[data-action="unggah-foto"]');
+    if (tombolUnggah) {
+      evt.preventDefault();
+      bukaModalUnggahFoto(tombolUnggah.getAttribute("data-id"));
+      return;
+    }
 
-  pasangElemenFoto({ daftar: daftarEl, pratinjau: pratinjauEl });
-
-  // --- Halaman: buka modal, pencarian, filter ---
-  document.getElementById("btn-unggah-foto")?.addEventListener("click", bukaModalUnggahFoto);
-
-  inputCari?.addEventListener("input", () => {
-    kataKunciCari = inputCari.value || "";
-    renderDaftar();
-  });
-
-  selectFilter?.addEventListener("change", () => {
-    filterKegiatanId = selectFilter.value || "ALL";
-    renderDaftar();
+    const tombolHapus = target.closest(".tombol-hapus-foto");
+    if (tombolHapus) {
+      evt.preventDefault();
+      hapusFoto(tombolHapus.getAttribute("data-id-foto"));
+    }
   });
 
   // --- Modal unggah ---
+  const inputBerkas = document.getElementById("foto-upload-file");
   const form = document.getElementById("foto-upload-form");
   form?.addEventListener("submit", (evt) => {
     evt.preventDefault();
     if (sedangUnggah) return;
-    const select = document.getElementById("foto-upload-kegiatan");
-    const kegiatanId = String(select?.value || "").trim();
-    if (!kegiatanId) {
-      setPesanGalatModal("Pilih kegiatan tujuan terlebih dahulu.");
+    if (!kegiatanIdSaatIni) {
+      setPesanGalatModal("Kegiatan tujuan tidak valid. Tutup modal lalu coba lagi dari kartu kegiatan.");
       return;
     }
-    unggahBerkasTerpilih(kegiatanId, inputBerkas?.files);
+    unggahBerkasTerpilih(kegiatanIdSaatIni, inputBerkas?.files);
   });
 
   inputBerkas?.addEventListener("change", () => {
@@ -297,19 +256,20 @@ export function initFoto() {
     if (evt.target === evt.currentTarget) tutupModalUnggahFoto();
   });
 
-  // --- Daftar foto: hapus + penanganan thumbnail gagal ---
-  daftarEl?.addEventListener("click", (evt) => {
-    const tombol = evt.target.closest(".tombol-hapus-foto");
-    if (!tombol) return;
-    evt.preventDefault();
-    hapusFoto(tombol.getAttribute("data-id-foto"));
-  });
+  // --- Pemuatan thumbnail saat kartu kegiatan dirender ulang ---
+  const daftarEl = document.getElementById("kegiatan-list-region");
+  if (daftarEl && typeof MutationObserver !== "undefined") {
+    const pengamat = new MutationObserver(() => muatThumbnailDalam(daftarEl));
+    pengamat.observe(daftarEl, { childList: true, subtree: true });
+  }
 
-  daftarEl?.addEventListener(
+  // --- Penanganan gambar gagal dimuat (capture agar error img tertangkap) ---
+  document.addEventListener(
     "error",
     (evt) => {
       const img = evt.target;
       if (!(img instanceof HTMLImageElement)) return;
+      if (!img.hasAttribute("data-thumb-drive")) return;
       img.style.display = "none";
       const wadah = img.parentElement;
       if (wadah) wadah.classList.add("foto-kartu-gagal");
@@ -317,9 +277,8 @@ export function initFoto() {
     true
   );
 
-  onPerubahanFoto(() => renderSemua());
-  onPerubahanKegiatan(() => renderSemua());
-  renderSemua();
+  onPerubahanFoto(() => renderUlangKegiatan());
+  renderUlangKegiatan();
 }
 
 /**

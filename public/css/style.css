@@ -5576,6 +5576,59 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
 }
 
 /* === Fitur Foto Kegiatan === */
+
+/* Blok foto di dalam kartu kegiatan */
+.kegiatan-foto {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kegiatan-foto-kepala {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.kegiatan-foto-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.foto-kosong-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.foto-grup-kisi-dalam-kartu {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--space-2);
+}
+
+/* Nilai teks statis pada formulir (mis. judul kegiatan di modal unggah foto) */
+.form-static-value {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
 .foto-grup {
   display: flex;
   flex-direction: column;
