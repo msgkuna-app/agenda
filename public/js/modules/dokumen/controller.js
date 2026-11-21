@@ -29,7 +29,7 @@ import {
   formatPesanGalatDrive,
 } from "../../services/driveService.js";
 import { loginWithGoogle, formatPesanGalatAuth } from "../../services/authService.js";
-import { inisialisasiDialogKelolaKategori } from "../../kategori.js";
+import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
 import { onPerubahanKegiatan } from "../../modules/kegiatan/index.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import {

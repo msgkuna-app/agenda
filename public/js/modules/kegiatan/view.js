@@ -7,7 +7,7 @@
  */
 import { DAFTAR_STATUS_KEGIATAN } from "../../config/constants.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";
-import { TANPA_KATEGORI_INFO } from "../../kategori.js";
+import { TANPA_KATEGORI_INFO } from "../kategori/index.js";
 import { initFilterPanel } from "../../filter-panel.js";
 import { parseTanggal } from "../../util-tanggal.js";
 import { infoHari } from "../../hari-libur.js";

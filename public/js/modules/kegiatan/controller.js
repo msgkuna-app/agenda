@@ -7,7 +7,7 @@
  */
 import { DAFTAR_STATUS_KEGIATAN, KOLEKSI } from "../../config/constants.js";
 import { getFirestoreDb, collection, doc, addDoc, updateDoc, formatPesanGalatFirestore } from "../../services/firestoreService.js";
-import { inisialisasiDialogKelolaKategori } from "../../kategori.js";
+import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import { tampilkanToast } from "../../shared/toast.js";

@@ -29,7 +29,7 @@ import { formatPesanGalatDrive } from "../../services/driveService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import { periksaPembaruan } from "../../pwa.js";
-import { normalisasiWarnaKategori, urutkanDaftarKategori } from "../../kategori.js";
+import { normalisasiWarnaKategori, urutkanDaftarKategori } from "../kategori/index.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,

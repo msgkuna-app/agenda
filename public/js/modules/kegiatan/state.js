@@ -23,7 +23,7 @@ import {
   getCountFromServer,
   formatPesanGalatFirestore,
 } from "../../services/firestoreService.js";
-import { buatManajerKategori, KATEGORI_KEGIATAN_BAWAAN } from "../../kategori.js";
+import { buatManajerKategori, KATEGORI_KEGIATAN_BAWAAN } from "../kategori/index.js";
 import { tanggalLokal } from "../../util-tanggal.js";
 
 export const manajerKategoriKegiatan = buatManajerKategori({

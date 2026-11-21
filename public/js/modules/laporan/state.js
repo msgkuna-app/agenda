@@ -16,7 +16,7 @@ import {
   onSnapshot
 } from "../../services/firestoreService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
-import { urutkanDaftarKategori } from "../../kategori.js";
+import { urutkanDaftarKategori } from "../kategori/index.js";
 import {
   DAFTAR_STATUS_KEGIATAN,
   manajerKategoriKegiatan,

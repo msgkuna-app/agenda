@@ -5,7 +5,7 @@
  * hanya dibaca saat me-render; data dokumen dibaca dari state.js.
  */
 import { escapeHtml, svgIkon } from "../../util-html.js";
-import { TANPA_KATEGORI_INFO } from "../../kategori.js";
+import { TANPA_KATEGORI_INFO } from "../kategori/index.js";
 import { getDaftarKegiatan } from "../../modules/kegiatan/index.js";
 import { initFilterPanel } from "../../filter-panel.js";
 import {

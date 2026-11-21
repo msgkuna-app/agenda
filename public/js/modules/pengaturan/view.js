@@ -18,7 +18,7 @@ import {
 } from "../../hari-libur.js";
 import {
   urutkanDaftarKategori
-} from "../../kategori.js";
+} from "../kategori/index.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan

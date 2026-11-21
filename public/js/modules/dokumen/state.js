@@ -18,7 +18,7 @@ import {
   getCountFromServer,
   formatPesanGalatFirestore,
 } from "../../services/firestoreService.js";
-import { buatManajerKategori, KATEGORI_DOKUMEN_BAWAAN } from "../../kategori.js";
+import { buatManajerKategori, KATEGORI_DOKUMEN_BAWAAN } from "../kategori/index.js";
 import { resetCacheDrive } from "../../services/driveService.js";
 
 export const manajerKategoriDokumen = buatManajerKategori({
