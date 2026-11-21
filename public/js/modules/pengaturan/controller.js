@@ -51,7 +51,7 @@ import {
   onPerubahanCatatan,
   ambilSemuaCatatanSekaliPakai,
 } from "../../modules/catatan/index.js";
-import { getDaftarLaporan } from "../../laporan.js";
+import { getDaftarLaporan } from "../../modules/laporan/index.js";
 import { ambilKonfigurasiAktif } from "../../hari-libur.js";
 import { escapeHtml } from "../../util-html.js";
 import {

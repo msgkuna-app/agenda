@@ -67,7 +67,7 @@ import {
   subscribeLaporan,
   unsubscribeLaporan,
   perbaruiStatusJaringanLaporan,
-} from "./laporan.js";
+} from "./modules/laporan/index.js";
 import {
   initHalamanPengaturan,
   segarkanTampilanPengaturan,

@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.8.10";
+const VERSION = "agenda-arsip-v1.8.11";
 
 const APP_SHELL = [
   "/",
@@ -27,7 +27,6 @@ const APP_SHELL = [
   "/js/services/driveService.js",
   "/js/templat-dokumen.js",
   "/js/sampah.js",
-  "/js/laporan.js",
   "/js/modules/dashboard/state.js",
   "/js/modules/dashboard/view.js",
   "/js/modules/dashboard/controller.js",

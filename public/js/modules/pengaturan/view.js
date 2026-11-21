@@ -28,7 +28,7 @@ import {
   getDaftarDokumen
 } from "../../modules/dokumen/index.js";
 import { getDaftarCatatan } from "../../modules/catatan/index.js";
-import { getDaftarLaporan } from "../../laporan.js";
+import { getDaftarLaporan } from "../../modules/laporan/index.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";
 import {
   statusCadangan,
