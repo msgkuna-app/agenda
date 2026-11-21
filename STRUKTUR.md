@@ -4,7 +4,7 @@
 > lalu hapus versi lama di Project dan unggah versi baru.
 
 Terakhir diperbarui: 2026-11-21
-Tahap saat ini: Tahap 3a, 3b+3b-2, 3d+3d-2, 3e+3e-2, 3+3-2 (jembatan dokumen.js, kegiatan.js, catatan.js DIHAPUS), 3 laporan + 3-2 (jembatan laporan.js DIHAPUS) SELESAI — lanjut modul kategori/sampah dari Tahap 3
+Tahap saat ini: Tahap 3a, 3b+3b-2, 3d+3d-2, 3e+3e-2, 3+3-2 (jembatan dokumen.js, kegiatan.js, catatan.js DIHAPUS), 3 laporan + 3-2 (jembatan laporan.js DIHAPUS), 3 kategori (jembatan re-export 8 nama) SELESAI — lanjut Tahap 3-2 kategori, lalu modul sampah dari Tahap 3
 
 ## 1. Ringkasan aplikasi
 - Nama: Agenda & Arsip
@@ -43,12 +43,13 @@ public/
       kegiatan/         (Tahap 3e+3e-2: state.js, format.js, view.js, controller.js, index.js; jembatan kegiatan.js SUDAH DIHAPUS)
       catatan/          (Tahap 3+3-2: state.js, format.js, view.js, controller.js, index.js; jembatan catatan.js SUDAH DIHAPUS)
       laporan/          (Tahap 3+3-2: state.js, format.js, sheets.js, view.js, controller.js, index.js; jembatan laporan.js SUDAH DIHAPUS)
+      kategori/         (Tahap 3: format.js, state.js, view.js, controller.js, index.js; jembatan kategori.js = re-export 8 nama)
     config/
       constants.js      (82)
       firebase.js       (33)
     pwa.js
     jadwal.js
-    kategori.js  sampah.js  pencarian-global.js
+    sampah.js  pencarian-global.js
     sidebar.js   tema.js   hari-libur.js  templat-dokumen.js
     filter-panel.js  timeline-harian.js
     util-html.js  util-tanggal.js
@@ -80,7 +81,7 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 | js/catatan.js | - | DIHAPUS (3-2) | - | isi kini di modules/catatan/; 10 konsumen impor dari modules/catatan/index.js |
 | js/app.js | 1324 | V (orchestrator+dashboard) | index.html | dashboard ±700 baris harus jadi modul sendiri |
 | js/drive.js | 1291 | S | app, catatan, dokumen, laporan, pengaturan | sudah service-like, tinggal pindah nama/lokasi |
-| js/kategori.js | 1271 | S+V+T | app, dokumen, kegiatan, laporan, pengaturan | `buatManajerKategori` = pola contoh yang bagus |
+| js/kategori.js | 17 | JEMBATAN (3) | kegiatan, dokumen, laporan, pengaturan | isi dipindah ke modules/kategori/; re-export 8 nama; dihapus pada Tahap 3-2 |
 | js/pencarian-global.js | 955 | V | app | tarik data via `ambilSemuaXSekaliPakai` (OK) |
 | js/sampah.js | 793 | S+V+T | app | batch delete otomatis 30 hari |
 | js/jadwal.js | 791 | V | app, pengaturan | |
@@ -129,7 +130,7 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 ### Poin positif (jangan dirusak saat refactor)
 - Config sudah terpusat di `js/config/` (Tahap 1 prakteknya sudah tercapai; tinggal formalisasi).
 - Entry point tunggal `app.js`; `boot-tema.js` sinkron anti-FOUC di head.
-- `pwa.js` sudah terpisah; `buatManajerKategori` (kategori.js:204) adalah pola factory yang tepat untuk ditiru di service generik.
+- `pwa.js` sudah terpisah; `buatManajerKategori` (kini modules/kategori/state.js) adalah pola factory yang tepat untuk ditiru di service generik.
 - util kecil (`util-tanggal` 81, `util-html` 101) sudah bersih dan jadi sumber kebenaran.
 
 ## 6. Progres tahap
@@ -139,7 +140,7 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 | 0 | Audit & peta dependensi | **selesai 2026-11-21** | - |
 | 1 | Pusatkan config | sebagian (config/ sudah ada; boot-tema + jembatan firebase-config tersisa) | - |
 | 2 | Pusatkan service | **2a+2b+2c selesai 2026-11-21**: services/firestoreService.js (SDK Firebase), services/authService.js (dari auth.js), services/driveService.js (dari drive.js). Jembatan auth.js/drive.js SUDAH DIHAPUS; konsumen impor langsung dari services/. Sisa: 2d (CRUD bermakna, menyatu dengan Tahap 3) | - |
-| 3 | Pecah god object (per modul) | **3a selesai 2026-11-21**: app.js (1.324 → ±660 baris); blok dashboard (state/view/controller/index) kini di js/modules/dashboard/. **3b + 3b-2 selesai 2026-11-21**: pengaturan.js (2.126 baris) → modules/pengaturan/; jembatan sudah dihapus. **3d + 3d-2 selesai 2026-11-21**: dokumen.js (2.140 baris) → modules/dokumen/ (state/format/view/controller/index); 7 konsumen kini impor langsung dari modules/dokumen/index.js dan jembatan dokumen.js dihapus. **3e + 3e-2 selesai 2026-11-21**: kegiatan.js (1.515 baris) → modules/kegiatan/ (state/format/view/controller/index); 11 konsumen kini impor langsung dari modules/kegiatan/index.js dan jembatan kegiatan.js dihapus; siklus kegiatan⇄catatan diputus via `daftarkanSumberKegiatan` dari app.js. **3 catatan selesai 2026-11-21**: catatan.js (1.379 baris) → modules/catatan/ (state/format/view/controller/index); jembatan re-export 25 nama dipakai 10 konsumen. **3-2 selesai 2026-11-21**: 10 konsumen kini impor langsung dari modules/catatan/index.js dan jembatan catatan.js dihapus. **3 laporan selesai 2026-11-21**: laporan.js (1.646 baris) → modules/laporan/ (state/format/sheets/view/controller/index); panggilan Sheets API diisolasi di sheets.js; jembatan re-export 8 nama dipakai 3 konsumen. **3-2 laporan selesai 2026-11-21**: 3 konsumen (app.js, pengaturan controller+view) kini impor langsung dari modules/laporan/index.js dan jembatan laporan.js dihapus | - |
+| 3 | Pecah god object (per modul) | **3a selesai 2026-11-21**: app.js (1.324 → ±660 baris); blok dashboard (state/view/controller/index) kini di js/modules/dashboard/. **3b + 3b-2 selesai 2026-11-21**: pengaturan.js (2.126 baris) → modules/pengaturan/; jembatan sudah dihapus. **3d + 3d-2 selesai 2026-11-21**: dokumen.js (2.140 baris) → modules/dokumen/ (state/format/view/controller/index); 7 konsumen kini impor langsung dari modules/dokumen/index.js dan jembatan dokumen.js dihapus. **3e + 3e-2 selesai 2026-11-21**: kegiatan.js (1.515 baris) → modules/kegiatan/ (state/format/view/controller/index); 11 konsumen kini impor langsung dari modules/kegiatan/index.js dan jembatan kegiatan.js dihapus; siklus kegiatan⇄catatan diputus via `daftarkanSumberKegiatan` dari app.js. **3 catatan selesai 2026-11-21**: catatan.js (1.379 baris) → modules/catatan/ (state/format/view/controller/index); jembatan re-export 25 nama dipakai 10 konsumen. **3-2 selesai 2026-11-21**: 10 konsumen kini impor langsung dari modules/catatan/index.js dan jembatan catatan.js dihapus. **3 laporan selesai 2026-11-21**: laporan.js (1.646 baris) → modules/laporan/ (state/format/sheets/view/controller/index); panggilan Sheets API diisolasi di sheets.js; jembatan re-export 8 nama dipakai 3 konsumen. **3-2 laporan selesai 2026-11-21**: 3 konsumen (app.js, pengaturan controller+view) kini impor langsung dari modules/laporan/index.js dan jembatan laporan.js dihapus. **3 kategori selesai 2026-11-21**: kategori.js (1.271 baris) → modules/kategori/ (format/state/view/controller/index); pabrik buatManajerKategori di state.js (tanpa DOM); dialog Kelola Kategori dipecah view (render via ctx per sesi) + controller (listener sekali, registri sesi); jembatan re-export 8 nama dipakai 4 modul konsumen | - |
 | 4 | Komponen & util bersama | **SELESAI 2026-11-21**: 4a (deduplikasi svgIkon & nama hari/bulan), 4b (tampilkanToast -> js/shared/toast.js), 4c (escapeHtml langsung dari util-html), 4d (jadwal.js: svgIkon + NAMA_HARI/NAMA_BULAN/NAMA_BULAN_PENDEK) | a3d99fe (4c) |
 | 5 | Penegakan aturan & dokumentasi | belum | - |
 
@@ -151,13 +152,13 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 | dokumen | **SELESAI 2026-11-21 (3d+3d-2)**: modules/dokumen/{state,format,view,controller,index}.js; jembatan dokumen.js dihapus — 7 konsumen (app, laporan, pencarian-global, dashboard, pengaturan) impor langsung dari modules/dokumen/index.js. State tidak menyentuh DOM; render dipicu lewat onPerubahanDokumen; `setUnggahSedangBerjalan` di view menjaga tombol submit saat unggahan berjalan |
 | catatan | **SELESAI 2026-11-21 (3+3-2)**: modules/catatan/{state,format,view,controller,index}.js; state tanpa DOM (pola pengaturan), galat halaman disuntikkan controller via `setelOpsiPeristiwaCatatan`; registri sumber kegiatan (pemutus siklus 3e) di state.js; jembatan catatan.js dihapus — 10 konsumen (app, laporan, pencarian-global, sampah, dashboard×2, kegiatan×2, pengaturan×2) impor langsung dari modules/catatan/index.js |
 | laporan | **SELESAI 2026-11-21 (3+3-2)**: modules/laporan/{state,format,sheets,view,controller,index}.js; state tanpa DOM (pola pengaturan), render ulang setelah data sumber termuat disuntikkan controller via `setelOpsiPeristiwaLaporan`; Sheets API diisolasi di sheets.js; jembatan laporan.js dihapus — 3 konsumen (app.js, pengaturan controller+view) impor langsung dari modules/laporan/index.js |
-| kategori | belum |
+| kategori | **SELESAI 2026-11-21 (3)**: modules/kategori/{format,state,view,controller,index}.js; buatManajerKategori (Firestore CRUD, tanpa DOM) di state.js; dialog Kelola Kategori: view.js merender via objek ctx per sesi (dua dialog kegiatan/dokumen bisa hidup bersama), controller.js menyimpan registri sesi aktif + listener modal sekali pasang; jembatan kategori.js re-export 8 nama bagi konsumen (kegiatan×3, dokumen×3, laporan×1, pengaturan×2) — dihapus pada Tahap 3-2 |
 | pengaturan | **SELESAI 2026-11-21 (3b+3b-2)**: modules/pengaturan/{state,view,controller,index}.js; jembatan pengaturan.js dihapus, app.js & modules/dashboard impor langsung dari modules/pengaturan/index.js |
 | sampah | belum |
 
 ## 7. Catatan penting
 - Status commit (2026-11-21): Tahap 4a+4b masuk bersama di commit b941998 "penambahan toast.js" (9 berkas, +164/-151) dan sudah ter-push ke origin/main. Working tree bersih. Pelajaran: saat bekerja bertahap di working tree yang sama, commit tiap tahap SEBELUM tahap berikutnya mulai agar riwayat tidak tercampur.
-- PENTING pengujian: sw.js VERSION (kini v1.8.11) meng-precache semua berkas JS di APP_SHELL. Setelah mengubah JS, naikkan VERSION di sw.js DAN VERSI_CADANGAN_SW di js/config/constants.js bersamaan, plus daftarkan berkas JS baru di APP_SHELL.
+- PENTING pengujian: sw.js VERSION (kini v1.8.12) meng-precache semua berkas JS di APP_SHELL. Setelah mengubah JS, naikkan VERSION di sw.js DAN VERSI_CADANGAN_SW di js/config/constants.js bersamaan, plus daftarkan berkas JS baru di APP_SHELL.
 - Bug/perilaku yang harus dijaga: siklus `kegiatan<->catatan` saat ini berfungsi (ES module hoisting); saat memutus siklus, pastikan modal "catatan terkait kegiatan" tetap jalan.
 - Urutan kerja yang disarankan hasil audit: (1) pindahkan toast/escapeHtml keluar dari sidebar.js, (2) bentuk services/firestoreService + driveService dari pola yang sudah ada, (3) pecah app.js -> dashboard module, (4) pecah pengaturan.js, dokumen.js.
 - Keputusan yang sudah diambil: struktur target tidak berubah; entry point baru diberi nama `main.js` pada langkah terakhir migrasi.
