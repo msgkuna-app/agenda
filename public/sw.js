@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.8.15";
+const VERSION = "agenda-arsip-v1.8.16";
 
 const APP_SHELL = [
   "/",
@@ -24,6 +24,7 @@ const APP_SHELL = [
   "/js/timeline-harian.js",
   "/js/jadwal.js",
   "/js/services/driveService.js",
+  "/js/services/sheetsService.js",
   "/js/templat-dokumen.js",
   "/js/modules/sampah/format.js",
   "/js/modules/sampah/state.js",
@@ -55,7 +56,6 @@ const APP_SHELL = [
   "/js/modules/catatan/index.js",
   "/js/modules/laporan/state.js",
   "/js/modules/laporan/format.js",
-  "/js/modules/laporan/sheets.js",
   "/js/modules/laporan/view.js",
   "/js/modules/laporan/controller.js",
   "/js/modules/laporan/index.js",
