@@ -5,7 +5,7 @@
  * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google.
  * - Memperbarui token otomatis sebelum kedaluwarsa (lazy refresh via mintaTokenDrive di ambilTokenWajib).
  */
-import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
+import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, NAMA_FOLDER_FOTO, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
 export { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES };
 import {
   getFirestoreDb,
@@ -18,6 +18,7 @@ import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./aut
 
 let cacheRootFolderId = null;
 let cacheUncategorizedFolderId = null;
+let cacheFotoFolderId = null;
 let janjiPastikanInduk = null;
 let janjiPastikanTanpaKategori = null;
 
@@ -27,6 +28,7 @@ let janjiPastikanTanpaKategori = null;
 export function resetCacheDrive() {
   cacheRootFolderId = null;
   cacheUncategorizedFolderId = null;
+  cacheFotoFolderId = null;
   janjiPastikanInduk = null;
   janjiPastikanTanpaKategori = null;
 }
@@ -239,6 +241,7 @@ export async function ambilPengaturanDriveFirestore() {
   return {
     rootFolderId: String(d.rootFolderId || "").trim(),
     uncategorizedFolderId: String(d.uncategorizedFolderId || "").trim(),
+    fotoFolderId: String(d.fotoFolderId || "").trim(),
     updatedAt: String(d.updatedAt || ""),
   };
 }
@@ -454,6 +457,53 @@ export async function pastikanFolderTanpaKategoriDrive() {
   } finally {
     janjiPastikanTanpaKategori = null;
   }
+}
+
+/**
+ * Memastikan subfolder "Foto Kegiatan" tersedia di dalam folder induk "Agenda-Arsip".
+ * @returns {Promise<string>}
+ */
+export async function pastikanFolderFotoDrive() {
+  const rootId = await pastikanFolderIndukDrive();
+
+  if (cacheFotoFolderId) {
+    try {
+      const meta = await ambilMetadataItemDrive(cacheFotoFolderId);
+      if (meta && !meta.trashed) {
+        return cacheFotoFolderId;
+      }
+    } catch (err) {
+      if (!err || !err.isNotFound) {
+        throw err;
+      }
+      cacheFotoFolderId = null;
+    }
+  }
+
+  const pengaturan = await ambilPengaturanDriveFirestore();
+  const tersimpanId = pengaturan?.fotoFolderId || "";
+
+  if (tersimpanId) {
+    try {
+      const meta = await ambilMetadataItemDrive(tersimpanId);
+      if (meta && !meta.trashed) {
+        cacheFotoFolderId = tersimpanId;
+        return tersimpanId;
+      }
+    } catch (err) {
+      if (!err || !err.isNotFound) {
+        throw err;
+      }
+    }
+  }
+
+  const dibuat = await buatFolderDrive(NAMA_FOLDER_FOTO, rootId);
+  cacheFotoFolderId = dibuat.id;
+  await simpanPengaturanDriveFirestore({
+    rootFolderId: rootId,
+    fotoFolderId: dibuat.id,
+  });
+  return dibuat.id;
 }
 
 /**

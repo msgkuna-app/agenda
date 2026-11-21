@@ -179,6 +179,43 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // FOTO (foto kegiatan)
+    // =========================================================================
+
+    function validFoto(d) {
+      return d.keys().hasOnly([
+        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'mimeType',
+        'ukuran', 'catatan', 'createdAt', 'updatedAt'
+      ])
+      && d.kegiatanId is string && d.kegiatanId.size() >= 1 && d.kegiatanId.size() <= 100
+      && d.driveFileId is string && d.driveFileId.size() >= 1 && d.driveFileId.size() <= 100
+      && d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255
+      && strOps(d, 'tautan', 1000)
+      && strOps(d, 'mimeType', 150)
+      && (!('ukuran' in d) || (d.ukuran is number && d.ukuran >= 0))
+      && strOps(d, 'catatan', 5000)
+      && strOps(d, 'createdAt', 50)
+      && strOps(d, 'updatedAt', 50);
+    }
+
+    function validFotoUbah(d) {
+      let u = d.diff(resource.data).affectedKeys();
+      return u.hasOnly([
+        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'mimeType',
+        'ukuran', 'catatan', 'createdAt', 'updatedAt'
+      ])
+      && strUbah(d, u, 'kegiatanId', 100)
+      && strUbah(d, u, 'driveFileId', 100)
+      && strUbah(d, u, 'namaFile', 255)
+      && strUbah(d, u, 'tautan', 1000)
+      && strUbah(d, u, 'mimeType', 150)
+      && angkaUbah(d, u, 'ukuran')
+      && strUbah(d, u, 'catatan', 5000)
+      && strUbah(d, u, 'createdAt', 50)
+      && strUbah(d, u, 'updatedAt', 50);
+    }
+
+    // =========================================================================
     // CATATAN
     // =========================================================================
 
@@ -285,9 +322,10 @@ service cloud.firestore {
     }
 
     function validPengaturanDrive(d) {
-      return d.keys().hasOnly(['rootFolderId', 'uncategorizedFolderId', 'createdAt', 'updatedAt'])
+      return d.keys().hasOnly(['rootFolderId', 'uncategorizedFolderId', 'fotoFolderId', 'createdAt', 'updatedAt'])
       && strOps(d, 'rootFolderId', 100)
       && strOps(d, 'uncategorizedFolderId', 100)
+      && strOps(d, 'fotoFolderId', 100)
       && strOps(d, 'createdAt', 50)
       && strOps(d, 'updatedAt', 50);
     }
@@ -310,9 +348,10 @@ service cloud.firestore {
           && strUbah(d, u, 'createdAt', 50)
           && strUbah(d, u, 'updatedAt', 50))
         || (id == 'drive'
-          && u.hasOnly(['rootFolderId', 'uncategorizedFolderId', 'createdAt', 'updatedAt'])
+          && u.hasOnly(['rootFolderId', 'uncategorizedFolderId', 'fotoFolderId', 'createdAt', 'updatedAt'])
           && strUbah(d, u, 'rootFolderId', 100)
           && strUbah(d, u, 'uncategorizedFolderId', 100)
+          && strUbah(d, u, 'fotoFolderId', 100)
           && strUbah(d, u, 'createdAt', 50)
           && strUbah(d, u, 'updatedAt', 50))
         || (id == 'hariLibur' && validPengaturanHariLibur(d));
@@ -356,6 +395,13 @@ service cloud.firestore {
       allow read: if isOwner();
       allow create: if isOwner() && validCatatan(request.resource.data);
       allow update: if isOwner() && validCatatanUbah(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /foto/{id} {
+      allow read: if isOwner();
+      allow create: if isOwner() && validFoto(request.resource.data);
+      allow update: if isOwner() && validFotoUbah(request.resource.data);
       allow delete: if isOwner();
     }
 

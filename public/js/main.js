@@ -78,6 +78,7 @@ import {
   onPerubahanHariLibur,
 } from "./modules/pengaturan/index.js";
 import { resetCacheDrive } from "./services/driveService.js";
+import { initFoto, subscribeFoto, lepasFoto } from "./modules/foto/index.js";
 import {
   initHalamanSampah,
   renderHalamanSampah,
@@ -558,6 +559,7 @@ function mulaiAplikasi() {
   initHalamanKegiatan();
   initHalamanJadwal();
   initHalamanDokumen();
+  initFoto();
   initHalamanCatatan();
   initHalamanLaporan();
   initHalamanPengaturan();
@@ -602,12 +604,14 @@ function mulaiAplikasi() {
       const unsubCatatan = subscribeCatatan();
       const unsubLaporan = subscribeLaporan();
       const unsubSampah = subscribeSampah();
+      const unsubFoto = subscribeFoto();
       dataUnsubscribers.push(
         unsubKegiatan,
         unsubDokumen,
         unsubCatatan,
         unsubLaporan,
         unsubSampah,
+        unsubFoto,
       );
       initPencarianGlobal({
         getDaftarKegiatan,

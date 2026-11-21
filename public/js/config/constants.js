@@ -15,6 +15,7 @@ export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 // Google Drive: nama folder, MIME, unggah resumable
 export const NAMA_FOLDER_INDUK = "Agenda-Arsip";
 export const NAMA_FOLDER_TANPA_KATEGORI = "Tanpa Kategori";
+export const NAMA_FOLDER_FOTO = "Foto Kegiatan";
 export const MIME_TYPE_FOLDER_DRIVE = "application/vnd.google-apps.folder";
 export const MIME_TYPE_GOOGLE_DOCS = "application/vnd.google-apps.document";
 export const AMBANG_UNGGAH_RESUMABLE_BYTES = 5 * 1024 * 1024;
@@ -44,6 +45,7 @@ export const KUNCI_STORAGE_HARI_LIBUR = "agenda_arsip_hari_libur";
 export const UKURAN_HALAMAN_KEGIATAN = 50;
 export const UKURAN_HALAMAN_CATATAN = 100;
 export const UKURAN_HALAMAN_DOKUMEN = 100;
+export const UKURAN_HALAMAN_FOTO = 200;
 export const BATAS_OPERASI_BATCH = 500;
 export const TIGA_PULUH_HARI_MS = 30 * 24 * 60 * 60 * 1000;
 export const SATU_HARI_MS = 24 * 60 * 60 * 1000;
@@ -70,7 +72,8 @@ export const KOLEKSI = Object.freeze({
   KATEGORI_DOKUMEN: "kategoriDokumen",
   CATATAN: "catatan",
   LAPORAN: "laporan",
-  PENGATURAN: "pengaturan"
+  PENGATURAN: "pengaturan",
+  FOTO: "foto"
 });
 export const DOK_PENGATURAN = Object.freeze({
   CADANGAN: "cadangan",
@@ -79,4 +82,4 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.18";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.19";
