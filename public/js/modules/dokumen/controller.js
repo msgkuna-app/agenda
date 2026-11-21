@@ -454,7 +454,7 @@ async function jalankanSimpanUlangMetadata() {
   }
 }
 
-export function bukaModalUnggahDokumen() {
+export function bukaModalUnggahDokumen(kegiatanIdAwal = "") {
   if (!navigator.onLine) {
     tampilkanGalatHalamanDokumen(
       "Tidak ada koneksi internet. Pengunggahan dokumen ke Google Drive memerlukan sambungan internet aktif.",
@@ -487,7 +487,7 @@ export function bukaModalUnggahDokumen() {
   }
 
   perbaruiDropdownKategoriDokumen();
-  perbaruiDropdownKegiatanTerkait("dokumen-upload-kegiatan", "");
+  perbaruiDropdownKegiatanTerkait("dokumen-upload-kegiatan", String(kegiatanIdAwal || ""));
 
   const filterKategoriId = getFilterKategoriId();
   if (katSelect instanceof HTMLSelectElement) {
@@ -1001,9 +1001,43 @@ export function initHalamanDokumen() {
   pasangEventModalHapus();
   pasangEventModalRapikan();
   pasangEventPapanKetik();
+  pasangAksiDokumenKegiatanSekali();
 
   window.addEventListener("online", perbaruiStatusJaringanDokumen);
   window.addEventListener("offline", perbaruiStatusJaringanDokumen);
+}
+
+// --- Aksi dokumen dari kartu kegiatan ----------------------------------------
+
+let aksiDokumenKegiatanTerpasang = false;
+
+/**
+ * Delegasi klik untuk tombol pada blok "Dokumen" di kartu kegiatan
+ * (unggah dokumen kegiatan + hapus dokumen). Dipasang sekali.
+ */
+function pasangAksiDokumenKegiatanSekali() {
+  if (aksiDokumenKegiatanTerpasang) return;
+  aksiDokumenKegiatanTerpasang = true;
+
+  document.addEventListener("click", (evt) => {
+    const target = evt.target instanceof Element ? evt.target : null;
+    if (!target) return;
+
+    const tombolUnggah = target.closest('[data-action="unggah-dokumen-kegiatan"]');
+    if (tombolUnggah) {
+      evt.preventDefault();
+      bukaModalUnggahDokumen(tombolUnggah.getAttribute("data-id") || "");
+      return;
+    }
+
+    const tombolHapus = target.closest(".tombol-hapus-dokumen-kegiatan");
+    if (tombolHapus) {
+      evt.preventDefault();
+      const id = tombolHapus.getAttribute("data-id-dokumen") || "";
+      const dok = getDaftarDokumen().find((d) => d.id === id);
+      if (dok) bukaDialogHapusDokumen(dok);
+    }
+  });
 }
 
 // --- Event modal unggah ------------------------------------------------------

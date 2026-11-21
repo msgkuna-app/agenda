@@ -41,6 +41,7 @@ import {
   hitungRentangJendela
 } from "./state.js";
 import { validJamOpsional, formatTanggalTampilan } from "./format.js";
+import { onPerubahanDokumen } from "../dokumen/state.js";
 import {
   IKON_CATATAN_META,
   IKON_GDOC_MINI,
@@ -412,6 +413,11 @@ export function initHalamanKegiatan() {
   onPerubahanCatatan(() => {
     renderDaftarKegiatan();
     renderCatatanTerkaitDiDetailModal();
+  });
+
+  // Dokumen terkait ditampilkan di kartu kegiatan — segarkan saat data dokumen berubah.
+  onPerubahanDokumen(() => {
+    renderDaftarKegiatan();
   });
 
   document.addEventListener(

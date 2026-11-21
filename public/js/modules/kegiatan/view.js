@@ -14,6 +14,8 @@ import { infoHari } from "../../hari-libur.js";
 import { getCatatanTerkaitKegiatan } from "../../modules/catatan/index.js";
 import { getDaftarFoto } from "../foto/state.js";
 import { htmlFotoKegiatan } from "../foto/view.js";
+import { getDaftarDokumen } from "../dokumen/state.js";
+import { htmlDokumenKegiatan } from "../dokumen/kegiatan-view.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,
@@ -325,6 +327,7 @@ export function renderDaftarKegiatan() {
       </div>
       ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
       ${htmlFotoKegiatan(item.id, getDaftarFoto().filter((f) => f.kegiatanId === item.id))}
+      ${htmlDokumenKegiatan(item.id, getDaftarDokumen().filter((d) => d.kegiatanId === item.id))}
       <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
         <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
         <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
