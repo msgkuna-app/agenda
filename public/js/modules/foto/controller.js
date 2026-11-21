@@ -69,7 +69,9 @@ function muatThumbnailTampil() {
         if (document.contains(img)) img.src = urlLokal;
       })
       .catch(() => {
-        // Biarkan placeholder; pengguna tetap bisa membuka foto di Drive.
+        // Sembunyikan elemen gambar (hindari ikon rusak); teks meta tetap tampil
+        // dan foto tetap dapat dibuka lewat tautan Drive.
+        img.style.display = "none";
         const wadah = img.parentElement;
         if (wadah) wadah.classList.add("foto-kartu-gagal");
       });

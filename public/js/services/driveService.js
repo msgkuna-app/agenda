@@ -289,6 +289,46 @@ export async function ambilMetadataItemDrive(fileId) {
 
 const cacheBlobUrlThumbnail = new Map();
 const janjiThumbnail = new Map();
+// Batas unduhan berkas asli sebagai cadangan thumbnail (15 MB).
+const BATAS_UNDUH_THUMBNAIL_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Mengunduh blob dari URL Drive dengan token. Mengembalikan null bila gagal
+ * (kecuali lemparTetap=true, yang melempar galatnya).
+ * @returns {Promise<Blob|null>}
+ */
+async function unduhBlobDrive(url, token, lemparTetap = false) {
+  let resp;
+  try {
+    resp = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (_netErr) {
+    if (lemparTetap) {
+      throw new Error(!navigator.onLine
+        ? "Tidak ada koneksi internet."
+        : "Gagal menghubungi Google Drive.");
+    }
+    return null;
+  }
+  if (!resp.ok) {
+    if (lemparTetap) {
+      throw await uraiResponsGalatDrive(resp);
+    }
+    return null;
+  }
+  try {
+    return await resp.blob();
+  } catch (_err) {
+    return null;
+  }
+}
+
+function simpanBlobThumbnail(idBersih, blob) {
+  const urlLokal = URL.createObjectURL(blob);
+  cacheBlobUrlThumbnail.set(idBersih, urlLokal);
+  return urlLokal;
+}
 
 /**
  * Mengambil thumbnail berkas foto lewat Drive API memakai token OAuth, lalu
@@ -309,41 +349,38 @@ export async function ambilThumbnailFotoDrive(fileId) {
   }
 
   const janji = (async () => {
-    // 1) Minta thumbnailLink dari metadata berkas.
-    const params = new URLSearchParams({ fields: "thumbnailLink,mimeType" });
+    // 1) Minta metadata ringkas: thumbnailLink, tipe, dan ukuran berkas.
+    const params = new URLSearchParams({ fields: "thumbnailLink,mimeType,size" });
     const meta = await panggilDriveJson(
       `${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?${params.toString()}`,
       { method: "GET" }
     );
 
-    // Gambar kecil (s/d ~4 MP) tidak punya thumbnailLink — unduh berkas aslinya.
-    let urlSumber = meta?.thumbnailLink || "";
-    if (!urlSumber) {
-      urlSumber = `${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?alt=media`;
-    }
-    // Samakan ukuran: "=s220" -> lebar kecil agar muat cepat.
-    urlSumber = urlSumber.replace(/=s\d+(-[a-z]+)?$/i, "=w220");
-
-    // 2) Unduh gambar dengan header Authorization.
     const token = await ambilTokenWajib();
-    let resp;
-    try {
-      resp = await fetch(urlSumber, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch (_netErr) {
-      throw new Error(!navigator.onLine
-        ? "Tidak ada koneksi internet."
-        : "Gagal menghubungi Google Drive saat mengambil thumbnail.");
-    }
-    if (!resp.ok) {
-      throw await uraiResponsGalatDrive(resp);
+
+    // 2) Utamakan thumbnailLink (kecil & cepat). Host thumbnail Google tidak
+    //    dijamin mengizinkan fetch lintas domain, sehingga kegagalannya perlu
+    //    ditangani dengan cadangan.
+    const tautanThumb = String(meta?.thumbnailLink || "").replace(/=s\d+(-[a-z]+)?$/i, "=w220");
+    if (tautanThumb) {
+      const blob = await unduhBlobDrive(tautAnThumb, token, false);
+      if (blob) return simpanBlobThumbnail(idBersih, blob);
     }
 
-    const blob = await resp.blob();
-    const urlLokal = URL.createObjectURL(blob);
-    cacheBlobUrlThumbnail.set(idBersih, urlLokal);
-    return urlLokal;
+    // 3) Cadangan: unduh berkas asli lewat googleapis.com (CORS & CSP diizinkan).
+    //    Batasi ukuran agar tidak mengunduh berkas raksasa hanya untuk thumbnail.
+    const ukuranBerkas = Number(meta?.size) || 0;
+    if (ukuranBerkas > BATAS_UNDUH_THUMBNAIL_BYTES) {
+      const err = new Error("Thumbnail tidak tersedia untuk berkas ini.");
+      err.isThumbnailTidakTersedia = true;
+      throw err;
+    }
+    const urlAsli = `${DRIVE_FILES_API}/${encodeURIComponent(idBersih)}?alt=media`;
+    const blobAsli = await unduhBlobDrive(urlAsli, token, true);
+    if (!blobAsli) {
+      throw new Error("Gagal mengambil gambar dari Google Drive.");
+    }
+    return simpanBlobThumbnail(idBersih, blobAsli);
   })();
 
   janjiThumbnail.set(idBersih, janji);
