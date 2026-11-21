@@ -1354,6 +1354,102 @@
       </div>
     </div>
 
+    <!-- Dialog / Lembar Penuh HP: Unggah Foto Kegiatan ke Google Drive -->
+    <div
+      id="foto-upload-modal"
+      class="modal-overlay modal-sheet-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="foto-upload-title"
+      hidden
+    >
+      <div class="modal-dialog modal-dialog-wide modal-sheet-panel">
+        <div class="modal-header-row">
+          <h2 id="foto-upload-title" class="modal-title">Unggah Foto Kegiatan</h2>
+          <button
+            type="button"
+            id="foto-upload-close-btn"
+            class="icon-btn"
+            aria-label="Tutup unggah foto"
+            title="Tutup"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <form id="foto-upload-form" class="modal-scroll-body form-stack" novalidate>
+          <div id="foto-upload-alert" class="alert-box" role="alert" hidden>
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span id="foto-upload-alert-text"></span>
+          </div>
+
+          <div class="form-field">
+            <label for="foto-upload-kegiatan" class="form-label"
+              >Kegiatan Tujuan <span class="required-mark">*</span></label
+            >
+            <select id="foto-upload-kegiatan" class="form-select" required>
+              <option value="">— Pilih kegiatan —</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="foto-upload-file" class="form-label"
+              >Berkas Foto <span class="required-mark">*</span></label
+            >
+            <input
+              type="file"
+              id="foto-upload-file"
+              class="form-input form-file-input"
+              accept="image/*"
+              multiple
+              required
+            />
+            <span id="foto-upload-file-info" class="field-hint-text"
+              >Pilih satu atau lebih foto dari perangkat Anda.</span
+            >
+          </div>
+
+          <div id="foto-upload-pratinjau" class="kisi-pratinjau-foto"></div>
+
+          <div class="modal-actions modal-actions-sticky">
+            <button type="button" id="foto-upload-cancel-btn" class="btn-secondary">
+              Batal
+            </button>
+            <button type="submit" id="foto-upload-submit-btn" class="btn-primary">
+              Unggah ke Drive
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Dialog / Lembar Penuh HP: Ubah Metadata Dokumen (Fase 3) -->
     <div
       id="dokumen-edit-modal"

@@ -1,18 +1,14 @@
 /**
  * View Modul Foto (fitur foto kegiatan)
- * Merender daftar foto dan pratinjau berkas terpilih ke dalam elemen yang
- * disediakan index.html. Tidak memanggil API — semua aksi lewat controller.
+ * Merender galeri foto yang dikelompokkan per kegiatan, serta pratinjau berkas
+ * pada modal unggah. Tidak memanggil API — semua aksi lewat controller.
  */
 import { escapeHtml, svgIkon } from "../../util-html.js";
 
 const IKON_GAMBAR = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>';
-const IKON_KALENDER = '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
-const IKON_TAUTAN = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>';
-const IKON_TAB_BARU = '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>';
+const IKON_HAPUS = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>';
 
 let elemenDaftar = null;
-let elemenKosong = null;
-let elemenInputBerkas = null;
 let elemenPratinjau = null;
 
 const KERANGKA_HALAMAN_FOTO = `
@@ -20,55 +16,45 @@ const KERANGKA_HALAMAN_FOTO = `
   <div class="section-header-bar">
     <div class="section-heading-group">
       <h2 class="section-heading-title">Foto Kegiatan</h2>
-      <p class="section-heading-subtitle">Unggah satu atau lebih foto ke Google Drive dan kaitkan dengan kegiatan.</p>
+      <p class="section-heading-subtitle">Galeri foto kegiatan yang tersimpan di folder "Foto Kegiatan" di Google Drive.</p>
+    </div>
+    <div class="section-header-actions">
+      <button type="button" id="btn-unggah-foto" class="btn-primary">${svgIkon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>', 18, 2.2)}<span>Unggah Foto</span></button>
     </div>
   </div>
 
-  <div id="foto-page-alert" class="alert-box" role="alert" hidden>
-    <span id="foto-page-alert-text"></span>
-  </div>
-
-  <div class="filter-card">
-    <div class="form-field">
-      <label for="pilih-kegiatan-foto" class="form-label">Kegiatan tujuan</label>
-      <select id="pilih-kegiatan-foto" class="form-select"></select>
-    </div>
-    <div class="form-field">
-      <label for="input-berkas-foto" class="form-label">Berkas foto (boleh lebih dari satu)</label>
-      <input type="file" id="input-berkas-foto" class="form-input" accept="image/*" multiple />
-    </div>
-    <div id="pratinjau-foto" class="kisi-pratinjau-foto"></div>
-    <div class="form-actions">
-      <button type="button" id="tombol-unggah-foto" class="btn-primary">Unggah</button>
+  <div id="foto-toolbar" class="filter-card filter-toolbar-shell">
+    <div class="compact-toolbar-row">
+      <div class="search-field-wrap compact-search-wrap">
+        <label for="foto-search-input" class="sr-only">Cari foto</label>
+        ${svgIkon('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>', 18, 2, "search-field-icon")}
+        <input type="search" id="foto-search-input" class="form-input input-with-icon" placeholder="Cari nama berkas foto..." autocomplete="off" />
+      </div>
+      <div class="filter-control-item">
+        <label for="filter-foto-kegiatan" class="sr-only">Filter kegiatan</label>
+        <select id="filter-foto-kegiatan" class="form-select compact-sort-select" data-default="ALL">
+          <option value="ALL">Semua kegiatan</option>
+        </select>
+      </div>
     </div>
   </div>
 
-  <div class="form-field">
-    <label for="filter-foto-kegiatan" class="form-label">Filter berdasarkan kegiatan</label>
-    <select id="filter-foto-kegiatan" class="form-select"><option value="">Semua kegiatan</option></select>
-  </div>
-
-  <div id="foto-kosong" class="empty-stage-desc">Belum ada foto. Pilih kegiatan, lalu unggah foto pertama Anda.</div>
-  <div id="daftar-foto" class="kegiatan-list-grid"></div>
+  <div id="foto-list-region" aria-live="polite"></div>
 </div>`;
 
-/**
- * Memastikan panel #section-foto berisi kerangka halaman (sekali pasang).
- */
+/** Memastikan panel #section-foto berisi kerangka halaman (sekali pasang). */
 export function pastikanKerangkaHalamanFoto() {
   const panel = document.getElementById("section-foto");
-  if (!panel || panel.querySelector("#daftar-foto")) return;
+  if (!panel || panel.querySelector("#foto-list-region")) return;
   panel.innerHTML = KERANGKA_HALAMAN_FOTO;
 }
 
 /**
  * Memasang acuan elemen DOM modul foto.
- * @param {{ daftar?: HTMLElement, kosong?: HTMLElement, inputBerkas?: HTMLInputElement, pratinjau?: HTMLElement }} elemen
+ * @param {{ daftar?: HTMLElement, pratinjau?: HTMLElement }} elemen
  */
 export function pasangElemenFoto(elemen = {}) {
   elemenDaftar = elemen.daftar || null;
-  elemenKosong = elemen.kosong || null;
-  elemenInputBerkas = elemen.inputBerkas || null;
   elemenPratinjau = elemen.pratinjau || null;
 }
 
@@ -79,68 +65,82 @@ function formatUkuran(bytes) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function kartuFotoHtml(f, judulGrup) {
+  const thumb = f.driveFileId
+    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w400`
+    : "";
+  const tautan = f.tautan || thumb;
+  const tanggal = String(f.createdAt || "").slice(0, 10);
+  return `<figure class="foto-kartu" data-id-foto="${escapeHtml(f.id)}">
+      <a class="foto-kartu-gambar" href="${escapeHtml(tautan)}" target="_blank" rel="noopener" title="Buka foto di Drive">
+        ${thumb ? `<img src="${thumb}" alt="${escapeHtml(f.namaFile)}" loading="lazy" />` : `<span class="foto-kartu-kosong">${svgIkon(IKON_GAMBAR, 28)}</span>`}
+      </a>
+      <button type="button" class="tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}" title="Hapus foto" aria-label="Hapus foto ${escapeHtml(f.namaFile)}">${svgIkon(IKON_HAPUS, 16)}</button>
+      <figcaption class="foto-kartu-meta">
+        <span class="foto-kartu-nama" title="${escapeHtml(f.namaFile)}">${escapeHtml(f.namaFile)}</span>
+        <span class="foto-kartu-keterangan">${formatUkuran(f.ukuran)}${tanggal ? ` · ${escapeHtml(tanggal)}` : ""}</span>
+        <span class="sr-only">Kegiatan: ${escapeHtml(judulGrup)}</span>
+      </figcaption>
+    </figure>`;
+}
+
 /**
- * Merender daftar foto bergaya kartu (serupa halaman Catatan).
+ * Merender galeri foto yang dikelompokkan per kegiatan.
  * @param {Array} daftarFoto
  * @param {Map} petaKegiatan (id -> kegiatan)
+ * @param {{ filterKegiatanId?: string, kataKunci?: string }} [opsi]
  */
-export function renderDaftarFoto(daftarFoto, petaKegiatan, filterKegiatanId = "") {
+export function renderDaftarFoto(daftarFoto, petaKegiatan, opsi = {}) {
   if (!elemenDaftar) return;
-  const terfilter = filterKegiatanId
-    ? daftarFoto.filter((f) => f.kegiatanId === filterKegiatanId)
-    : daftarFoto;
+  const filterId = String(opsi.filterKegiatanId || "ALL");
+  const kunci = String(opsi.kataKunci || "").trim().toLowerCase();
 
-  if (elemenKosong) {
-    elemenKosong.hidden = terfilter.length > 0;
+  let terfilter = daftarFoto;
+  if (filterId !== "ALL") {
+    terfilter = terfilter.filter((f) => f.kegiatanId === filterId);
+  }
+  if (kunci) {
+    terfilter = terfilter.filter((f) => String(f.namaFile || "").toLowerCase().includes(kunci));
   }
 
   if (!terfilter.length) {
-    elemenDaftar.innerHTML = "";
+    const adaKegiatan = daftarFoto.length > 0;
+    elemenDaftar.innerHTML = `<div class="empty-stage-card">
+      <div class="empty-stage-icon" aria-hidden="true">${svgIkon(IKON_GAMBAR, 28)}</div>
+      <h3 class="empty-stage-title">${adaKegiatan ? "Tidak Ada Foto yang Cocok" : "Belum Ada Foto"}</h3>
+      <p class="empty-stage-desc">${adaKegiatan ? "Tidak ditemukan foto yang sesuai dengan pencarian atau filter kegiatan." : "Gunakan tombol <strong>Unggah Foto</strong> di atas untuk menambahkan foto kegiatan."}</p>
+    </div>`;
     return;
   }
 
-  elemenDaftar.innerHTML = terfilter
-    .map((f) => {
-      const kegiatan = petaKegiatan.get(f.kegiatanId);
-      const thumb = f.driveFileId
-        ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w400`
-        : "";
-      const tanggalUnggah = String(f.createdAt || "").slice(0, 10);
-      return `
-        <article class="catatan-card kartu-foto" data-id-foto="${escapeHtml(f.id)}">
-          <div class="catatan-card-top">
-            <div class="catatan-head-left">
-              ${thumb
-                ? `<a class="foto-thumb" href="${escapeHtml(f.tautan || thumb)}" target="_blank" rel="noopener" title="Buka foto di Drive"><img src="${thumb}" alt="${escapeHtml(f.namaFile)}" loading="lazy" /></a>`
-                : `<a class="foto-thumb foto-thumb-kosong" href="${escapeHtml(f.tautan)}" target="_blank" rel="noopener">${svgIkon(IKON_GAMBAR, 24)}</a>`}
-              <div class="catatan-title-group">
-                <div class="catatan-badges-row">
-                  <span class="catatan-kind-badge kind-gdoc">Foto</span>
-                  <span class="catatan-category-label">${formatUkuran(f.ukuran)}</span>
-                </div>
-                <h3 class="catatan-card-title">${escapeHtml(f.namaFile)}</h3>
-              </div>
-            </div>
-          </div>
-          <div class="kegiatan-meta-list">
-            <span class="kegiatan-meta-item">${IKON_KALENDER}<span>${escapeHtml(tanggalUnggah || "-")}</span></span>
-            <span class="kegiatan-meta-item">${IKON_TAUTAN}<span>${kegiatan ? escapeHtml(kegiatan.judul) : "(kegiatan tidak ditemukan)"}</span></span>
-          </div>
-          <div class="catatan-card-footer">
-            <a href="${escapeHtml(f.tautan || thumb)}" target="_blank" rel="noopener" class="btn-primary btn-sm-touch">${IKON_TAB_BARU}<span>Buka di Drive</span></a>
-            <div class="catatan-footer-actions">
-              <button type="button" class="btn-danger-outline btn-sm-touch tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}">Hapus</button>
-            </div>
-          </div>
-        </article>`;
+  // Kelompokkan per kegiatan; kegiatan dengan foto terbaru tampil lebih dulu.
+  const grup = new Map();
+  terfilter.forEach((f) => {
+    const id = f.kegiatanId || "__TANPA__";
+    if (!grup.has(id)) grup.set(id, []);
+    grup.get(id).push(f);
+  });
+
+  const urutanGrup = Array.from(grup.keys()).sort((a, b) => {
+    const ka = petaKegiatan.get(a);
+    const kb = petaKegiatan.get(b);
+    return String(kb?.tanggal || "").localeCompare(String(ka?.tanggal || ""));
+  });
+
+  elemenDaftar.innerHTML = urutanGrup
+    .map((id) => {
+      const kegiatan = petaKegiatan.get(id);
+      const judul = kegiatan ? kegiatan.judul : "(Kegiatan tidak ditemukan)";
+      const daftar = grup.get(id).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      return `<section class="foto-grup" data-kegiatan-id="${escapeHtml(id)}">
+          <h3 class="foto-grup-judul">${escapeHtml(judul)}</h3>
+          <div class="foto-grup-kisi">${daftar.map((f) => kartuFotoHtml(f, judul)).join("")}</div>
+        </section>`;
     })
     .join("");
 }
 
-/**
- * Merender pratinjau berkas yang dipilih pada form unggah.
- * @param {FileList|File[]} berkas
- */
+/** Merender pratinjau berkas yang dipilih pada modal unggah. */
 export function renderPratinjauUnggah(berkas) {
   if (!elemenPratinjau) return;
   const daftar = Array.from(berkas || []);
@@ -151,8 +151,7 @@ export function renderPratinjauUnggah(berkas) {
   elemenPratinjau.innerHTML = daftar
     .map((f) => {
       const urlLokal = URL.createObjectURL(f);
-      return `
-        <div class="item-pratinjau-foto">
+      return `<div class="item-pratinjau-foto">
           <img src="${urlLokal}" alt="${escapeHtml(f.name)}" />
           <span>${escapeHtml(f.name)} (${formatUkuran(f.size)})</span>
         </div>`;
@@ -160,17 +159,20 @@ export function renderPratinjauUnggah(berkas) {
     .join("");
 }
 
-/** Mengosongkan pratinjau dan input berkas setelah unggahan selesai. */
+/** Mengosongkan pratinjau dan input berkas modal setelah unggahan selesai. */
 export function bersihkanFormUnggahFoto() {
-  if (elemenInputBerkas) elemenInputBerkas.value = "";
+  const input = document.getElementById("foto-upload-file");
+  const info = document.getElementById("foto-upload-file-info");
+  if (input instanceof HTMLInputElement) input.value = "";
+  if (info) info.textContent = "Pilih satu atau lebih foto dari perangkat Anda.";
   if (elemenPratinjau) elemenPratinjau.innerHTML = "";
 }
 
 /** Mengunci/membuka tombol unggah selama proses berjalan. */
 export function setelSedangUnggahFoto(sedangBerjalan) {
-  const tombol = document.getElementById("tombol-unggah-foto");
-  if (tombol) {
+  const tombol = document.getElementById("foto-upload-submit-btn");
+  if (tombol instanceof HTMLButtonElement) {
     tombol.disabled = Boolean(sedangBerjalan);
-    tombol.textContent = sedangBerjalan ? "Mengunggah..." : "Unggah";
+    tombol.textContent = sedangBerjalan ? "Mengunggah..." : "Unggah ke Drive";
   }
 }

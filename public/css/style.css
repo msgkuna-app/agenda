@@ -5576,39 +5576,105 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
 }
 
 /* === Fitur Foto Kegiatan === */
-.form-actions {
+.foto-grup {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: var(--space-2);
-  margin-top: 10px;
+  margin-bottom: var(--space-4);
 }
 
-.foto-thumb {
-  width: 4.5rem;
-  height: 4.5rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-md);
+.foto-grup-judul {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.foto-grup-kisi {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+
+.foto-kartu {
+  position: relative;
+  margin: 0;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.foto-kartu-gambar {
+  display: block;
+  aspect-ratio: 4 / 3;
   background: var(--color-bg-subtle);
   overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.foto-thumb img {
+.foto-kartu-gambar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.foto-thumb-kosong {
+.foto-kartu-gagal,
+.foto-kartu-kosong {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-text-muted);
 }
 
-.kartu-foto .catatan-card-footer > a {
-  text-decoration: none;
+.foto-kartu-meta {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.foto-kartu-nama {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.foto-kartu-keterangan {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.tombol-hapus-foto {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(15, 29, 39, 0.62);
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+  z-index: 1;
+}
+
+.foto-kartu:hover .tombol-hapus-foto,
+.tombol-hapus-foto:focus-visible {
+  opacity: 1;
 }
 
 .kisi-pratinjau-foto {
@@ -5635,8 +5701,13 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
 }
 
 @media (max-width: 600px) {
-  .foto-thumb {
-    width: 3.5rem;
-    height: 3.5rem;
+  .foto-grup-kisi {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-2);
+  }
+
+  .tombol-hapus-foto {
+    opacity: 1;
   }
 }
+

@@ -1,7 +1,7 @@
 /**
  * Controller Modul Foto (fitur foto kegiatan)
- * Menangani unggah berkas ke Google Drive, penyimpanan metadata ke Firestore,
- * penghapusan foto, serta pemasangan listener antarmuka halaman Foto.
+ * Menangani modal unggah berkas ke Google Drive, penyimpanan metadata ke
+ * Firestore, penghapusan foto, pencarian, dan filter halaman Foto.
  */
 import { MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
 import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, pindahkanItemKeSampahDrive } from "../../services/driveService.js";
@@ -27,7 +27,10 @@ import {
 
 let sudahDipasang = false;
 let sedangUnggah = false;
-let filterKegiatanId = "";
+let modalTerbuka = false;
+let filterKegiatanId = "ALL";
+let kataKunciCari = "";
+let fokusSebelumModal = null;
 
 function petaJudulKegiatan() {
   const peta = new Map();
@@ -36,13 +39,32 @@ function petaJudulKegiatan() {
 }
 
 function renderSemua() {
-  renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), filterKegiatanId);
-  perbaruiPilihanKegiatan();
+  renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
+    filterKegiatanId,
+    kataKunci: kataKunciCari,
+  });
+  perbaruiOpsiFilterKegiatan();
 }
 
-function perbaruiPilihanKegiatan() {
-  const select = document.getElementById("pilih-kegiatan-foto");
-  if (!select) return;
+function perbaruiOpsiFilterKegiatan() {
+  const select = document.getElementById("filter-foto-kegiatan");
+  if (!(select instanceof HTMLSelectElement)) return;
+  const daftar = getDaftarKegiatan()
+    .slice()
+    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)));
+  select.innerHTML =
+    '<option value="ALL">Semua kegiatan</option>' +
+    daftar
+      .map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.judul)}${k.tanggal ? ` (${escapeHtml(k.tanggal)})` : ""}</option>`)
+      .join("");
+  select.value = filterKegiatanId === "ALL" || daftar.some((k) => k.id === filterKegiatanId) ? filterKegiatanId : "ALL";
+  if (select.value !== filterKegiatanId) filterKegiatanId = "ALL";
+}
+
+/** Mengisi dropdown kegiatan pada modal unggah. */
+function perbaruiDropdownKegiatanModal() {
+  const select = document.getElementById("foto-upload-kegiatan");
+  if (!(select instanceof HTMLSelectElement)) return;
   const nilaiLama = select.value;
   const daftar = getDaftarKegiatan()
     .slice()
@@ -53,58 +75,90 @@ function perbaruiPilihanKegiatan() {
       .map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.judul)}${k.tanggal ? ` (${escapeHtml(k.tanggal)})` : ""}</option>`)
       .join("");
   if (daftar.some((k) => k.id === nilaiLama)) select.value = nilaiLama;
-
-  const selectFilter = document.getElementById("filter-foto-kegiatan");
-  if (selectFilter) {
-    const nilaiFilterLama = filterKegiatanId;
-    selectFilter.innerHTML =
-      '<option value="">Semua kegiatan</option>' +
-      daftar.map((k) => `<option value="${escapeHtml(k.id)}">${escapeHtml(k.judul)}${k.tanggal ? ` (${escapeHtml(k.tanggal)})` : ""}</option>`).join("");
-    selectFilter.value = nilaiFilterLama || "";
-  }
 }
 
-async function unggahBerkasTerpilih(berkas) {
-  const select = document.getElementById("pilih-kegiatan-foto");
-  const kegiatanId = String(select?.value || "").trim();
-  if (!kegiatanId) {
-    tampilkanToast("Pilih kegiatan tujuan sebelum mengunggah foto.", "galat");
+function setPesanGalatModal(pesan) {
+  const box = document.getElementById("foto-upload-alert");
+  const txt = document.getElementById("foto-upload-alert-text");
+  if (!box || !txt) return;
+  const bersih = String(pesan || "").trim();
+  if (!bersih) {
+    txt.textContent = "";
+    box.hidden = true;
     return;
   }
+  txt.textContent = bersih;
+  box.hidden = false;
+}
 
+export function bukaModalUnggahFoto() {
+  if (!navigator.onLine) {
+    tampilkanToast("Tidak ada koneksi internet. Unggah foto memerlukan sambungan aktif.", "galat");
+    return;
+  }
+  const modal = document.getElementById("foto-upload-modal");
+  if (!modal) return;
+
+  fokusSebelumModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  bersihkanFormUnggahFoto();
+  setPesanGalatModal("");
+  setelSedangUnggahFoto(false);
+  perbaruiDropdownKegiatanModal();
+
+  modalTerbuka = true;
+  modal.hidden = false;
+  requestAnimationFrame(() => {
+    document.getElementById("foto-upload-kegiatan")?.focus();
+  });
+}
+
+function tutupModalUnggahFoto(kembalikanFokus = true) {
+  const modal = document.getElementById("foto-upload-modal");
+  if (!modal || !modalTerbuka) return;
+  modalTerbuka = false;
+  modal.hidden = true;
+  bersihkanFormUnggahFoto();
+  setPesanGalatModal("");
+  if (kembalikanFokus && fokusSebelumModal && document.contains(fokusSebelumModal)) {
+    fokusSebelumModal.focus();
+  }
+  fokusSebelumModal = null;
+}
+
+async function unggahBerkasTerpilih(kegiatanId, berkas) {
   const daftar = Array.from(berkas || []);
   if (!daftar.length) {
-    tampilkanToast("Pilih satu atau lebih berkas foto terlebih dahulu.", "galat");
+    setPesanGalatModal("Pilih satu atau lebih berkas foto terlebih dahulu.");
     return;
   }
 
   const nonFoto = daftar.filter((f) => !String(f.type || "").startsWith("image/"));
   if (nonFoto.length) {
-    tampilkanToast(`Berkas berikut bukan gambar: ${nonFoto.map((f) => f.name).join(", ")}.`, "galat");
+    setPesanGalatModal(`Berkas berikut bukan gambar: ${nonFoto.map((f) => f.name).join(", ")}.`);
     return;
   }
 
   const terlaluBesar = daftar.filter((f) => f.size > MAKS_UKURAN_BERKAS_MB * 1024 * 1024);
   if (terlaluBesar.length) {
-    tampilkanToast(`Ukuran maksimum ${MAKS_UKURAN_BERKAS_MB} MB per berkas. Terlalu besar: ${terlaluBesar.map((f) => f.name).join(", ")}.`, "galat");
+    setPesanGalatModal(`Ukuran maksimum ${MAKS_UKURAN_BERKAS_MB} MB per berkas. Terlalu besar: ${terlaluBesar.map((f) => f.name).join(", ")}.`);
     return;
   }
 
   sedangUnggah = true;
   setelSedangUnggahFoto(true);
 
-  let berhasil = 0;
-  let gagal = 0;
   let folderId = "";
   try {
     folderId = await pastikanFolderFotoDrive();
   } catch (err) {
     sedangUnggah = false;
     setelSedangUnggahFoto(false);
-    tampilkanToast(formatPesanGalatDrive(err), "galat");
+    setPesanGalatModal(formatPesanGalatDrive(err));
     return;
   }
 
+  let berhasil = 0;
+  let gagal = 0;
   for (const file of daftar) {
     try {
       const unggahan = unggahBerkasKeDrive({ file, folderId, namaSimpanDrive: file.name });
@@ -120,18 +174,18 @@ async function unggahBerkasTerpilih(berkas) {
       berhasil += 1;
     } catch (err) {
       gagal += 1;
-      tampilkanToast(`Gagal mengunggah "${file.name}": ${formatPesanGalatDrive(err)}`, "galat");
+      setPesanGalatModal(`Gagal mengunggah "${file.name}": ${formatPesanGalatDrive(err)}`);
     }
   }
 
   sedangUnggah = false;
   setelSedangUnggahFoto(false);
-  bersihkanFormUnggahFoto();
 
   if (berhasil) {
     tampilkanToast(`${berhasil} foto berhasil diunggah${gagal ? `, ${gagal} gagal` : ""}.`, gagal ? "info" : "sukses");
+    if (!gagal) tutupModalUnggahFoto();
   } else if (!gagal) {
-    tampilkanToast("Tidak ada berkas yang diunggah.", "info");
+    setPesanGalatModal("Tidak ada berkas yang diunggah.");
   }
 }
 
@@ -158,42 +212,65 @@ export function initFoto() {
 
   pastikanKerangkaHalamanFoto();
 
-  const daftarEl = document.getElementById("daftar-foto");
-  const kosongEl = document.getElementById("foto-kosong");
-  const inputBerkas = document.getElementById("input-berkas-foto");
-  const pratinjauEl = document.getElementById("pratinjau-foto");
-  const tombolUnggah = document.getElementById("tombol-unggah-foto");
-  const selectKegiatan = document.getElementById("pilih-kegiatan-foto");
+  const daftarEl = document.getElementById("foto-list-region");
+  const pratinjauEl = document.getElementById("foto-upload-pratinjau");
+  const inputBerkas = document.getElementById("foto-upload-file");
+  const inputCari = document.getElementById("foto-search-input");
   const selectFilter = document.getElementById("filter-foto-kegiatan");
 
-  pasangElemenFoto({ daftar: daftarEl, kosong: kosongEl, inputBerkas, pratinjau: pratinjauEl });
+  pasangElemenFoto({ daftar: daftarEl, pratinjau: pratinjauEl });
 
-  inputBerkas?.addEventListener("change", () => {
-    renderPratinjauUnggah(inputBerkas.files);
-  });
+  // --- Halaman: buka modal, pencarian, filter ---
+  document.getElementById("btn-unggah-foto")?.addEventListener("click", bukaModalUnggahFoto);
 
-  tombolUnggah?.addEventListener("click", () => {
-    if (sedangUnggah) return;
-    const berkas = inputBerkas?.files;
-    if (!berkas || !berkas.length) {
-      tampilkanToast("Pilih berkas foto terlebih dahulu.", "galat");
-      return;
-    }
-    unggahBerkasTerpilih(berkas);
+  inputCari?.addEventListener("input", () => {
+    kataKunciCari = inputCari.value || "";
+    renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
+      filterKegiatanId,
+      kataKunci: kataKunciCari,
+    });
   });
 
   selectFilter?.addEventListener("change", () => {
-    filterKegiatanId = selectFilter.value || "";
-    renderSemua();
+    filterKegiatanId = selectFilter.value || "ALL";
+    renderDaftarFoto(getDaftarFoto(), petaJudulKegiatan(), {
+      filterKegiatanId,
+      kataKunci: kataKunciCari,
+    });
   });
 
-  selectKegiatan?.addEventListener("change", () => {
-    if (!filterKegiatanId) return;
-    filterKegiatanId = selectKegiatan.value || "";
-    if (selectFilter) selectFilter.value = filterKegiatanId;
-    renderSemua();
+  // --- Modal unggah ---
+  const form = document.getElementById("foto-upload-form");
+  form?.addEventListener("submit", (evt) => {
+    evt.preventDefault();
+    if (sedangUnggah) return;
+    const select = document.getElementById("foto-upload-kegiatan");
+    const kegiatanId = String(select?.value || "").trim();
+    if (!kegiatanId) {
+      setPesanGalatModal("Pilih kegiatan tujuan terlebih dahulu.");
+      return;
+    }
+    unggahBerkasTerpilih(kegiatanId, inputBerkas?.files);
   });
 
+  inputBerkas?.addEventListener("change", () => {
+    const info = document.getElementById("foto-upload-file-info");
+    const jumlah = inputBerkas?.files?.length || 0;
+    if (info) {
+      info.textContent = jumlah
+        ? `${jumlah} berkas dipilih.`
+        : "Pilih satu atau lebih foto dari perangkat Anda.";
+    }
+    renderPratinjauUnggah(inputBerkas?.files);
+  });
+
+  document.getElementById("foto-upload-close-btn")?.addEventListener("click", () => tutupModalUnggahFoto());
+  document.getElementById("foto-upload-cancel-btn")?.addEventListener("click", () => tutupModalUnggahFoto());
+  document.getElementById("foto-upload-modal")?.addEventListener("click", (evt) => {
+    if (evt.target === evt.currentTarget) tutupModalUnggahFoto();
+  });
+
+  // --- Daftar foto: hapus + penanganan thumbnail gagal ---
   daftarEl?.addEventListener("click", (evt) => {
     const tombol = evt.target.closest(".tombol-hapus-foto");
     if (!tombol) return;
@@ -201,16 +278,14 @@ export function initFoto() {
     hapusFoto(tombol.getAttribute("data-id-foto"));
   });
 
-  // Bila thumbnail Drive tidak dapat dimuat (mis. berkas privat), tampilkan
-  // kotak placeholder alih-alih ikon gambar rusak.
   daftarEl?.addEventListener(
     "error",
     (evt) => {
       const img = evt.target;
       if (!(img instanceof HTMLImageElement)) return;
       img.style.display = "none";
-      const tautan = img.closest(".foto-thumb");
-      if (tautan) tautan.classList.add("foto-thumb-kosong");
+      const wadah = img.parentElement;
+      if (wadah) wadah.classList.add("foto-kartu-gagal");
     },
     true
   );
