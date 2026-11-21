@@ -68,7 +68,7 @@ function formatUkuran(bytes) {
 
 function kartuFotoHtml(f, judulGrup) {
   const thumb = f.driveFileId
-    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w400`
+    ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w220`
     : "";
   const tautan = f.tautan || thumb;
   const tanggal = String(f.createdAt || "").slice(0, 10);
