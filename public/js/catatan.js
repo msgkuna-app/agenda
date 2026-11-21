@@ -34,7 +34,6 @@ import {
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "./services/authService.js";
 import { hariIni, parseTanggal } from "./util-tanggal.js";
 import { tampilkanToast } from "./shared/toast.js";
-import { getDaftarKegiatan, onPerubahanKegiatan } from "./kegiatan.js";
 import {
   buatDokumenGoogleDocsDrive,
   pindahkanItemKeSampahDrive,
@@ -50,6 +49,40 @@ import { initFilterPanel } from "./filter-panel.js";
 import { escapeHtml, svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK } from "./util-html.js";
 
 // svgIkon, NAMA_HARI_PENDEK, NAMA_BULAN_PENDEK kini diimpor dari util-html.js (Tahap 4a deduplikasi)
+
+/**
+ * Sumber data kegiatan (Tahap 3e: pemutusan siklus kegiatan <-> catatan).
+ *
+ * Modul ini TIDAK mengimpor kegiatan.js. app.js menyuntikkan fungsi pembaca
+ * kegiatan lewat daftarkanSumberKegiatan() saat boot. Nilai bawaan sengaja
+ * kosong dan aman: bila registrasi terlewat, halaman catatan tetap berfungsi,
+ * hanya pilihan "kegiatan terkait" yang kosong.
+ */
+const sumberKegiatan = {
+  getDaftar: () => [],
+  onPerubahan: () => () => {}
+};
+
+/**
+ * Mendaftarkan fungsi pembaca kegiatan dari luar modul (dipanggil app.js).
+ * @param {{ getDaftar?: () => object[], onPerubahan?: (listener: Function) => (() => void) }} sumber
+ */
+export function daftarkanSumberKegiatan(sumber = {}) {
+  if (sumber && typeof sumber.getDaftar === "function") {
+    sumberKegiatan.getDaftar = sumber.getDaftar;
+  }
+  if (sumber && typeof sumber.onPerubahan === "function") {
+    sumberKegiatan.onPerubahan = sumber.onPerubahan;
+  }
+}
+
+function ambilDaftarKegiatanTerkait() {
+  try {
+    return sumberKegiatan.getDaftar() || [];
+  } catch (_e) {
+    return [];
+  }
+}
 
 const IKON_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
 const IKON_GDOC = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/><line x1="8" y1="19" x2="12" y2="19"/>', 20);
@@ -296,7 +329,7 @@ function uraiInputTag(teks) {
 
 function cariKegiatanId(id) {
   const target = String(id || "").trim();
-  return target ? getDaftarKegiatan().find((k) => k.id === target) || null : null;
+  return target ? ambilDaftarKegiatanTerkait().find((k) => k.id === target) || null : null;
 }
 
 function adalahGalatToken(err) {
@@ -444,7 +477,7 @@ function aturUlangSemuaFilterCatatan() {
 }
 
 function perbaruiOpsiKegiatanDiModal() {
-  const kegiatanUrut = [...getDaftarKegiatan()].sort((a, b) =>
+  const kegiatanUrut = [...ambilDaftarKegiatanTerkait()].sort((a, b) =>
     String(b.tanggal || "").localeCompare(String(a.tanggal || ""))
   );
   const opsiHtml = [
@@ -964,7 +997,7 @@ export function initHalamanCatatan() {
   if (antarmukaSudahDiikat) return;
   antarmukaSudahDiikat = true;
 
-  onPerubahanKegiatan(() => {
+  sumberKegiatan.onPerubahan(() => {
     perbaruiOpsiKegiatanDiModal();
     renderDaftarCatatan();
   });

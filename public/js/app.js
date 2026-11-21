@@ -33,6 +33,7 @@ import {
   subscribeKegiatan,
   unsubscribeKegiatan,
   getDaftarKegiatan,
+  onPerubahanKegiatan,
   bukaModalFormKegiatan,
   daftarkanPembukaDetailKegiatan,
 } from "./kegiatan.js";
@@ -55,6 +56,7 @@ import {
   subscribeCatatan,
   unsubscribeCatatan,
   getDaftarCatatan,
+  daftarkanSumberKegiatan,
   tautanAmanGoogleDocs,
   sorotCatatanDiHalaman,
   perbaruiStatusJaringanCatatan,
@@ -586,6 +588,14 @@ function mulaiAplikasi() {
       perbaruiTanggalHeader();
       tampilkanLayarUtama("app");
       mulaiPemantauTokenDrive();
+
+      // Pemutusan siklus kegiatan ⇄ catatan (Tahap 3e): catatan.js tidak lagi
+      // mengimpor kegiatan.js; sumber data kegiatan disuntikkan dari sini
+      // sebelum kedua langganan dimulai.
+      daftarkanSumberKegiatan({
+        getDaftar: getDaftarKegiatan,
+        onPerubahan: onPerubahanKegiatan,
+      });
 
       const unsubKegiatan = subscribeKegiatan();
       const unsubDokumen = subscribeDokumen();
