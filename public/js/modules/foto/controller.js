@@ -201,6 +201,20 @@ export function initFoto() {
     hapusFoto(tombol.getAttribute("data-id-foto"));
   });
 
+  // Bila thumbnail Drive tidak dapat dimuat (mis. berkas privat), tampilkan
+  // kotak placeholder alih-alih ikon gambar rusak.
+  daftarEl?.addEventListener(
+    "error",
+    (evt) => {
+      const img = evt.target;
+      if (!(img instanceof HTMLImageElement)) return;
+      img.style.display = "none";
+      const tautan = img.closest(".foto-thumb");
+      if (tautan) tautan.classList.add("foto-thumb-kosong");
+    },
+    true
+  );
+
   onPerubahanFoto(() => renderSemua());
   onPerubahanKegiatan(() => renderSemua());
   renderSemua();

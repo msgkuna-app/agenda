@@ -5583,88 +5583,32 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
   margin-top: 10px;
 }
 
-.kisi-foto {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
-  margin-top: 12px;
-}
-
-.kartu-foto {
-  position: relative;
-  margin: 0;
-  border: 1px solid var(--color-border);
+.foto-thumb {
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
   border-radius: var(--radius-md);
-  background: var(--color-bg-surface);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.kartu-foto a {
-  display: block;
-  aspect-ratio: 4 / 3;
+  border: 1px solid var(--color-border);
   background: var(--color-bg-subtle);
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.kartu-foto img {
+.foto-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
 
-.foto-ganti-gambar {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.foto-thumb-kosong {
   color: var(--color-text-muted);
 }
 
-.kartu-foto figcaption {
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nama-foto {
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.meta-foto {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.tombol-hapus-foto {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-full);
-  background: rgba(15, 29, 39, 0.62);
-  color: #ffffff;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--duration-fast) var(--ease-standard);
-}
-
-.kartu-foto:hover .tombol-hapus-foto,
-.tombol-hapus-foto:focus-visible {
-  opacity: 1;
+.kartu-foto .catatan-card-footer > a {
+  text-decoration: none;
 }
 
 .kisi-pratinjau-foto {
@@ -5691,12 +5635,8 @@ html[data-sidebar="collapsed"] .sidebar-search-kbd {
 }
 
 @media (max-width: 600px) {
-  .kisi-foto {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-  }
-
-  .tombol-hapus-foto {
-    opacity: 1;
+  .foto-thumb {
+    width: 3.5rem;
+    height: 3.5rem;
   }
 }

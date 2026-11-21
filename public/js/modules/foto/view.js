@@ -6,7 +6,9 @@
 import { escapeHtml, svgIkon } from "../../util-html.js";
 
 const IKON_GAMBAR = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>';
-const IKON_HAPUS = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>';
+const IKON_KALENDER = '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
+const IKON_TAUTAN = '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>';
+const IKON_TAB_BARU = '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>';
 
 let elemenDaftar = null;
 let elemenKosong = null;
@@ -47,7 +49,7 @@ const KERANGKA_HALAMAN_FOTO = `
   </div>
 
   <div id="foto-kosong" class="empty-stage-desc">Belum ada foto. Pilih kegiatan, lalu unggah foto pertama Anda.</div>
-  <div id="daftar-foto" class="kisi-foto"></div>
+  <div id="daftar-foto" class="kegiatan-list-grid"></div>
 </div>`;
 
 /**
@@ -78,7 +80,9 @@ function formatUkuran(bytes) {
 }
 
 /**
- * Merender kisi foto. @param {Array} daftarFoto @param {Map} petaKegiatan (id -> {judul})
+ * Merender daftar foto bergaya kartu (serupa halaman Catatan).
+ * @param {Array} daftarFoto
+ * @param {Map} petaKegiatan (id -> kegiatan)
  */
 export function renderDaftarFoto(daftarFoto, petaKegiatan, filterKegiatanId = "") {
   if (!elemenDaftar) return;
@@ -98,21 +102,37 @@ export function renderDaftarFoto(daftarFoto, petaKegiatan, filterKegiatanId = ""
   elemenDaftar.innerHTML = terfilter
     .map((f) => {
       const kegiatan = petaKegiatan.get(f.kegiatanId);
-      const judulKegiatan = kegiatan ? escapeHtml(kegiatan.judul) : "(kegiatan tidak ditemukan)";
       const thumb = f.driveFileId
         ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w400`
         : "";
+      const tanggalUnggah = String(f.createdAt || "").slice(0, 10);
       return `
-        <figure class="kartu-foto" data-id-foto="${escapeHtml(f.id)}">
-          <a href="${escapeHtml(f.tautan || thumb)}" target="_blank" rel="noopener">
-            ${thumb ? `<img src="${thumb}" alt="${escapeHtml(f.namaFile)}" loading="lazy" />` : `<div class="foto-ganti-gambar">${svgIkon(IKON_GAMBAR, 40)}</div>`}
-          </a>
-          <figcaption>
-            <span class="nama-foto" title="${escapeHtml(f.namaFile)}">${escapeHtml(f.namaFile)}</span>
-            <span class="meta-foto">${formatUkuran(f.ukuran)} · ${judulKegiatan}</span>
-          </figcaption>
-          <button type="button" class="tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}" title="Hapus foto">${svgIkon(IKON_HAPUS)}</button>
-        </figure>`;
+        <article class="catatan-card kartu-foto" data-id-foto="${escapeHtml(f.id)}">
+          <div class="catatan-card-top">
+            <div class="catatan-head-left">
+              ${thumb
+                ? `<a class="foto-thumb" href="${escapeHtml(f.tautan || thumb)}" target="_blank" rel="noopener" title="Buka foto di Drive"><img src="${thumb}" alt="${escapeHtml(f.namaFile)}" loading="lazy" /></a>`
+                : `<a class="foto-thumb foto-thumb-kosong" href="${escapeHtml(f.tautan)}" target="_blank" rel="noopener">${svgIkon(IKON_GAMBAR, 24)}</a>`}
+              <div class="catatan-title-group">
+                <div class="catatan-badges-row">
+                  <span class="catatan-kind-badge kind-gdoc">Foto</span>
+                  <span class="catatan-category-label">${formatUkuran(f.ukuran)}</span>
+                </div>
+                <h3 class="catatan-card-title">${escapeHtml(f.namaFile)}</h3>
+              </div>
+            </div>
+          </div>
+          <div class="kegiatan-meta-list">
+            <span class="kegiatan-meta-item">${IKON_KALENDER}<span>${escapeHtml(tanggalUnggah || "-")}</span></span>
+            <span class="kegiatan-meta-item">${IKON_TAUTAN}<span>${kegiatan ? escapeHtml(kegiatan.judul) : "(kegiatan tidak ditemukan)"}</span></span>
+          </div>
+          <div class="catatan-card-footer">
+            <a href="${escapeHtml(f.tautan || thumb)}" target="_blank" rel="noopener" class="btn-primary btn-sm-touch">${IKON_TAB_BARU}<span>Buka di Drive</span></a>
+            <div class="catatan-footer-actions">
+              <button type="button" class="btn-danger-outline btn-sm-touch tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}">Hapus</button>
+            </div>
+          </div>
+        </article>`;
     })
     .join("");
 }
