@@ -67,9 +67,13 @@ function formatUkuran(bytes) {
 }
 
 function kartuFotoHtml(f, judulGrup) {
-  const thumb = f.driveFileId
+  const cadangan = f.driveFileId
     ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(f.driveFileId)}&sz=w220`
     : "";
+  // thumbnailLink Drive berakhiran "=s220"; ganti agar konsisten memakai lebar kecil.
+  const thumb = f.thumbnailLink
+    ? f.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/i, "=w220")
+    : cadangan;
   const tautan = f.tautan || thumb;
   const tanggal = String(f.createdAt || "").slice(0, 10);
   return `<figure class="foto-kartu" data-id-foto="${escapeHtml(f.id)}">

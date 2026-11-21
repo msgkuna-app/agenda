@@ -184,13 +184,14 @@ service cloud.firestore {
 
     function validFoto(d) {
       return d.keys().hasOnly([
-        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'mimeType',
+        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
         'ukuran', 'catatan', 'createdAt', 'updatedAt'
       ])
       && d.kegiatanId is string && d.kegiatanId.size() >= 1 && d.kegiatanId.size() <= 100
       && d.driveFileId is string && d.driveFileId.size() >= 1 && d.driveFileId.size() <= 100
       && d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255
       && strOps(d, 'tautan', 1000)
+      && strOps(d, 'thumbnailLink', 2000)
       && strOps(d, 'mimeType', 150)
       && (!('ukuran' in d) || (d.ukuran is number && d.ukuran >= 0))
       && strOps(d, 'catatan', 5000)
@@ -201,13 +202,14 @@ service cloud.firestore {
     function validFotoUbah(d) {
       let u = d.diff(resource.data).affectedKeys();
       return u.hasOnly([
-        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'mimeType',
+        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
         'ukuran', 'catatan', 'createdAt', 'updatedAt'
       ])
       && strUbah(d, u, 'kegiatanId', 100)
       && strUbah(d, u, 'driveFileId', 100)
       && strUbah(d, u, 'namaFile', 255)
       && strUbah(d, u, 'tautan', 1000)
+      && strUbah(d, u, 'thumbnailLink', 2000)
       && strUbah(d, u, 'mimeType', 150)
       && angkaUbah(d, u, 'ukuran')
       && strUbah(d, u, 'catatan', 5000)

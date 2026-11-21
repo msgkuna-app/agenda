@@ -675,7 +675,7 @@ function unggahBerkasMultipartSederhana(konfigurasi) {
 
     const params = new URLSearchParams({
       uploadType: "multipart",
-      fields: "id,name,mimeType,size,webViewLink",
+      fields: "id,name,mimeType,size,webViewLink,thumbnailLink",
     });
 
     return new Promise((resolve, reject) => {
@@ -739,6 +739,7 @@ function unggahBerkasMultipartSederhana(konfigurasi) {
               mimeType: String(hasil.mimeType || mimeAsli),
               size: Number.isFinite(Number(hasil.size)) ? Number(hasil.size) : file.size,
               webViewLink: tautanDrive,
+              thumbnailLink: String(hasil.thumbnailLink || ""),
             });
           } catch (_parseErr) {
             reject(new Error("Respons unggahan dari Google Drive tidak dapat dibaca."));
@@ -862,7 +863,7 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
         try {
           const params = new URLSearchParams({
             uploadType: "resumable",
-            fields: "id,name,mimeType,size,webViewLink",
+            fields: "id,name,mimeType,size,webViewLink,thumbnailLink",
           });
           const metadata = {
             name: namaFinal,
@@ -1133,6 +1134,7 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
                 ? Number(hasilPot.hasil?.size)
                 : totalBytes,
               webViewLink: tautanDrive,
+              thumbnailLink: String(hasilPot.hasil?.thumbnailLink || ""),
             };
           }
         } catch (errPot) {
@@ -1188,6 +1190,7 @@ export function unggahBerkasResumableKeDrive(konfigurasi) {
                   ? Number(statusDrive.hasil?.size)
                   : totalBytes,
                 webViewLink: tautanDrive,
+                thumbnailLink: String(statusDrive.hasil?.thumbnailLink || ""),
               };
             }
 

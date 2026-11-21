@@ -168,6 +168,7 @@ async function unggahBerkasTerpilih(kegiatanId, berkas) {
         driveFileId: hasil.id,
         namaFile: hasil.name || file.name,
         tautan: hasil.webViewLink || "",
+        thumbnailLink: hasil.thumbnailLink || "",
         mimeType: hasil.mimeType || file.type || "",
         ukuran: Number(hasil.size) || file.size || 0,
       });
