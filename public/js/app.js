@@ -49,7 +49,7 @@ import {
   unsubscribeDokumen,
   getDaftarDokumen,
   perbaruiStatusJaringanDokumen,
-} from "./dokumen.js";
+} from "./modules/dokumen/index.js";
 import {
   JENIS_CATATAN_GDOC,
   initHalamanCatatan,

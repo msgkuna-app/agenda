@@ -26,7 +26,7 @@ import {
 import {
   manajerKategoriDokumen,
   getDaftarDokumen
-} from "../../dokumen.js";
+} from "../../modules/dokumen/index.js";
 import { getDaftarCatatan } from "../../catatan.js";
 import { getDaftarLaporan } from "../../laporan.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";

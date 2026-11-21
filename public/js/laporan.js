@@ -43,7 +43,7 @@ import {
   formatUkuranBerkas,
   infoJenisBerkasMime,
   ambilSemuaDokumenSekaliPakai
-} from "./dokumen.js";
+} from "./modules/dokumen/index.js";
 import {
   JENIS_CATATAN_GDOC,
   getDaftarCatatan,

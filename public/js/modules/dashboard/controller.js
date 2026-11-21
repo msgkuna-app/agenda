@@ -13,7 +13,7 @@ import {
 import {
   onPerubahanDokumen,
   bukaModalUnggahDokumen,
-} from "../../dokumen.js";
+} from "../../modules/dokumen/index.js";
 import {
   onPerubahanCatatan,
   sorotCatatanDiHalaman,
