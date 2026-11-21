@@ -7,6 +7,7 @@ import { escapeHtml, svgIkon } from "../../util-html.js";
 
 const IKON_GAMBAR = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>';
 const IKON_HAPUS = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>';
+const IKON_KALENDER_KECIL = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
 
 let elemenDaftar = null;
 let elemenPratinjau = null;
@@ -131,13 +132,27 @@ export function renderDaftarFoto(daftarFoto, petaKegiatan, opsi = {}) {
     .map((id) => {
       const kegiatan = petaKegiatan.get(id);
       const judul = kegiatan ? kegiatan.judul : "(Kegiatan tidak ditemukan)";
+      const tanggal = kegiatan?.tanggal ? formatTanggalPanjang(kegiatan.tanggal) : "";
+      const waktu = kegiatan?.waktuMulai ? ` · ${escapeHtml(kegiatan.waktuMulai)}${kegiatan?.waktuSelesai ? `–${escapeHtml(kegiatan.waktuSelesai)}` : ""}` : "";
       const daftar = grup.get(id).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       return `<section class="foto-grup" data-kegiatan-id="${escapeHtml(id)}">
-          <h3 class="foto-grup-judul">${escapeHtml(judul)}</h3>
+          <header class="foto-grup-kepala">
+            <h3 class="foto-grup-judul">${escapeHtml(judul)}</h3>
+            ${tanggal ? `<p class="foto-grup-tanggal">${IKON_KALENDER_KECIL}<span>${escapeHtml(tanggal)}${waktu}</span></p>` : ""}
+          </header>
           <div class="foto-grup-kisi">${daftar.map((f) => kartuFotoHtml(f, judul)).join("")}</div>
         </section>`;
     })
     .join("");
+}
+
+/** Mengubah "YYYY-MM-DD" menjadi "21 November 2026". */
+function formatTanggalPanjang(tgl) {
+  const cocok = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tgl || ""));
+  if (!cocok) return String(tgl || "");
+  const [, y, m, d] = cocok;
+  const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+  return `${Number(d)} ${bulan[Number(m) - 1] || m} ${y}`;
 }
 
 /** Merender pratinjau berkas yang dipilih pada modal unggah. */
