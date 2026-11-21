@@ -9,7 +9,7 @@ import { tampilkanToast } from "../../shared/toast.js";
 import {
   bukaModalFormKegiatan,
   onPerubahanKegiatan,
-} from "../../kegiatan.js";
+} from "../../modules/kegiatan/index.js";
 import {
   onPerubahanDokumen,
   bukaModalUnggahDokumen,

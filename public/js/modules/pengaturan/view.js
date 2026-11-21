@@ -22,7 +22,7 @@ import {
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan
-} from "../../kegiatan.js";
+} from "../../modules/kegiatan/index.js";
 import {
   manajerKategoriDokumen,
   getDaftarDokumen

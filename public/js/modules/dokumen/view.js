@@ -6,7 +6,7 @@
  */
 import { escapeHtml, svgIkon } from "../../util-html.js";
 import { TANPA_KATEGORI_INFO } from "../../kategori.js";
-import { getDaftarKegiatan } from "../../kegiatan.js";
+import { getDaftarKegiatan } from "../../modules/kegiatan/index.js";
 import { initFilterPanel } from "../../filter-panel.js";
 import {
   manajerKategoriDokumen,

@@ -15,7 +15,7 @@ import {
   getDaftarKegiatan,
   isKegiatanSudahDimuat,
   kelasBadgeStatus,
-} from "../../kegiatan.js";
+} from "../../modules/kegiatan/index.js";
 import {
   manajerKategoriDokumen,
   getDaftarDokumen,

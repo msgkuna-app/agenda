@@ -21,7 +21,7 @@ import {
   ubahStatusKegiatanCepat,
   kelasBadgeStatus,
   sinkronkanJendelaTanggalKegiatan
-} from "./kegiatan.js";
+} from "./modules/kegiatan/index.js";
 import { infoHari, adaDataTahun } from "./hari-libur.js";
 
 // Nama hari/bulan & svgIkon kini diimpor dari util-html.js (Tahap 4: deduplikasi).

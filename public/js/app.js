@@ -36,7 +36,7 @@ import {
   onPerubahanKegiatan,
   bukaModalFormKegiatan,
   daftarkanPembukaDetailKegiatan,
-} from "./kegiatan.js";
+} from "./modules/kegiatan/index.js";
 import {
   initHalamanJadwal,
   renderHalamanJadwal,

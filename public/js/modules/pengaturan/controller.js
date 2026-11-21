@@ -36,7 +36,7 @@ import {
   getDaftarKegiatan,
   onPerubahanKegiatan,
   ambilSemuaKegiatanSekaliPakai,
-} from "../../kegiatan.js";
+} from "../../modules/kegiatan/index.js";
 import {
   manajerKategoriDokumen,
   getDaftarDokumen,

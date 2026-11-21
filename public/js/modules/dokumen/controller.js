@@ -30,7 +30,7 @@ import {
 } from "../../services/driveService.js";
 import { loginWithGoogle, formatPesanGalatAuth } from "../../services/authService.js";
 import { inisialisasiDialogKelolaKategori } from "../../kategori.js";
-import { onPerubahanKegiatan } from "../../kegiatan.js";
+import { onPerubahanKegiatan } from "../../modules/kegiatan/index.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import {
   manajerKategoriDokumen,

@@ -22,7 +22,7 @@ import {
 import {
   pulihkanKegiatan,
   hapusPermanenKegiatan
-} from "./kegiatan.js";
+} from "./modules/kegiatan/index.js";
 import {
   pulihkanCatatan,
   hapusPermanenCatatan,
