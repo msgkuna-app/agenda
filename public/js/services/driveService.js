@@ -363,7 +363,7 @@ export async function ambilThumbnailFotoDrive(fileId) {
     //    ditangani dengan cadangan.
     const tautanThumb = String(meta?.thumbnailLink || "").replace(/=s\d+(-[a-z]+)?$/i, "=w220");
     if (tautanThumb) {
-      const blob = await unduhBlobDrive(tautAnThumb, token, false);
+      const blob = await unduhBlobDrive(tautanThumb, token, false);
       if (blob) return simpanBlobThumbnail(idBersih, blob);
     }
 
