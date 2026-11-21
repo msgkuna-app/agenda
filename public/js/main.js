@@ -1,5 +1,5 @@
 /**
- * Titik Masuk Utama Aplikasi "Agenda & Arsip" (Fase 6: GIS Token Client & Ketahanan PWA + Refaktor Fase 7A)
+ * Titik Masuk Utama Aplikasi "Agenda & Arsip" — kini js/main.js (Tahap 5: rename dari app.js)
  * Mengatur sesi masuk, pemantau token GIS Drive, Dashboard, Kegiatan, Jadwal,
  * Dokumen, Catatan, Laporan, Pengaturan, konfirmasi keluar, indikator koneksi, toast, dan Service Worker.
  * Menggunakan util-html.js terpusat untuk escapeHtml, svgIkon, dan nama hari/bulan Indonesia.
