@@ -2654,6 +2654,35 @@ html[data-drawer="open"] .app-sidebar {
   flex-direction: column;
   gap: var(--space-1);
 }
+
+/* Kartu Kapasitas Layanan di Pengaturan */
+[aria-labelledby="settings-capacity-heading"] .detail-meta-row {
+  grid-template-columns: 12rem 1fr;
+}
+[aria-labelledby="settings-tech-heading"] .detail-meta-row {
+  grid-template-columns: 12rem 1fr;
+}
+.capacity-bar {
+  height: 8px;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+.capacity-bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transition: width var(--duration-normal) var(--ease-standard);
+}
+@media (max-width: 600px) {
+  [aria-labelledby="settings-capacity-heading"] .detail-meta-row,
+  [aria-labelledby="settings-tech-heading"] .detail-meta-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
 .modal-actions-split {
   justify-content: space-between;
 }

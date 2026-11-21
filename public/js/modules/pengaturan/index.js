@@ -44,6 +44,7 @@ export {
   initHalamanPengaturan,
   resetHalamanPengaturanSaatKeluar,
   jalankanMigrasiDihapusAt,
+  muatKapasitasDriveSekali,
 } from "./controller.js";
 
 export { eksporSeluruhDataJson };

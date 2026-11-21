@@ -25,7 +25,7 @@ import {
   isDriveTokenExpired,
   formatPesanGalatAuth,
 } from "../../services/authService.js";
-import { formatPesanGalatDrive } from "../../services/driveService.js";
+import { formatPesanGalatDrive, ambilKapasitasDrive } from "../../services/driveService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import { periksaPembaruan } from "../../pwa.js";
@@ -70,6 +70,7 @@ import {
   pastikanKerangkaHalamanPengaturan,
   perbaruiInfoVersiSwDiDom,
   bacaVersiDariSwJs,
+  tampilkanKapasitasDrive,
   renderDaftarHariLiburPengaturan,
   setTahunLiburAktif,
   tahunLiburAktif,
@@ -92,6 +93,49 @@ let sedangMengekspor = false;
 let sedangMengimpor = false;
 let dataSiapImpor = null;
 let namaBerkasImpor = "";
+let sedangMemuatKapasitasDrive = false;
+let kapasitasDriveSudahDimuat = false;
+
+// ============================================================================
+// Aksi: kapasitas Google Drive
+// ============================================================================
+
+/** Membaca kapasitas Drive (about.get) dan menampilkannya di kartu Kapasitas Layanan. */
+async function perbaruiKapasitasDrive(opsi = {}) {
+  if (sedangMemuatKapasitasDrive) return;
+  if (!navigator.onLine) {
+    tampilkanKapasitasDrive(null, "Perangkat sedang luring. Kapasitas Drive memerlukan sambungan internet.");
+    return;
+  }
+
+  sedangMemuatKapasitasDrive = true;
+  const btn = document.getElementById("btn-settings-refresh-capacity");
+  if (btn instanceof HTMLButtonElement) btn.disabled = true;
+
+  try {
+    const kapasitas = await ambilKapasitasDrive();
+    tampilkanKapasitasDrive(kapasitas);
+    kapasitasDriveSudahDimuat = true;
+  } catch (err) {
+    const pesan = err && (err.isTokenExpired || err.isUnauthorized)
+      ? "Izin Google Drive belum aktif. Klik “Masuk ulang” di kartu Status Akun."
+      : formatPesanGalatDrive(err);
+    tampilkanKapasitasDrive(null, pesan);
+    if (opsi.tampilkanToast) tampilkanToast(`Gagal membaca kapasitas Drive: ${pesan}`, "warning");
+  } finally {
+    sedangMemuatKapasitasDrive = false;
+    if (btn instanceof HTMLButtonElement) btn.disabled = false;
+  }
+}
+
+/**
+ * Memuat kapasitas Drive bila belum berhasil dimuat (dipanggil saat halaman Pengaturan dibuka).
+ * @param {{ paksa?: boolean, tampilkanToast?: boolean }} [opsi]
+ */
+export function muatKapasitasDriveSekali(opsi = {}) {
+  if (kapasitasDriveSudahDimuat && !opsi.paksa) return;
+  return perbaruiKapasitasDrive({ tampilkanToast: Boolean(opsi.tampilkanToast) });
+}
 
 // ============================================================================
 // Aksi: masuk ulang Drive
@@ -824,6 +868,7 @@ async function jalankanImporDataBatch() {
 export function initHalamanPengaturan() {
   pastikanKerangkaHalamanPengaturan();
   perbaruiInfoVersiSwDiDom();
+  muatKapasitasDriveSekali();
   ikatPenyegaranState();
   segarkanTampilanPengaturan();
 
@@ -842,6 +887,8 @@ export function initHalamanPengaturan() {
         tanganiSinkronkanSemuaFolder();
       } else if (target.closest("#btn-settings-check-update")) {
         tanganiPeriksaPembaruanSw();
+      } else if (target.closest("#btn-settings-refresh-capacity")) {
+        muatKapasitasDriveSekali({ paksa: true, tampilkanToast: true });
       } else if (target.closest("#btn-settings-export-json")) {
         eksporSeluruhDataJson();
       } else if (target.closest("#btn-settings-migrate-dihapusat")) {
@@ -1101,4 +1148,6 @@ export function resetHalamanPengaturanSaatKeluar() {
   setStatusCekPembaruan("");
   sembunyikanRingkasanImpor();
   setStatusMigrasi("", false);
+  kapasitasDriveSudahDimuat = false;
+  tampilkanKapasitasDrive(null, "Masuk untuk melihat kapasitas Google Drive.");
 }

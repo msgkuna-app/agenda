@@ -76,6 +76,7 @@ import {
   muatPengaturanHariLibur,
   bacaPengaturanHariLiburLokal,
   onPerubahanHariLibur,
+  muatKapasitasDriveSekali,
 } from "./modules/pengaturan/index.js";
 import { resetCacheDrive } from "./services/driveService.js";
 import { initFoto, subscribeFoto, lepasFoto } from "./modules/foto/index.js";
@@ -652,6 +653,7 @@ function mulaiAplikasi() {
         segarkanTampilanPengaturan();
       });
       segarkanTampilanPengaturan();
+      muatKapasitasDriveSekali();
       jalankanAksiPintasanSetelahLayarTampil();
     });
   } catch (err) {

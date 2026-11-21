@@ -5,7 +5,7 @@
  *
  * Aturan: tidak memasang event listener dan tidak menulis state.
  */
-import { VERSI_CADANGAN_SW } from "../../config/constants.js";
+import { VERSI_CADANGAN_SW, KUOTA_FIRESTORE_SPARK } from "../../config/constants.js";
 import { getCurrentUser, isDriveTokenExpired } from "../../services/authService.js";
 import { getPreferensiTema, terapkanTema } from "../../tema.js";
 import { parseTanggal, tanggalLokal } from "../../util-tanggal.js";
@@ -268,6 +268,108 @@ export function pastikanKerangkaHalamanPengaturan() {
             ${IKON_SEGAR}
             <span>Periksa pembaruan</span>
           </button>
+        </div>
+      </section>
+
+      <!-- B4b. Teknologi yang Digunakan -->
+      <section class="dash-card" aria-labelledby="settings-tech-heading" style="grid-column: 1 / -1;">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="settings-tech-heading" class="dash-card-title">Teknologi yang Digunakan</h3>
+            <span class="dash-card-caption">Fondasi aplikasi: tanpa bundler, langsung di peramban</span>
+          </div>
+        </div>
+        <div class="dash-card-body">
+          <dl class="detail-meta-grid">
+            <div class="detail-meta-row">
+              <dt>Antarmuka</dt>
+              <dd>HTML5, CSS3, JavaScript ES Module (vanilla, tanpa framework/bundler)</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Database</dt>
+              <dd>Cloud Firestore (Firebase Web SDK v11.4.0)</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Autentikasi</dt>
+              <dd>Firebase Authentication (Google) + Google Identity Services (OAuth 2.0)</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Penyimpanan Berkas</dt>
+              <dd>Google Drive API v3 (scope <code>drive.file</code>)</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Laporan &amp; Ekspor</dt>
+              <dd>Google Sheets API v4, Google Docs API, ekspor JSON/CSV lokal</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Hosting</dt>
+              <dd>Firebase Hosting (<code>msgkuna.web.app</code>)</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Mode Luring</dt>
+              <dd>Progressive Web App dengan Service Worker (cache aplikasi)</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- B4c. Kapasitas Layanan -->
+      <section class="dash-card" aria-labelledby="settings-capacity-heading" style="grid-column: 1 / -1;">
+        <div class="dash-card-header">
+          <div class="dash-card-heading-group">
+            <h3 id="settings-capacity-heading" class="dash-card-title">Kapasitas Layanan</h3>
+            <span class="dash-card-caption">Kapasitas Google Drive &amp; batas paket Firestore</span>
+          </div>
+          <button type="button" id="btn-settings-refresh-capacity" class="btn-secondary btn-sm-touch">
+            ${IKON_SEGAR}
+            <span>Perbarui</span>
+          </button>
+        </div>
+        <div class="dash-card-body">
+          <h4 class="sub-card-title">Google Drive</h4>
+          <dl class="detail-meta-grid">
+            <div class="detail-meta-row">
+              <dt>Kapasitas terpasang</dt>
+              <dd id="settings-quota-drive-total">Memuat...</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Kapasitas tersedia</dt>
+              <dd id="settings-quota-drive-free">Memuat...</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Terpakai (total akun)</dt>
+              <dd id="settings-quota-drive-used">Memuat...</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Terpakai (berkas Drive)</dt>
+              <dd id="settings-quota-drive-files">Memuat...</dd>
+            </div>
+          </dl>
+          <div class="capacity-bar" aria-hidden="true"><span id="settings-quota-drive-bar" style="width:0%"></span></div>
+          <p id="settings-quota-drive-note" class="field-hint-text" role="status" aria-live="polite"></p>
+
+          <h4 class="sub-card-title" style="margin-top: 18px;">Cloud Firestore (paket gratis Spark)</h4>
+          <dl class="detail-meta-grid">
+            <div class="detail-meta-row">
+              <dt>Kapasitas terpasang</dt>
+              <dd>${escapeHtml(KUOTA_FIRESTORE_SPARK.penyimpanan)} penyimpanan</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Kuota harian</dt>
+              <dd>${escapeHtml(KUOTA_FIRESTORE_SPARK.bacaPerHari)} baca · ${escapeHtml(KUOTA_FIRESTORE_SPARK.tulisPerHari)} tulis · ${escapeHtml(KUOTA_FIRESTORE_SPARK.hapusPerHari)} hapus</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Transfer keluar</dt>
+              <dd>${escapeHtml(KUOTA_FIRESTORE_SPARK.keluarPerBulan)} per bulan</dd>
+            </div>
+            <div class="detail-meta-row">
+              <dt>Pemakaian tersedia</dt>
+              <dd id="settings-quota-firestore-status">Tidak dapat dibaca dari peramban</dd>
+            </div>
+          </dl>
+          <p class="field-hint-text">
+            Pemakaian Firestore (tersisa) hanya dapat dilihat di Firebase Console &rarr; Firestore &rarr; Usage. Aplikasi tidak memiliki akses API kuota, sehingga angka di atas adalah batas paket, bukan sisa.
+          </p>
         </div>
       </section>
 
@@ -786,6 +888,60 @@ export async function perbaruiInfoVersiSwDiDom() {
   const ver = await bacaVersiDariSwJs();
   const verEl = document.getElementById("settings-sw-version");
   if (verEl) verEl.textContent = ver;
+}
+
+/** Memformat ukuran byte menjadi teks ringkas (mis. 12,5 GB). */
+function formatUkuranKapasitas(byteVal) {
+  const angka = Number(byteVal);
+  if (!Number.isFinite(angka) || angka <= 0) return "0 B";
+  const satuan = ["B", "KB", "MB", "GB", "TB"];
+  let nilai = angka;
+  let i = 0;
+  while (nilai >= 1024 && i < satuan.length - 1) {
+    nilai /= 1024;
+    i += 1;
+  }
+  const teks = i === 0 ? String(Math.round(nilai)) : nilai.toFixed(nilai >= 10 ? 1 : 2);
+  return `${teks.replace(".", ",")} ${satuan[i]}`;
+}
+
+/**
+ * Menampilkan kapasitas Google Drive pada kartu Kapasitas Layanan.
+ * @param {{ batas: number, terpakai: number, tersedia: number, diDrive: number, diSampah: number } | null} data
+ * @param {string} [pesanGalat]
+ */
+export function tampilkanKapasitasDrive(data, pesanGalat = "") {
+  const totalEl = document.getElementById("settings-quota-drive-total");
+  const freeEl = document.getElementById("settings-quota-drive-free");
+  const usedEl = document.getElementById("settings-quota-drive-used");
+  const filesEl = document.getElementById("settings-quota-drive-files");
+  const barEl = document.getElementById("settings-quota-drive-bar");
+  const noteEl = document.getElementById("settings-quota-drive-note");
+
+  if (pesanGalat || !data || !data.batas) {
+    const pesan = pesanGalat || "Kapasitas Drive tidak dapat dibaca saat ini.";
+    if (totalEl) totalEl.textContent = "Tidak tersedia";
+    if (freeEl) freeEl.textContent = "Tidak tersedia";
+    if (usedEl) usedEl.textContent = "Tidak tersedia";
+    if (filesEl) filesEl.textContent = "Tidak tersedia";
+    if (barEl) barEl.style.width = "0%";
+    if (noteEl) noteEl.textContent = pesan;
+    return;
+  }
+
+  const persen = Math.min(100, Math.round((data.terpakai / data.batas) * 1000) / 10);
+  if (totalEl) totalEl.textContent = formatUkuranKapasitas(data.batas);
+  if (freeEl) freeEl.textContent = formatUkuranKapasitas(data.tersedia);
+  if (usedEl) usedEl.textContent = `${formatUkuranKapasitas(data.terpakai)} (${String(persen).replace(".", ",")}%)`;
+  if (filesEl) {
+    filesEl.textContent = data.diSampah
+      ? `${formatUkuranKapasitas(data.diDrive)} · sampah ${formatUkuranKapasitas(data.diSampah)}`
+      : formatUkuranKapasitas(data.diDrive);
+  }
+  if (barEl) barEl.style.width = `${persen}%`;
+  if (noteEl) {
+    noteEl.textContent = "Angka berlaku untuk seluruh akun Google ini, termasuk Gmail dan Google Photos.";
+  }
 }
 
 /** Menampilkan/menyembunyikan status pemeriksaan pembaruan. */

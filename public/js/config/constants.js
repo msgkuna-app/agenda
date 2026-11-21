@@ -9,6 +9,7 @@ export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 // Endpoint API Google
 export const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
+export const DRIVE_ABOUT_API = "https://www.googleapis.com/drive/v3/about";
 export const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 
@@ -82,4 +83,14 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.30";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.31";
+
+// Batas paket gratis Firestore (Spark). Pemakaian aktual hanya terlihat di Firebase Console.
+// Angka ini dipakai kartu "Kapasitas Layanan" di Pengaturan sebagai acuan informasi.
+export const KUOTA_FIRESTORE_SPARK = Object.freeze({
+  penyimpanan: "1 GiB",
+  bacaPerHari: "50.000",
+  tulisPerHari: "20.000",
+  hapusPerHari: "20.000",
+  keluarPerBulan: "10 GiB",
+});

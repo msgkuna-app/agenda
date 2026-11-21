@@ -5,7 +5,7 @@
  * - Penanganan galat jelas: token kedaluwarsa, tidak ada koneksi, API belum aktif, 403/404 Google.
  * - Memperbarui token otomatis sebelum kedaluwarsa (lazy refresh via mintaTokenDrive di ambilTokenWajib).
  */
-import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, NAMA_FOLDER_FOTO, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
+import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, NAMA_FOLDER_FOTO, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, DRIVE_ABOUT_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
 export { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES };
 import {
   getFirestoreDb,
@@ -226,6 +226,30 @@ async function panggilDriveJson(url, opsi = {}) {
   const teks = await resp.text();
   if (!teks) return null;
   return JSON.parse(teks);
+}
+
+/**
+ * Membaca kapasitas Google Drive akun saat ini (about.get fields=storageQuota).
+ * @returns {Promise<{ batas: number, terpakai: number, tersedia: number, diDrive: number, diSampah: number }>}
+ */
+export async function ambilKapasitasDrive() {
+  const data = await panggilDriveJson(`${DRIVE_ABOUT_API}?fields=storageQuota`);
+  const kuota = data?.storageQuota || {};
+  const angka = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const batas = angka(kuota.limit);
+  const terpakai = angka(kuota.usage);
+  const diDrive = angka(kuota.usageInDrive);
+  const diSampah = angka(kuota.usageInDriveTrash);
+  return {
+    batas,
+    terpakai,
+    tersedia: batas > 0 ? Math.max(0, batas - terpakai) : 0,
+    diDrive,
+    diSampah,
+  };
 }
 
 /**
