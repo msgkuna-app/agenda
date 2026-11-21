@@ -8,7 +8,7 @@
 import { DEBOUNCE_DELAY_MS, BATAS_HASIL_PER_KELOMPOK, MAKS_PANJANG_CUPLIKAN } from "./config/constants.js";
 import { pindahKeBagian } from "./sidebar.js";
 import { ambilSemuaKegiatanSekaliPakai } from "./modules/kegiatan/index.js";
-import { ambilSemuaCatatanSekaliPakai } from "./catatan.js";
+import { ambilSemuaCatatanSekaliPakai } from "./modules/catatan/index.js";
 import { ambilSemuaDokumenSekaliPakai } from "./modules/dokumen/index.js";
 import { escapeHtml, svgIkon } from "./util-html.js";
 

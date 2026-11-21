@@ -30,7 +30,7 @@ import {
   isCatatanSudahDimuat,
   formatTanggalCatatan,
   tautanAmanGoogleDocs,
-} from "../../catatan.js";
+} from "../../modules/catatan/index.js";
 import { formatTanggalLengkapIndonesia, formatTanggalRingkasIndonesia, urutkanKegiatanKronologis } from "../../jadwal.js";
 import {
   getStatusCadangan,

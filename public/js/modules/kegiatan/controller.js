@@ -20,7 +20,7 @@ import {
   bukaModalBuatCatatanGdoc,
   formatTanggalCatatan,
   tautanAmanGoogleDocs
-} from "../../catatan.js";
+} from "../../modules/catatan/index.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,

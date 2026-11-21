@@ -50,7 +50,7 @@ import {
   getDaftarCatatan,
   onPerubahanCatatan,
   ambilSemuaCatatanSekaliPakai,
-} from "../../catatan.js";
+} from "../../modules/catatan/index.js";
 import { getDaftarLaporan } from "../../laporan.js";
 import { ambilKonfigurasiAktif } from "../../hari-libur.js";
 import { escapeHtml } from "../../util-html.js";

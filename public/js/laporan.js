@@ -51,7 +51,7 @@ import {
   onPerubahanCatatan,
   tautanAmanGoogleDocs,
   ambilSemuaCatatanSekaliPakai
-} from "./catatan.js";
+} from "./modules/catatan/index.js";
 import {
   pastikanFolderIndukDrive,
   pindahkanBerkasKeFolderDrive,

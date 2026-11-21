@@ -11,7 +11,7 @@ import { TANPA_KATEGORI_INFO } from "../../kategori.js";
 import { initFilterPanel } from "../../filter-panel.js";
 import { parseTanggal } from "../../util-tanggal.js";
 import { infoHari } from "../../hari-libur.js";
-import { getCatatanTerkaitKegiatan } from "../../catatan.js";
+import { getCatatanTerkaitKegiatan } from "../../modules/catatan/index.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,

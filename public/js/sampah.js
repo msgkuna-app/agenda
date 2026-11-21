@@ -27,7 +27,7 @@ import {
   pulihkanCatatan,
   hapusPermanenCatatan,
   JENIS_CATATAN_GDOC
-} from "./catatan.js";
+} from "./modules/catatan/index.js";
 import { parseTanggal, hariIni } from "./util-tanggal.js";
 import { tampilkanToast } from "./shared/toast.js";
 import {

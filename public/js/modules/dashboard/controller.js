@@ -17,7 +17,7 @@ import {
 import {
   onPerubahanCatatan,
   sorotCatatanDiHalaman,
-} from "../../catatan.js";
+} from "../../modules/catatan/index.js";
 import {
   bukaJadwalPadaTanggal,
   bukaDialogDetailKegiatan,

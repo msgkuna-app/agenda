@@ -61,7 +61,7 @@ import {
   sorotCatatanDiHalaman,
   perbaruiStatusJaringanCatatan,
   daftarkanPembukaDetailKegiatanCatatan,
-} from "./catatan.js";
+} from "./modules/catatan/index.js";
 import {
   initHalamanLaporan,
   subscribeLaporan,
