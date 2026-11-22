@@ -5,7 +5,7 @@
  *
  * Aturan: tidak memasang event listener dan tidak menulis state.
  */
-import { VERSI_CADANGAN_SW, KUOTA_FIRESTORE_SPARK, KUOTA_FIRESTORE_SPARK_ANGKA } from "../../config/constants.js";
+import { VERSI_CADANGAN_SW, KUOTA_FIRESTORE_SPARK, URL_PEMAKAIAN_FIRESTORE_CONSOLE } from "../../config/constants.js";
 import { getCurrentUser, isDriveTokenExpired } from "../../services/authService.js";
 import { getPreferensiTema, terapkanTema } from "../../tema.js";
 import { parseTanggal, tanggalLokal } from "../../util-tanggal.js";
@@ -364,61 +364,39 @@ export function pastikanKerangkaHalamanPengaturan() {
             </div>
           </dl>
           <p class="field-hint-text">
-            Angka di atas adalah batas paket, bukan sisa. Pemakaian nyata di bawah ini dibaca langsung dari Google Cloud Monitoring API.
+            Angka di atas adalah batas paket, bukan sisa. Pemakaian sebenarnya tidak dapat dibaca lewat API pada paket Spark — lihat tombol dan panduan di bawah.
           </p>
 
-          <h5 class="sub-card-title sub-card-title-kecil">Pemakaian nyata (24 jam terakhir)</h5>
-          <dl class="detail-meta-grid">
-            <div class="detail-meta-row">
-              <dt>Dokumen dibaca</dt>
-              <dd id="settings-firestore-read">Belum dimuat</dd>
-            </div>
-            <div class="detail-meta-row">
-              <dt>Dokumen ditulis</dt>
-              <dd id="settings-firestore-write">Belum dimuat</dd>
-            </div>
-            <div class="detail-meta-row">
-              <dt>Dokumen dihapus</dt>
-              <dd id="settings-firestore-delete">Belum dimuat</dd>
-            </div>
-            <div class="detail-meta-row">
-              <dt>Penyimpanan terpakai</dt>
-              <dd id="settings-firestore-storage">Belum dimuat</dd>
-            </div>
-          </dl>
-          <div id="settings-firestore-chart" class="firestore-usage-chart" hidden aria-hidden="true"></div>
-          <p id="settings-firestore-note" class="field-hint-text" role="status" aria-live="polite">
-            Tekan &ldquo;Muat pemakaian Firestore&rdquo; untuk membaca pemakaian sebenarnya. Pemuatan pertama akan meminta izin baca metrik Google Cloud (cakupan tambahan, hanya baca).
+          <p class="field-hint-text">
+            Pemakaian harian (baca/tulis/hapus) dan penyimpanan hanya tersedia di Firebase Console. Google Cloud Monitoring API — sumber data pemakaian secara terprogram — mensyaratkan proyek memiliki penagihan aktif (paket Blaze), sehingga permintaan dari aplikasi ini selalu ditolak pada paket Spark.
           </p>
-          <button type="button" id="btn-settings-refresh-firestore" class="btn-secondary btn-sm-touch settings-firestore-btn">
-            ${IKON_SEGAR}
-            <span>Muat pemakaian Firestore</span>
-          </button>
+          <a
+            class="btn-secondary btn-sm-touch settings-firestore-btn"
+            href="${URL_PEMAKAIAN_FIRESTORE_CONSOLE}"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Buka Firebase Console &rarr; Firestore &rarr; Usage</a>
 
           <details class="settings-guide">
-            <summary>Tentang sumber data pemakaian Firestore</summary>
+            <summary>Kenapa pemakaian tidak tampil otomatis</summary>
             <ol class="settings-guide-steps">
               <li>
-                <strong>Dari mana angkanya.</strong> Nilai pemakaian diambil dari Google Cloud Monitoring API
-                (metrik <code>firestore.googleapis.com/document/read_count</code>, <code>document/write_count</code>,
-                <code>document/delete_count</code>, dan <code>storage/utilization</code>) memakai izin baca-saja
-                <code>https://www.googleapis.com/auth/monitoring.read</code>. Izin ini terpisah dari izin Google Drive,
-                jadi layar persetujuan tambahan hanya muncul sekali.
+                <strong>Sumber resmi pemakaian.</strong> Angka baca/tulis/hapus dan penyimpanan yang dilihat aplikasi ini tidak disediakan lewat SDK Firestore.
+                Satu-satunya jalur terprogram adalah Google Cloud Monitoring API (metrik <code>firestore.googleapis.com/document/read_count</code>,
+                <code>document/write_count</code>, <code>document/delete_count</code>, dan <code>storage/utilization</code>) — sumber yang sama dengan grafik di console Firebase.
               </li>
               <li>
-                <strong>Aktifkan Cloud Monitoring API (sekali saja).</strong> Bila muncul pesan bahwa API belum aktif, buka
-                <a href="https://console.cloud.google.com/apis/library/monitoring.googleapis.com?project=msgkuna-app-85dfb" target="_blank" rel="noopener noreferrer">Cloud Console &rarr; API Library &rarr; Cloud Monitoring API</a>,
-                pastikan proyek <code>msgkuna-app-85dfb</code> terpilih, lalu klik <em>Enable</em>. Pengaktifan API ini gratis dan tidak memakai kuota Spark.
+                <strong>Kenapa gagal di paket Spark.</strong> Google mewajibkan proyek pemanggil memiliki <strong>akun penagihan aktif</strong> untuk memakai Monitoring API.
+                Proyek paket gratis Spark tidak memiliki akun penagihan, sehingga Google menjawab dengan 403
+                <em>&ldquo;This API method requires billing to be enabled&rdquo;</em>. Ini batas paket, bukan galat aplikasi atau kekurangan izin.
               </li>
               <li>
-                <strong>Pemeriksaan manual bila perlu.</strong> Buka
-                <a href="https://console.cloud.google.com/monitoring/metrics-explorer?project=msgkuna-app-85dfb" target="_blank" rel="noopener noreferrer">Metrics Explorer</a>
-                untuk melihat grafik resmi metrik yang sama, atau bandingkan dengan halaman
-                <em>Firebase Console &rarr; Firestore &rarr; Usage</em>.
+                <strong>Cara melihat pemakaian tanpa biaya.</strong> Gunakan tombol <em>Buka Firebase Console &rarr; Firestore &rarr; Usage</em> di atas; grafiknya gratis dan lengkap.
+                Bandingkan dengan tabel batas paket di atas untuk mengetahui sisa ruang.
               </li>
               <li>
-                <strong>Batasan yang perlu diketahui.</strong> Monitoring API menyediakan <em>pemakaian</em>, bukan sisa kuota; batas paket tetap seperti tabel di atas.
-                Data metrik tertunda beberapa menit, angka penyimpanan adalah perkiraan ukuran basis data, dan perhitungan kuota harian resmi Firestore mengikuti zona waktu Pasifik — bukan tengah malam WIB.
+                <strong>Batasan yang perlu diketahui.</strong> Kuota harian resmi Firestore dihitung mengikuti zona waktu Pasifik — bukan tengah malam WIB — dan grafik console dapat tertunda beberapa menit.
+                Transfer keluar (egress) hanya tampil di Firebase Console, tidak termasuk metrik di atas.
               </li>
             </ol>
           </details>
@@ -994,118 +972,6 @@ export function tampilkanKapasitasDrive(data, pesanGalat = "") {
   if (noteEl) {
     noteEl.textContent = "Angka berlaku untuk seluruh akun Google ini, termasuk Gmail dan Google Photos.";
   }
-}
-
-/** Memformat angka operasi dengan pemisah ribuan gaya Indonesia. */
-function formatAngkaPemakaian(angka) {
-  const n = Number(angka);
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  return Math.round(n)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-
-/** Memformat stempel waktu ISO menjadi "YYYY-MM-DD HH:MM" waktu lokal perangkat. */
-function formatWaktuPemakaian(isoTimestamp) {
-  const d = new Date(String(isoTimestamp || ""));
-  if (Number.isNaN(d.getTime())) return "-";
-  const jam = String(d.getHours()).padStart(2, "0");
-  const menit = String(d.getMinutes()).padStart(2, "0");
-  return `${tanggalLokal(d)} ${jam}:${menit}`;
-}
-
-/**
- * Memformat satu baris pemakaian operasi beserta persentase terhadap kuota harian Spark.
- * @param {number} nilai
- * @param {number} batas
- */
-function formatBarisPemakaian(nilai, batas) {
-  const angka = Number(nilai) || 0;
-  const persen = batas > 0 ? (angka / batas) * 100 : 0;
-  const persenTeks = persen > 0 && persen < 0.1 ? "<0,1" : String(Math.round(persen * 10) / 10).replace(".", ",");
-  return `${formatAngkaPemakaian(angka)} (${persenTeks}% dari kuota harian)`;
-}
-
-/** Menggambar grafik batang sederhana pemakaian baca per jam (24 batang terakhir). */
-function renderGrafikPemakaianFirestore(deret, waktuDeret, labelAkses) {
-  const wadah = document.getElementById("settings-firestore-chart");
-  if (!wadah) return;
-
-  const nilai = Array.isArray(deret) ? deret.map((n) => Math.max(0, Number(n) || 0)) : [];
-  if (nilai.length === 0) {
-    wadah.hidden = true;
-    wadah.innerHTML = "";
-    return;
-  }
-
-  const waktu = Array.isArray(waktuDeret) ? waktuDeret : [];
-  const maks = Math.max(...nilai);
-  const batang = nilai
-    .map((n, i) => {
-      const tinggi = maks > 0 ? Math.max(2, Math.round((n / maks) * 100)) : 2;
-      const jam = formatWaktuPemakaian(waktu[i]);
-      return `<span class="firestore-usage-bar" style="height:${tinggi}%" title="${escapeHtml(`${jam} · ${formatAngkaPemakaian(n)} baca`)}"></span>`;
-    })
-    .join("");
-
-  wadah.innerHTML = `<div class="firestore-usage-bars">${batang}</div>
-    <p class="firestore-usage-caption">${escapeHtml(labelAkses)}</p>`;
-  wadah.hidden = false;
-}
-
-/**
- * Menampilkan pemakaian Firestore nyata (hasil Cloud Monitoring API) pada kartu Kapasitas Layanan.
- * @param {{ baca: object, tulis: object, hapus: object, penyimpananByte: number, jendelaJam: number, diperbaruiPada: string } | null} data
- * @param {string} [pesanGalat]
- */
-export function tampilkanPemakaianFirestore(data, pesanGalat = "") {
-  const bacaEl = document.getElementById("settings-firestore-read");
-  const tulisEl = document.getElementById("settings-firestore-write");
-  const hapusEl = document.getElementById("settings-firestore-delete");
-  const simpanEl = document.getElementById("settings-firestore-storage");
-  const catatanEl = document.getElementById("settings-firestore-note");
-
-  if (pesanGalat || !data) {
-    const pesan =
-      pesanGalat ||
-      "Pemakaian Firestore belum dimuat. Tekan “Muat pemakaian Firestore” untuk membacanya dari Cloud Monitoring API.";
-    if (bacaEl) bacaEl.textContent = "Belum dimuat";
-    if (tulisEl) tulisEl.textContent = "Belum dimuat";
-    if (hapusEl) hapusEl.textContent = "Belum dimuat";
-    if (simpanEl) simpanEl.textContent = "Belum dimuat";
-    if (catatanEl) catatanEl.textContent = pesan;
-    renderGrafikPemakaianFirestore([], [], "");
-    return;
-  }
-
-  const totalBaca = Number(data.baca?.total) || 0;
-  const totalTulis = Number(data.tulis?.total) || 0;
-  const totalHapus = Number(data.hapus?.total) || 0;
-  const penyimpananByte = Number(data.penyimpananByte);
-
-  if (bacaEl) bacaEl.textContent = formatBarisPemakaian(totalBaca, KUOTA_FIRESTORE_SPARK_ANGKA.bacaPerHari);
-  if (tulisEl) tulisEl.textContent = formatBarisPemakaian(totalTulis, KUOTA_FIRESTORE_SPARK_ANGKA.tulisPerHari);
-  if (hapusEl) hapusEl.textContent = formatBarisPemakaian(totalHapus, KUOTA_FIRESTORE_SPARK_ANGKA.hapusPerHari);
-  if (simpanEl) {
-    if (!Number.isFinite(penyimpananByte) || penyimpananByte < 0) {
-      simpanEl.textContent = "Tidak tersedia";
-    } else {
-      const persen = (penyimpananByte / KUOTA_FIRESTORE_SPARK_ANGKA.penyimpananByte) * 100;
-      const persenTeks = persen > 0 && persen < 0.1 ? "<0,1" : String(Math.round(persen * 10) / 10).replace(".", ",");
-      simpanEl.textContent = `${formatUkuranKapasitas(penyimpananByte)} (${persenTeks}% dari 1 GiB)`;
-    }
-  }
-
-  if (catatanEl) {
-    const jam = Number(data.jendelaJam) || 24;
-    catatanEl.textContent = `Terakhir diperbarui ${formatWaktuPemakaian(data.diperbaruiPada)} · jendela ${jam} jam terakhir. Metrik Google dapat tertunda beberapa menit dan kuota harian resmi Firestore memakai zona waktu Pasifik.`;
-  }
-
-  renderGrafikPemakaianFirestore(
-    data.baca?.nilaiPerPeriode,
-    data.baca?.waktuPerPeriode,
-    "Jumlah dokumen dibaca per jam (24 jam terakhir)"
-  );
 }
 
 /** Menampilkan/menyembunyikan status pemeriksaan pembaruan. */

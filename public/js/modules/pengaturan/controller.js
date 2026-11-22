@@ -24,10 +24,8 @@ import {
   loginWithGoogle,
   isDriveTokenExpired,
   formatPesanGalatAuth,
-  apakahIzinMonitoringPernahDiberikan,
 } from "../../services/authService.js";
 import { formatPesanGalatDrive, ambilKapasitasDrive } from "../../services/driveService.js";
-import { ambilPemakaianFirestore, formatPesanGalatMonitoring } from "../../services/monitoringService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import { periksaPembaruan } from "../../pwa.js";
@@ -73,7 +71,6 @@ import {
   perbaruiInfoVersiSwDiDom,
   bacaVersiDariSwJs,
   tampilkanKapasitasDrive,
-  tampilkanPemakaianFirestore,
   renderDaftarHariLiburPengaturan,
   setTahunLiburAktif,
   tahunLiburAktif,
@@ -98,8 +95,6 @@ let dataSiapImpor = null;
 let namaBerkasImpor = "";
 let sedangMemuatKapasitasDrive = false;
 let kapasitasDriveSudahDimuat = false;
-let sedangMemuatPemakaianFirestore = false;
-let percobaanSenyapPemakaianDilakukan = false;
 
 // ============================================================================
 // Aksi: kapasitas Google Drive
@@ -140,81 +135,6 @@ async function perbaruiKapasitasDrive(opsi = {}) {
 export function muatKapasitasDriveSekali(opsi = {}) {
   if (kapasitasDriveSudahDimuat && !opsi.paksa) return;
   return perbaruiKapasitasDrive({ tampilkanToast: Boolean(opsi.tampilkanToast) });
-}
-
-// ============================================================================
-// Aksi: pemakaian Firestore (Cloud Monitoring API)
-// ============================================================================
-
-/**
- * Membaca pemakaian Firestore nyata lewat Cloud Monitoring API lalu menampilkannya.
- * Karena cakupan izinnya berbeda dari Drive, pemuatan pertama akan memunculkan
- * layar persetujuan Google; pemuatan berikutnya berjalan senyap.
- * @param {{ tampilkanToast?: boolean, senyap?: boolean }} [opsi]
- */
-async function perbaruiPemakaianFirestore(opsi = {}) {
-  if (sedangMemuatPemakaianFirestore) return;
-  if (!navigator.onLine) {
-    tampilkanPemakaianFirestore(null, "Perangkat sedang luring. Pemakaian Firestore memerlukan sambungan internet.");
-    return;
-  }
-
-  sedangMemuatPemakaianFirestore = true;
-  const btn = document.getElementById("btn-settings-refresh-firestore");
-  if (btn instanceof HTMLButtonElement) btn.disabled = true;
-
-  try {
-    const pemakaian = await ambilPemakaianFirestore({ senyap: Boolean(opsi.senyap) });
-    tampilkanPemakaianFirestore(pemakaian);
-  } catch (err) {
-    // Pemuatan lewat tombol tetapi gagal senyap (izin/token tidak valid): coba sekali dengan dialog.
-    if (opsi.tampilkanToast && opsi.senyap) {
-      try {
-        const pemakaianUlang = await ambilPemakaianFirestore({ senyap: false });
-        tampilkanPemakaianFirestore(pemakaianUlang);
-        return;
-      } catch (errUlang) {
-        const pesanUlang = formatPesanGalatMonitoring(errUlang);
-        tampilkanPemakaianFirestore(null, pesanUlang);
-        tampilkanToast(`Gagal membaca pemakaian Firestore: ${pesanUlang}`, "warning");
-        return;
-      }
-    }
-
-    const pesan = formatPesanGalatMonitoring(err);
-    if (opsi.senyap) {
-      // Percobaan otomatis: tampilkan keadaan netral, jangan bisingkan pengguna.
-      tampilkanPemakaianFirestore(null, "");
-    } else {
-      tampilkanPemakaianFirestore(null, pesan);
-      if (opsi.tampilkanToast) tampilkanToast(`Gagal membaca pemakaian Firestore: ${pesan}`, "warning");
-    }
-  } finally {
-    sedangMemuatPemakaianFirestore = false;
-    if (btn instanceof HTMLButtonElement) btn.disabled = false;
-  }
-}
-
-/**
- * Memuat pemakaian Firestore secara senyap saat halaman Pengaturan dibuka
- * (tanpa memunculkan dialog bila izin sudah pernah diberikan).
- * Percobaan senyap hanya dilakukan sekali per sesi agar tidak berulang.
- * @param {{ tampilkanToast?: boolean }} [opsi]
- */
-export function muatPemakaianFirestoreSekali(opsi = {}) {
-  const interaktif = Boolean(opsi.tampilkanToast);
-  if (!interaktif) {
-    // Tanpa aksi pengguna: hanya boleh mencoba senyap bila izin sudah pernah diberikan,
-    // agar tidak ada dialog persetujuan yang muncul sendiri.
-    if (percobaanSenyapPemakaianDilakukan || !apakahIzinMonitoringPernahDiberikan()) return;
-    percobaanSenyapPemakaianDilakukan = true;
-  }
-  // Bila izin sudah pernah diberikan, coba tanpa dialog lebih dahulu; dialog hanya
-  // dimunculkan saat izin memang belum ada (atau saat percobaan senyap gagal).
-  return perbaruiPemakaianFirestore({
-    tampilkanToast: interaktif,
-    senyap: apakahIzinMonitoringPernahDiberikan(),
-  });
 }
 
 // ============================================================================
@@ -969,8 +889,6 @@ export function initHalamanPengaturan() {
         tanganiPeriksaPembaruanSw();
       } else if (target.closest("#btn-settings-refresh-capacity")) {
         muatKapasitasDriveSekali({ paksa: true, tampilkanToast: true });
-      } else if (target.closest("#btn-settings-refresh-firestore")) {
-        muatPemakaianFirestoreSekali({ tampilkanToast: true });
       } else if (target.closest("#btn-settings-export-json")) {
         eksporSeluruhDataJson();
       } else if (target.closest("#btn-settings-migrate-dihapusat")) {
@@ -1231,7 +1149,5 @@ export function resetHalamanPengaturanSaatKeluar() {
   sembunyikanRingkasanImpor();
   setStatusMigrasi("", false);
   kapasitasDriveSudahDimuat = false;
-  percobaanSenyapPemakaianDilakukan = false;
   tampilkanKapasitasDrive(null, "Masuk untuk melihat kapasitas Google Drive.");
-  tampilkanPemakaianFirestore(null, "");
 }

@@ -45,7 +45,6 @@ export {
   resetHalamanPengaturanSaatKeluar,
   jalankanMigrasiDihapusAt,
   muatKapasitasDriveSekali,
-  muatPemakaianFirestoreSekali,
 } from "./controller.js";
 
 export { eksporSeluruhDataJson };
