@@ -88,7 +88,7 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.35";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.36";
 
 // Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
 // di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.

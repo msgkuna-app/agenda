@@ -59,6 +59,7 @@ function buatGalatMonitoring(status, pesanAsli, alasanKode = "") {
   const err = new Error(pesan);
   err.status = status;
   err.reason = alasanKode;
+  err.detail = String(pesanAsli || "").slice(0, 300);
   err.isApiDisabled = status === 403;
   err.isUnauthorized = status === 401;
   err.isTokenExpired = status === 401;
@@ -70,8 +71,10 @@ export function formatPesanGalatMonitoring(err) {
   if (!navigator.onLine) {
     return "Tidak ada koneksi internet. Periksa jaringan Anda lalu coba lagi.";
   }
+  const detail =
+    err && typeof err === "object" && typeof err.detail === "string" ? err.detail.trim() : "";
   if (err instanceof Error && err.message) {
-    return err.message;
+    return detail ? `${err.message} (Detail Google: ${detail})` : err.message;
   }
   return "Terjadi kesalahan saat membaca pemakaian Firestore.";
 }
