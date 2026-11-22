@@ -93,25 +93,27 @@ export function gulirAreaKontenKeAtas() {
 }
 
 /**
- * Memperbarui indikator status koneksi di bagian bawah sidebar (di atas pemilih tema)
- * tanpa menggeser atau memotong struktur sidebar.
+ * Memperbarui indikator status koneksi (ikon saja) di sudut kanan header.
  * @param {boolean} sedangOnline
  */
 export function perbaruiStatusKoneksiSidebar(sedangOnline) {
-  const pill = document.getElementById("sidebar-network-indicator");
-  const label = document.getElementById("sidebar-network-label");
-  if (!pill || !label) return;
+  const indikator = document.getElementById("header-network-indicator");
+  if (!indikator) return;
 
-  pill.classList.toggle("is-offline", !sedangOnline);
-  pill.classList.toggle("is-online", sedangOnline);
-  const teks = sedangOnline ? "Terhubung (Online)" : "Mode Luring (Offline)";
+  indikator.classList.toggle("is-offline", !sedangOnline);
+  indikator.classList.toggle("is-online", sedangOnline);
+
+  const ikonOnline = indikator.querySelector(".header-network-online");
+  const ikonOffline = indikator.querySelector(".header-network-offline");
+  if (ikonOnline instanceof HTMLElement) ikonOnline.hidden = !sedangOnline;
+  if (ikonOffline instanceof HTMLElement) ikonOffline.hidden = sedangOnline;
+
   const tooltip = sedangOnline
     ? "Perangkat terhubung ke internet"
     : "Luring — menampilkan data tersimpan di perangkat";
-  label.textContent = teks;
-  pill.setAttribute("data-tooltip", tooltip);
-  pill.setAttribute("title", tooltip);
-  pill.setAttribute("aria-label", tooltip);
+  indikator.setAttribute("data-tooltip", tooltip);
+  indikator.setAttribute("title", tooltip);
+  indikator.setAttribute("aria-label", tooltip);
 }
 
 export function bukaDrawerMobile() {
