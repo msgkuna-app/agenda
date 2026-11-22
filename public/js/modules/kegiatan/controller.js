@@ -5,13 +5,16 @@
  * subscribe/unsubscribe langganan Firestore. Render dipicu lewat
  * onPerubahanKegiatan() dari state (pola yang sama dengan modul pengaturan).
  */
-import { DAFTAR_STATUS_KEGIATAN, KOLEKSI } from "../../config/constants.js";
+import { DAFTAR_STATUS_KEGIATAN, KOLEKSI, MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
 import { getFirestoreDb, collection, doc, addDoc, updateDoc, formatPesanGalatFirestore } from "../../services/firestoreService.js";
+import { formatPesanGalatDrive } from "../../services/driveService.js";
+import { svgIkon, escapeHtml } from "../../util-html.js";
+import { formatUkuranBerkas } from "../dokumen/format.js";
+import { unggahBerkasSebagaiDokumenKegiatan } from "../dokumen/unggah-kegiatan.js";
 import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import { tampilkanToast } from "../../shared/toast.js";
-import { escapeHtml } from "../../util-html.js";
 import {
   JENIS_CATATAN_GDOC,
   getCatatanTerkaitKegiatan,
@@ -69,6 +72,44 @@ let formModalTerbuka = false;
 let hapusModalTerbuka = false;
 let idKegiatanAkanDihapus = null;
 let fokusSebelumModalKegiatan = null;
+
+// Berkas dokumen pendukung yang dipilih di form (belum diunggah ke Drive).
+let berkasDokumenForm = [];
+
+const IKON_HAPUS_BERKAS = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>';
+
+/**
+ * Merender daftar berkas dokumen pendukung yang dipilih pada form kegiatan,
+ * lengkap dengan tombol hapus per berkas.
+ */
+function renderDaftarBerkasDokumenForm() {
+  const list = document.getElementById("kegiatan-dokumen-daftar");
+  if (!list) return;
+
+  if (berkasDokumenForm.length === 0) {
+    list.innerHTML = "";
+    list.hidden = true;
+    return;
+  }
+
+  list.hidden = false;
+  list.innerHTML = berkasDokumenForm
+    .map(
+      (berkas, indeks) => `<li class="form-file-item">
+        <span class="form-file-name" title="${escapeHtml(berkas.name)}">${escapeHtml(berkas.name)}</span>
+        <span class="form-file-size">${escapeHtml(formatUkuranBerkas(berkas.size))}</span>
+        <button type="button" class="form-file-remove" data-indeks-berkas="${indeks}" title="Hapus berkas dari daftar" aria-label="Hapus ${escapeHtml(berkas.name)} dari daftar dokumen">${svgIkon(IKON_HAPUS_BERKAS, 15, 2)}</button>
+      </li>`
+    )
+    .join("");
+}
+
+function kosongkanBerkasDokumenForm() {
+  berkasDokumenForm = [];
+  renderDaftarBerkasDokumenForm();
+  const input = document.getElementById("kegiatan-dokumen-input");
+  if (input instanceof HTMLInputElement) input.value = "";
+}
 
 let pembukaDetailKegiatanFn = null;
 let idKegiatanTerakhirDiklik = "";
@@ -249,6 +290,8 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
   if (tanggalInput) {
     perbaruiPetunjukHariLiburForm(tanggalInput.value);
   }
+
+  kosongkanBerkasDokumenForm();
 
   formModalTerbuka = true;
   modal.hidden = false;
@@ -607,6 +650,46 @@ export function initHalamanKegiatan() {
     });
   }
 
+  const dokumenInputEl = document.getElementById("kegiatan-dokumen-input");
+  if (dokumenInputEl instanceof HTMLInputElement) {
+    dokumenInputEl.addEventListener("change", () => {
+      const batasBytes = MAKS_UKURAN_BERKAS_MB * 1024 * 1024;
+      const berkasBaru = Array.from(dokumenInputEl.files || []);
+      const terlaluBesar = berkasBaru.filter((f) => f.size > batasBytes);
+
+      if (terlaluBesar.length > 0) {
+        const daftarNama = terlaluBesar
+          .slice(0, 3)
+          .map((f) => f.name)
+          .join(", ");
+        setPesanGalatFormKegiatan(
+          `Berkas berikut melebihi batas maksimum ${MAKS_UKURAN_BERKAS_MB} MB dan tidak ditambahkan: ${daftarNama}${terlaluBesar.length > 3 ? ", ..." : ""}`
+        );
+      } else {
+        setPesanGalatFormKegiatan("");
+      }
+
+      berkasBaru
+        .filter((f) => f.size <= batasBytes)
+        .forEach((f) => berkasDokumenForm.push(f));
+
+      dokumenInputEl.value = "";
+      renderDaftarBerkasDokumenForm();
+    });
+  }
+
+  const dokumenDaftarEl = document.getElementById("kegiatan-dokumen-daftar");
+  if (dokumenDaftarEl) {
+    dokumenDaftarEl.addEventListener("click", (e) => {
+      const btn = e.target instanceof Element ? e.target.closest("button[data-indeks-berkas]") : null;
+      if (!btn) return;
+      const indeks = Number(btn.getAttribute("data-indeks-berkas"));
+      if (!Number.isInteger(indeks) || indeks < 0 || indeks >= berkasDokumenForm.length) return;
+      berkasDokumenForm.splice(indeks, 1);
+      renderDaftarBerkasDokumenForm();
+    });
+  }
+
   if (formEl) {
     formEl.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -622,8 +705,19 @@ export function initHalamanKegiatan() {
 
       const idEdit = String(document.getElementById("kegiatan-edit-id")?.value || "").trim();
       const sekarang = new Date().toISOString();
+      const berkasAkanDiunggah = [...berkasDokumenForm];
+
+      if (berkasAkanDiunggah.length > 0 && !navigator.onLine) {
+        setPesanGalatFormKegiatan(
+          "Dokumen pendukung memerlukan koneksi internet untuk diunggah ke Google Drive. Hapus berkas dari daftar atau sambungkan perangkat terlebih dahulu."
+        );
+        return;
+      }
 
       if (formSubmitBtn) formSubmitBtn.disabled = true;
+      let idKegiatanTersimpan = idEdit;
+      let berkasGagal = 0;
+      let pesanGagalTerakhir = "";
       try {
         const db = getFirestoreDb();
         if (idEdit) {
@@ -632,18 +726,56 @@ export function initHalamanKegiatan() {
           beritahuPerubahanKegiatan();
         } else {
           // Fase 5: Selalu setel dihapusAt: null pada dokumen baru
-          await addDoc(collection(db, KOLEKSI.KEGIATAN), {
+          const refBaru = await addDoc(collection(db, KOLEKSI.KEGIATAN), {
             ...payload,
             dihapusAt: null,
             createdAt: sekarang,
             updatedAt: sekarang
           });
+          idKegiatanTersimpan = refBaru.id;
         }
+
+        if (berkasAkanDiunggah.length > 0) {
+          const total = berkasAkanDiunggah.length;
+          for (let i = 0; i < total; i += 1) {
+            const berkas = berkasAkanDiunggah[i];
+            if (formSubmitBtn) {
+              formSubmitBtn.textContent = `Mengunggah dokumen ${i + 1}/${total}...`;
+            }
+            try {
+              await unggahBerkasSebagaiDokumenKegiatan({
+                file: berkas,
+                kegiatanId: idKegiatanTersimpan,
+                kategoriId: payload.kategoriId,
+              });
+            } catch (errUnggah) {
+              berkasGagal += 1;
+              pesanGagalTerakhir = formatPesanGalatDrive(errUnggah);
+            }
+          }
+        }
+
+        berkasDokumenForm = [];
+        renderDaftarBerkasDokumenForm();
         tutupModalFormKegiatan(true);
+
+        const berkasBerhasil = berkasAkanDiunggah.length - berkasGagal;
+        if (berkasGagal > 0) {
+          tampilkanToast(
+            `Kegiatan tersimpan, tetapi ${berkasGagal} dari ${berkasAkanDiunggah.length} dokumen gagal diunggah${pesanGagalTerakhir ? `: ${pesanGagalTerakhir}` : "."}`,
+            "warning",
+            { durasiMs: 9000 }
+          );
+        } else if (berkasBerhasil > 0) {
+          tampilkanToast(`${berkasBerhasil} dokumen berhasil diunggah`, "success");
+        }
       } catch (err) {
         setPesanGalatFormKegiatan(formatPesanGalatFirestore(err));
       } finally {
-        if (formSubmitBtn) formSubmitBtn.disabled = false;
+        if (formSubmitBtn) {
+          formSubmitBtn.disabled = false;
+          formSubmitBtn.textContent = idEdit ? "Simpan Perubahan" : "Simpan Kegiatan";
+        }
       }
     });
   }

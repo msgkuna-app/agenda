@@ -23,6 +23,8 @@ import {
   sinkronkanJendelaTanggalKegiatan
 } from "./modules/kegiatan/index.js";
 import { infoHari, adaDataTahun } from "./hari-libur.js";
+import { getDaftarDokumen, onPerubahanDokumen } from "./modules/dokumen/state.js";
+import { htmlDokumenKegiatan } from "./modules/dokumen/kegiatan-view.js";
 
 // Nama hari/bulan & svgIkon kini diimpor dari util-html.js (Tahap 4: deduplikasi).
 // NAMA_HARI_DARI_MINGGU -> NAMA_HARI, NAMA_BULAN_PANJANG -> NAMA_BULAN, NAMA_BULAN_RINGKAS -> NAMA_BULAN_PENDEK.
@@ -214,6 +216,7 @@ function renderKartuItemJadwal(item) {
       ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
     </div>
     ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
+    ${htmlDokumenKegiatan(item.id, getDaftarDokumen().filter((d) => d.kegiatanId === item.id))}
     <div class="kegiatan-card-footer">
       <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Ubah</button>
       <button type="button" class="btn-danger-outline btn-sm-touch" data-action="hapus-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Hapus</button>
@@ -774,6 +777,8 @@ export function initHalamanJadwal() {
   }
 
   onPerubahanKegiatan(() => renderHalamanJadwal());
+  // Dokumen terkait ditampilkan di kartu jadwal — segarkan saat data dokumen berubah.
+  onPerubahanDokumen(() => renderHalamanJadwal());
   renderHalamanJadwal();
 }
 

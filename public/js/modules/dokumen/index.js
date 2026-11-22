@@ -36,5 +36,8 @@ export {
   bukaModalUnggahDokumen,
 } from "./controller.js";
 
+// Unggahan dokumen dari form kegiatan.
+export { unggahBerkasSebagaiDokumenKegiatan } from "./unggah-kegiatan.js";
+
 // Konstanta yang dulu di-re-export dokumen.js — dipertahankan demi kompatibilitas.
 export { MAKS_UKURAN_BERKAS_MB, UKURAN_HALAMAN_DOKUMEN };

@@ -20,9 +20,7 @@ import {
 } from "../../services/firestoreService.js";
 import {
   buatSubfolderKategoriDrive,
-  pastikanFolderTanpaKategoriDrive,
   gantiNamaFolderDrive,
-  ambilMetadataItemDrive,
   pindahkanItemKeSampahDrive,
   pindahkanBerkasKeFolderDrive,
   unggahBerkasKeDrive,
@@ -66,6 +64,7 @@ import {
   setUnggahSedangBerjalan,
 } from "./view.js";
 import { formatUkuranBerkas, infoJenisBerkasMime } from "./format.js";
+import { pastikanFolderTujuanKategoriSiap } from "./folder.js";
 
 // --- State lokal controller --------------------------------------------------
 
@@ -134,42 +133,8 @@ export async function sinkronkanSatuFolderKategoriDokumen(kategoriId) {
 }
 
 // --- Folder tujuan unggah ----------------------------------------------------
-
-async function pastikanFolderTujuanKategoriSiap(kategoriId) {
-  const idBersih = String(kategoriId || "").trim();
-  const kat = idBersih ? manajerKategoriDokumen.ambilKategoriById(idBersih) : null;
-
-  if (!kat) {
-    return pastikanFolderTanpaKategoriDrive();
-  }
-
-  if (kat.folderId) {
-    try {
-      const meta = await ambilMetadataItemDrive(kat.folderId);
-      if (meta && !meta.trashed) {
-        if (!kat.folderSinkron) {
-          await gantiNamaFolderDrive(kat.folderId, kat.nama);
-          await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
-            folderId: kat.folderId,
-            folderSinkron: true
-          });
-        }
-        return kat.folderId;
-      }
-    } catch (err) {
-      if (!err || !err.isNotFound) {
-        throw err;
-      }
-    }
-  }
-
-  const dibuat = await buatSubfolderKategoriDrive(kat.nama);
-  await manajerKategoriDokumen.perbaruiStatusFolderKategori(kat.id, {
-    folderId: dibuat.folderId,
-    folderSinkron: true
-  });
-  return dibuat.folderId;
-}
+// pastikanFolderTujuanKategoriSiap kini berada di folder.js agar dapat dipakai
+// bersama dengan unggahan dokumen dari form kegiatan.
 
 function buatOpsiDriveKategoriDokumen() {
   return {

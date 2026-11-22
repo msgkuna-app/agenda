@@ -859,16 +859,8 @@ export function initPencarianGlobal(opsi = {}) {
   const modal = document.getElementById("global-search-modal");
   const input = document.getElementById("global-search-input");
   const closeBtn = document.getElementById("global-search-close-btn");
-  const sidebarBtn = document.getElementById("sidebar-search-btn");
   const headerBtn = document.getElementById("header-search-btn");
   const resultsRegion = document.getElementById("global-search-results");
-
-  if (sidebarBtn) {
-    sidebarBtn.onclick = (e) => {
-      e.preventDefault();
-      bukaPencarianGlobal(sidebarBtn);
-    };
-  }
 
   if (headerBtn) {
     headerBtn.onclick = (e) => {
