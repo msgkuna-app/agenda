@@ -65,6 +65,7 @@ public/
 firebase.json
 firestore.indexes.json
 firestore.rules
+PANDUAN-PEMILIK.md   (struktur aplikasi, skema database, pengaturan Firebase/Firestore/Google Cloud, panduan ganti pemilik)
 ```
 
 ### Struktur target
