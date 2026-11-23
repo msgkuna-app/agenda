@@ -2778,6 +2778,35 @@ html[data-drawer="open"] .app-sidebar {
 .settings-firestore-btn {
   margin-top: var(--space-2);
 }
+.firestore-usage-chart {
+  margin-top: var(--space-3);
+}
+.firestore-usage-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+  padding: var(--space-2) var(--space-2) 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+.firestore-usage-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-accent);
+  opacity: 0.75;
+}
+.firestore-usage-bar:hover {
+  opacity: 1;
+}
+.firestore-usage-caption {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
 @media (max-width: 600px) {
   [aria-labelledby="settings-capacity-heading"] .detail-meta-row,
   [aria-labelledby="settings-tech-heading"] .detail-meta-row {
@@ -3412,6 +3441,10 @@ html[data-drawer="open"] .app-sidebar {
   font-size: var(--text-sm);
   font-weight: 700;
   color: var(--color-text-primary);
+}
+.sub-card-title-kecil {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-secondary);
 }
 .char-counter {
   font-size: var(--text-xs);

@@ -6,13 +6,16 @@
 // Identitas pemilik & OAuth (firestore.rules tetap memuat email pemilik sendiri; ubah keduanya bersamaan)
 export const AUTHORIZED_EMAIL = "msgkuna.app@gmail.com";
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+// Cakupan baca-saja untuk membaca metrik pemakaian Firestore (diminta terpisah dari Drive)
+export const MONITORING_SCOPE = "https://www.googleapis.com/auth/monitoring.read";
 
 // Endpoint API Google
 export const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
 export const DRIVE_ABOUT_API = "https://www.googleapis.com/drive/v3/about";
 export const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
-// Halaman pemakaian Firestore di Firebase Console (satu-satunya sumber angka pemakaian pada paket Spark)
+export const MONITORING_TIMESERIES_API = "https://monitoring.googleapis.com/v3/projects";
+// Halaman pemakaian Firestore di Firebase Console (cadangan manual untuk membandingkan angka)
 export const URL_PEMAKAIAN_FIRESTORE_CONSOLE = "https://console.firebase.google.com/project/msgkuna-app-85dfb/firestore/usage";
 
 // Google Drive: nama folder, MIME, unggah resumable
@@ -43,6 +46,8 @@ export const KUNCI_STORAGE_CADANGAN_TERAKHIR = "agenda_arsip_cadangan_terakhir";
 export const KUNCI_STORAGE_CADANGAN_INTERVAL = "agenda_arsip_cadangan_interval";
 export const KUNCI_STORAGE_CADANGAN_TUNDA = "agenda_arsip_cadangan_tunda_sampai";
 export const KUNCI_STORAGE_HARI_LIBUR = "agenda_arsip_hari_libur";
+// Penanda bahwa izin baca metrik Cloud Monitoring sudah pernah diberikan (agar pemuatan berikutnya boleh senyap)
+export const KUNCI_STORAGE_IZIN_MONITORING = "agenda_arsip_izin_monitoring";
 
 // Ukuran halaman & batas operasi
 export const UKURAN_HALAMAN_KEGIATAN = 50;
@@ -85,12 +90,11 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.38";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.39";
 
-// Batas paket gratis Firestore (Spark). Angka teks ini dipakai kartu "Kapasitas Layanan"
-// di Pengaturan sebagai acuan informasi; pemakaian sebenarnya hanya terlihat di
-// Firebase Console → Firestore → Usage (URL_PEMAKAIAN_FIRESTORE_CONSOLE). Cloud
-// Monitoring API meminta penagihan aktif sehingga tidak dapat dipakai pada Spark.
+// Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
+// di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.
+// Pemakaian sebenarnya dibaca lewat Google Cloud Monitoring API (services/monitoringService.js).
 export const KUOTA_FIRESTORE_SPARK = Object.freeze({
   penyimpanan: "1 GiB",
   bacaPerHari: "50.000",
@@ -98,3 +102,35 @@ export const KUOTA_FIRESTORE_SPARK = Object.freeze({
   hapusPerHari: "20.000",
   keluarPerBulan: "10 GiB",
 });
+export const KUOTA_FIRESTORE_SPARK_ANGKA = Object.freeze({
+  penyimpananByte: 1024 * 1024 * 1024,
+  bacaPerHari: 50000,
+  tulisPerHari: 20000,
+  hapusPerHari: 20000,
+});
+
+// Metrik Cloud Monitoring untuk pemakaian Firestore (nama terverifikasi lewat uji API Explorer).
+// Cadangan `_count` dipakai bila nama utama tidak mengembalikan data pada proyek tertentu.
+export const METRIK_PEMAKAIAN_FIRESTORE = Object.freeze({
+  baca: Object.freeze([
+    "firestore.googleapis.com/document/read_ops_count",
+    "firestore.googleapis.com/document/read_count",
+  ]),
+  tulis: Object.freeze([
+    "firestore.googleapis.com/document/write_ops_count",
+    "firestore.googleapis.com/document/write_count",
+  ]),
+  hapus: Object.freeze([
+    "firestore.googleapis.com/document/delete_ops_count",
+    "firestore.googleapis.com/document/delete_count",
+  ]),
+  penyimpanan: Object.freeze([
+    "firestore.googleapis.com/storage/data_and_index_storage_bytes",
+    "firestore.googleapis.com/storage/utilization",
+  ]),
+});
+
+// Jendela & periode agregasi pembacaan metrik pemakaian Firestore
+export const PERIODE_AGREGASI_PEMAKAIAN_DETIK = 3600;
+// Zona waktu resmi perhitungan kuota harian Firestore (reset tengah malam waktu Pasifik)
+export const ZONA_WAKTU_KUOTA_FIRESTORE = "America/Los_Angeles";
