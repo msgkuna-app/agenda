@@ -167,6 +167,8 @@ async function perbaruiPemakaianFirestore(opsi = {}) {
     const pemakaian = await ambilPemakaianFirestore({ senyap: Boolean(opsi.senyap) });
     tampilkanPemakaianFirestore(pemakaian);
   } catch (err) {
+    const perluBantuanPenagihan = Boolean(err && err.isBillingRequired);
+
     // Pemuatan lewat tombol tetapi gagal senyap (izin/token tidak valid): coba sekali dengan dialog.
     if (opsi.tampilkanToast && opsi.senyap) {
       try {
@@ -175,7 +177,9 @@ async function perbaruiPemakaianFirestore(opsi = {}) {
         return;
       } catch (errUlang) {
         const pesanUlang = formatPesanGalatMonitoring(errUlang);
-        tampilkanPemakaianFirestore(null, pesanUlang);
+        tampilkanPemakaianFirestore(null, pesanUlang, {
+          tampilkanBantuanPenagihan: Boolean(errUlang && errUlang.isBillingRequired),
+        });
         tampilkanToast(`Gagal membaca pemakaian Firestore: ${pesanUlang}`, "warning");
         return;
       }
@@ -186,7 +190,7 @@ async function perbaruiPemakaianFirestore(opsi = {}) {
       // Percobaan otomatis: tampilkan keadaan netral, jangan bisingkan pengguna.
       tampilkanPemakaianFirestore(null, "");
     } else {
-      tampilkanPemakaianFirestore(null, pesan);
+      tampilkanPemakaianFirestore(null, pesan, { tampilkanBantuanPenagihan: perluBantuanPenagihan });
       if (opsi.tampilkanToast) tampilkanToast(`Gagal membaca pemakaian Firestore: ${pesan}`, "warning");
     }
   } finally {

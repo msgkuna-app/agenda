@@ -43,6 +43,12 @@ function buatGalatMonitoring(status, pesanAsli, alasanKode = "") {
     ) {
       pesan =
         "Cloud Monitoring API belum diaktifkan pada proyek Google Cloud ini. Aktifkan di Cloud Console (APIs & Services → Library → Cloud Monitoring API), lalu coba lagi. Pengaktifan API gratis dan tidak mengurangi kuota Spark.";
+    } else if (
+      rawLower.includes("requires billing") ||
+      rawLower.includes("billing to be enabled")
+    ) {
+      pesan =
+        "Pemakaian otomatis tidak dapat dibaca pada paket Spark: Google mensyaratkan akun penagihan aktif (paket Blaze) untuk Cloud Monitoring API. Angka batas paket di atas tetap berlaku, dan pemakaian nyata dapat dilihat lewat tautan Firebase Console di bawah. Bila penagihan diaktifkan, fitur ini langsung berjalan tanpa perubahan.";
     } else if (reasonLower.includes("permissiondenied") || rawLower.includes("permission")) {
       pesan = "Akun Google ini tidak berhak membaca metrik proyek tersebut (403). Pastikan memakai akun pemilik proyek.";
     } else {
@@ -59,6 +65,8 @@ function buatGalatMonitoring(status, pesanAsli, alasanKode = "") {
   err.reason = alasanKode;
   err.detail = String(pesanAsli || "").slice(0, 300);
   err.isApiDisabled = status === 403;
+  err.isBillingRequired =
+    status === 403 && (rawLower.includes("requires billing") || rawLower.includes("billing to be enabled"));
   err.isUnauthorized = status === 401;
   err.isTokenExpired = status === 401;
   return err;
@@ -71,8 +79,10 @@ export function formatPesanGalatMonitoring(err) {
   }
   const detail =
     err && typeof err === "object" && typeof err.detail === "string" ? err.detail.trim() : "";
+  // Galat penagihan sudah dijelaskan lengkap; detail mentah Google hanya mengulang 403.
+  const sembunyikanDetail = Boolean(err && typeof err === "object" && err.isBillingRequired);
   if (err instanceof Error && err.message) {
-    return detail ? `${err.message} (Detail Google: ${detail})` : err.message;
+    return detail && !sembunyikanDetail ? `${err.message} (Detail Google: ${detail})` : err.message;
   }
   return "Terjadi kesalahan saat membaca pemakaian Firestore.";
 }

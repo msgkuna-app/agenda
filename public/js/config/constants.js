@@ -17,6 +17,8 @@ export const SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 export const MONITORING_TIMESERIES_API = "https://monitoring.googleapis.com/v3/projects";
 // Halaman pemakaian Firestore di Firebase Console (cadangan manual untuk membandingkan angka)
 export const URL_PEMAKAIAN_FIRESTORE_CONSOLE = "https://console.firebase.google.com/project/msgkuna-app-85dfb/firestore/usage";
+// Halaman penagihan proyek di Google Cloud Console (diperlukan agar Cloud Monitoring API dapat dipakai)
+export const URL_AKTIFKAN_PENAGIHAN = "https://console.cloud.google.com/billing/linkedaccount?project=msgkuna-app-85dfb";
 
 // Google Drive: nama folder, MIME, unggah resumable
 export const NAMA_FOLDER_INDUK = "Agenda-Arsip";
@@ -90,7 +92,7 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.39";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.40";
 
 // Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
 // di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.

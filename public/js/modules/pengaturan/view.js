@@ -5,7 +5,7 @@
  *
  * Aturan: tidak memasang event listener dan tidak menulis state.
  */
-import { VERSI_CADANGAN_SW, KUOTA_FIRESTORE_SPARK, KUOTA_FIRESTORE_SPARK_ANGKA, URL_PEMAKAIAN_FIRESTORE_CONSOLE } from "../../config/constants.js";
+import { VERSI_CADANGAN_SW, KUOTA_FIRESTORE_SPARK, KUOTA_FIRESTORE_SPARK_ANGKA, URL_PEMAKAIAN_FIRESTORE_CONSOLE, URL_AKTIFKAN_PENAGIHAN } from "../../config/constants.js";
 import { getCurrentUser, isDriveTokenExpired } from "../../services/authService.js";
 import { getPreferensiTema, terapkanTema } from "../../tema.js";
 import { parseTanggal, tanggalLokal } from "../../util-tanggal.js";
@@ -389,6 +389,11 @@ export function pastikanKerangkaHalamanPengaturan() {
           <div id="settings-firestore-chart" class="firestore-usage-chart" hidden aria-hidden="true"></div>
           <p id="settings-firestore-note" class="field-hint-text" role="status" aria-live="polite">
             Tekan &ldquo;Muat pemakaian Firestore&rdquo; untuk membaca pemakaian sebenarnya. Pemuatan pertama akan meminta izin baca metrik Google Cloud (cakupan tambahan, hanya baca).
+          </p>
+          <p id="settings-firestore-billing-help" class="field-hint-text" hidden>
+            <a href="${URL_AKTIFKAN_PENAGIHAN}" target="_blank" rel="noopener noreferrer">Cek/aktifkan penagihan (Blaze)</a>
+            &middot;
+            <a href="${URL_PEMAKAIAN_FIRESTORE_CONSOLE}" target="_blank" rel="noopener noreferrer">Lihat pemakaian di Firebase Console</a>
           </p>
           <button type="button" id="btn-settings-refresh-firestore" class="btn-secondary btn-sm-touch settings-firestore-btn">
             ${IKON_SEGAR}
@@ -1053,13 +1058,17 @@ function renderGrafikPemakaianFirestore(deret, waktuDeret, labelAkses) {
  * Menampilkan pemakaian Firestore nyata (hasil Cloud Monitoring API) pada kartu Kapasitas Layanan.
  * @param {{ baca: object, tulis: object, hapus: object, penyimpananByte: number, mulaiJendela: string, diperbaruiPada: string } | null} data
  * @param {string} [pesanGalat]
+ * @param {{ tampilkanBantuanPenagihan?: boolean }} [opsi]
  */
-export function tampilkanPemakaianFirestore(data, pesanGalat = "") {
+export function tampilkanPemakaianFirestore(data, pesanGalat = "", opsi = {}) {
   const bacaEl = document.getElementById("settings-firestore-read");
   const tulisEl = document.getElementById("settings-firestore-write");
   const hapusEl = document.getElementById("settings-firestore-delete");
   const simpanEl = document.getElementById("settings-firestore-storage");
   const catatanEl = document.getElementById("settings-firestore-note");
+  const bantuanEl = document.getElementById("settings-firestore-billing-help");
+
+  if (bantuanEl) bantuanEl.hidden = !opsi.tampilkanBantuanPenagihan;
 
   if (pesanGalat || !data) {
     const pesan =
