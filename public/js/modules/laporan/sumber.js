@@ -18,12 +18,17 @@ import {
   getDaftarCatatan,
   ambilSemuaCatatanSekaliPakai
 } from "../catatan/index.js";
+import { geserTanggal } from "../../util-tanggal.js";
 
 let cacheKegiatanLaporan = null;
 let rentangTerakhirKegiatan = "";
 let cacheDokumenLaporan = null;
 let cacheCatatanLaporan = null;
 let sedangMemuatDataSekaliPakai = false;
+
+// Seberapa jauh ke belakang jendela pengambilan kegiatan dilebarkan, agar
+// kegiatan berturutan yang dimulai sebelum periode laporan tetap ikut terbaca.
+const MAKS_HARI_RENTANG_LAPORAN = 120;
 
 export function getCacheKegiatanLaporan() {
   return cacheKegiatanLaporan;
@@ -52,13 +57,18 @@ export function isSedangMemuatDataSekaliPakai() {
  */
 export async function pastikanDataLaporanTersedia(jenis, tglDari, tglSampai) {
   if (jenis === "kegiatan" || jenis === "rekap-status") {
+    // Kegiatan berturutan yang MULAI sebelum periode laporan tetapi masih
+    // berjalan di dalamnya tidak akan terambil bila saringan memakai tanggal
+    // mulai saja. Karena itu jendela pengambilan dilebarkan ke belakang, lalu
+    // penyusun laporan tetap menyaring dengan rentangBersinggungan().
+    const tglDariAmbil = geserTanggal(tglDari, -MAKS_HARI_RENTANG_LAPORAN) || tglDari;
     const kunciRentang = `${tglDari}_${tglSampai}`;
     if (cacheKegiatanLaporan && rentangTerakhirKegiatan === kunciRentang) {
       return cacheKegiatanLaporan;
     }
     sedangMemuatDataSekaliPakai = true;
     try {
-      const data = await ambilKegiatanRentangTanggal(tglDari, tglSampai);
+      const data = await ambilKegiatanRentangTanggal(tglDariAmbil, tglSampai);
       cacheKegiatanLaporan = data;
       rentangTerakhirKegiatan = kunciRentang;
       return data;

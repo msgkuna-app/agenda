@@ -8,13 +8,14 @@ import {
   escapeHtml,
   svgIkon,
 } from "../../util-html.js";
-import { hariIni, tambahHari, parseTanggal } from "../../util-tanggal.js";
+import { hariIni, tambahHari, tanggalDalamRentang, rentangBersinggungan } from "../../util-tanggal.js";
 import { infoHari } from "../../hari-libur.js";
 import {
   manajerKategoriKegiatan,
   getDaftarKegiatan,
   isKegiatanSudahDimuat,
   kelasBadgeStatus,
+  formatRentangTanggalSingkat,
 } from "../../modules/kegiatan/index.js";
 import {
   manajerKategoriDokumen,
@@ -175,7 +176,7 @@ function renderBarisKegiatanDashboard(item, tampilkanTanggal) {
       : item.waktuMulai
     : "Sepanjang hari";
   const infoSub = tampilkanTanggal
-    ? `${formatTanggalRingkasIndonesia(item.tanggal)} • ${labelWaktu}`
+    ? `${formatRentangTanggalSingkat(item)} • ${labelWaktu}`
     : labelWaktu;
 
   return `<li class="dash-activity-item${item.status === "Selesai" ? " is-completed" : ""}">
@@ -526,17 +527,18 @@ export function renderDashboard(opsi = {}) {
 
   const kegiatanHariIni = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
-      (item) =>
-        Boolean(parseTanggal(item.tanggal)) && item.tanggal === strHariIni,
+      (item) => tanggalDalamRentang(item, strHariIni),
     ),
   );
 
   const kegiatan7Hari = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
       (item) =>
-        Boolean(parseTanggal(item.tanggal)) &&
-        item.tanggal > strHariIni &&
-        item.tanggal <= strTujuhHari,
+        // Kartu 7 hari memuat kegiatan yang punya hari di besok..+7 hari, TETAPI
+        // tidak lagi yang mencakup hari ini — kegiatan seperti itu sudah tampil di
+        // kartu "Hari ini" dan sengaja tidak diulang (paritas perilaku lama).
+        rentangBersinggungan(item, strBesok, strTujuhHari) &&
+        !tanggalDalamRentang(item, strHariIni),
     ),
   );
 

@@ -35,5 +35,8 @@ export {
 
 export { kelasBadgeStatus } from "./view.js";
 
+// Pembantu format rentang tanggal (Tahap 8a) untuk konsumen di luar modul.
+export { formatRentangTanggal, formatRentangTanggalSingkat } from "./format.js";
+
 // Re-export seperti berkas lama (kegiatan.js baris 13) demi kompatibilitas.
 export { DAFTAR_STATUS_KEGIATAN, UKURAN_HALAMAN_KEGIATAN } from "../../config/constants.js";

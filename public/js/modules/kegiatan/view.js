@@ -23,7 +23,7 @@ import {
   getAdaLebihBanyakKegiatan,
   getSedangMuatLebihKegiatan
 } from "./state.js";
-import { formatTanggalTampilan } from "./format.js";
+import { formatRentangTanggal } from "./format.js";
 
 export const IKON_KALENDER_META = svgIkon('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', 15);
 export const IKON_JAM_META = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);
@@ -320,7 +320,7 @@ export function renderDaftarKegiatan() {
         <button type="button" class="event-title-trigger" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
       </h3>
       <div class="kegiatan-meta-list">
-        <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatTanggalTampilan(item.tanggal))}</span></span>
+        <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatRentangTanggal(item))}</span></span>
         ${rentangWaktu ? `<span class="kegiatan-meta-item">${IKON_JAM_META}<span>${escapeHtml(rentangWaktu)}</span></span>` : ""}
         ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI_META}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
         ${catatanTerkait.length > 0 ? `<span class="kegiatan-meta-item">${IKON_CATATAN_META}<span>${catatanTerkait.length} catatan terkait</span></span>` : ""}

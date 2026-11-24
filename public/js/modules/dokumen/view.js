@@ -16,6 +16,7 @@ import {
   adaLebihBanyakDokumen,
 } from "./state.js";
 import { formatTanggalDokumenLokal, formatUkuranBerkas, infoJenisBerkasMime } from "./format.js";
+import { akhiriRentang } from "../../util-tanggal.js";
 
 const IKON_FILTER = svgIkon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>', 16);
 
@@ -230,7 +231,8 @@ export function perbaruiDropdownKegiatanTerkait(idSelect, nilaiTerpilih = "") {
   const opsi = [
     `<option value="">— Tidak dikaitkan ke kegiatan —</option>`,
     ...kegiatanUrut.map((k) => {
-      const tgl = k.tanggal ? `${k.tanggal} • ` : "";
+      const akhir = akhiriRentang(k.tanggal, k.tanggalSelesai);
+      const tgl = !k.tanggal ? "" : akhir && akhir !== k.tanggal ? `${k.tanggal} – ${akhir} • ` : `${k.tanggal} • `;
       return `<option value="${escapeHtml(k.id)}">${escapeHtml(tgl + k.judul)}</option>`;
     })
   ];

@@ -11,7 +11,7 @@ import {
   getDaftarKegiatan
 } from "../kegiatan/index.js";
 import { urutkanDaftarKategori } from "../kategori/index.js";
-import { parseTanggal } from "../../util-tanggal.js";
+import { rentangBersinggungan } from "../../util-tanggal.js";
 import {
   getJenisAktif,
   getFilterKategori,
@@ -44,8 +44,7 @@ export function susunLaporanRekapStatus(konteks) {
 
   const sumberKegiatan = getCacheKegiatanLaporan() || getDaftarKegiatan();
   const kegiatanPeriode = sumberKegiatan.filter((k) => {
-    if (!parseTanggal(k.tanggal)) return false;
-    if (k.tanggal < tanggalDari || k.tanggal > tanggalSampai) return false;
+    if (!rentangBersinggungan(k, tanggalDari, tanggalSampai)) return false;
     return cocokFilterKategoriTerstruktur(k.kategoriId, manajerKategoriKegiatan);
   });
 

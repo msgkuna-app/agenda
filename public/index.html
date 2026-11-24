@@ -987,15 +987,34 @@
               />
             </div>
             <div class="form-field">
-              <label for="kegiatan-status-select" class="form-label"
-                >Status</label
+              <label for="kegiatan-tanggal-selesai-input" class="form-label"
+                >Tanggal Selesai</label
               >
-              <select id="kegiatan-status-select" class="form-select">
-                <option value="Rencana">Rencana</option>
-                <option value="Berjalan">Berjalan</option>
-                <option value="Selesai">Selesai</option>
-              </select>
+              <input
+                type="date"
+                id="kegiatan-tanggal-selesai-input"
+                class="form-input"
+                aria-describedby="kegiatan-tanggal-selesai-hint"
+              />
+              <p
+                id="kegiatan-tanggal-selesai-hint"
+                class="field-hint-text"
+              >
+                Kosongkan bila kegiatan hanya satu hari. Isi bila kegiatan
+                berlangsung beberapa hari berturutan.
+              </p>
             </div>
+          </div>
+
+          <div class="form-field">
+            <label for="kegiatan-status-select" class="form-label"
+              >Status</label
+            >
+            <select id="kegiatan-status-select" class="form-select">
+              <option value="Rencana">Rencana</option>
+              <option value="Berjalan">Berjalan</option>
+              <option value="Selesai">Selesai</option>
+            </select>
           </div>
 
           <div class="form-row-2col">

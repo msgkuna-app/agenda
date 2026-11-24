@@ -11,6 +11,7 @@ import { ambilSemuaKegiatanSekaliPakai } from "./modules/kegiatan/index.js";
 import { ambilSemuaCatatanSekaliPakai } from "./modules/catatan/index.js";
 import { ambilSemuaDokumenSekaliPakai } from "./modules/dokumen/index.js";
 import { escapeHtml, svgIkon } from "./util-html.js";
+import { akhiriRentang } from "./util-tanggal.js";
 
 export { escapeHtml };
 
@@ -478,7 +479,11 @@ function renderHasil(hasil, kataKueri) {
         const judulSorot = sorotKata(escapeHtml(item.judul), kataKueri);
         const cuplikanSorot = sorotKata(escapeHtml(entry.cuplikan), kataKueri);
         const tglStr = formatTanggalSingkat(item.tanggal);
-        const sub = [tglStr, item.status, item.lokasi].filter(Boolean).join(" • ");
+        const akhirStr = akhiriRentang(item.tanggal, item.tanggalSelesai);
+        const tglLabel = akhirStr && akhirStr !== item.tanggal
+          ? `${tglStr} – ${formatTanggalSingkat(akhirStr)}`
+          : tglStr;
+        const sub = [tglLabel, item.status, item.lokasi].filter(Boolean).join(" • ");
 
         return `
           <div

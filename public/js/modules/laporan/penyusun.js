@@ -14,7 +14,7 @@ import {
   manajerKategoriKegiatan,
   getDaftarKegiatan
 } from "../kegiatan/index.js";
-import { parseTanggal } from "../../util-tanggal.js";
+import { rentangBersinggungan, akhiriRentang } from "../../util-tanggal.js";
 import { formatTanggalSetempat } from "./format.js";
 import {
   ambilInfoJenisLaporan,
@@ -113,8 +113,7 @@ function susunLaporanKegiatan(konteks) {
   const sumberKegiatan = getCacheKegiatanLaporan() || getDaftarKegiatan();
   const tersaring = sumberKegiatan
     .filter((k) => {
-      if (!parseTanggal(k.tanggal)) return false;
-      if (k.tanggal < tanggalDari || k.tanggal > tanggalSampai) return false;
+      if (!rentangBersinggungan(k, tanggalDari, tanggalSampai)) return false;
       return cocokFilterKategoriTerstruktur(k.kategoriId, manajerKategoriKegiatan);
     })
     .sort((a, b) => {
@@ -130,9 +129,15 @@ function susunLaporanKegiatan(konteks) {
     const waktu = item.waktuMulai
       ? item.waktuSelesai ? `${item.waktuMulai}–${item.waktuSelesai}` : item.waktuMulai
       : "Sepanjang hari";
+    // Kolom Tanggal: kegiatan satu hari tetap memakai formatTanggalSetempat()
+    // yang lama (isi laporan tidak berubah); kegiatan berturutan menampilkan rentang.
+    const tanggalAkhirBaris = akhiriRentang(item.tanggal, item.tanggalSelesai);
+    const kolomTanggal = tanggalAkhirBaris && tanggalAkhirBaris !== item.tanggal
+      ? `${formatTanggalSetempat(item.tanggal)} – ${formatTanggalSetempat(tanggalAkhirBaris)}`
+      : formatTanggalSetempat(item.tanggal);
     return [
       idx + 1,
-      formatTanggalSetempat(item.tanggal),
+      kolomTanggal,
       waktu,
       String(item.judul || ""),
       infoKat.nama,

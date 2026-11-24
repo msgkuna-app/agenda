@@ -60,6 +60,7 @@ export function petakanKegiatan(d) {
     judul: String(data.judul || ""),
     catatan: String(data.catatan || ""),
     tanggal: String(data.tanggal || ""),
+    tanggalSelesai: String(data.tanggalSelesai || ""),
     waktuMulai: String(data.waktuMulai || ""),
     waktuSelesai: String(data.waktuSelesai || ""),
     lokasi: String(data.lokasi || ""),

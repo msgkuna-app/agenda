@@ -11,7 +11,7 @@ import { JENIS_CATATAN_GDOC } from "../catatan/index.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";
 import { KOLEKSI, KOLEKSI_HAPUS_LUNAK } from "../../config/constants.js";
 import { getJenisSampah, getDaftarSampah, getSemuaItemSampah } from "./state.js";
-import { formatTanggalTeks, hitungInformasiHariSampah } from "./format.js";
+import { formatRentangTeksSampah, hitungInformasiHariSampah } from "./format.js";
 
 const IKON_KEGIATAN = svgIkon('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', 20);
 const IKON_CATATAN_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
@@ -200,7 +200,7 @@ function htmlKartuSampah(item) {
   const infoHari = hitungInformasiHariSampah(item.dihapusAt);
   const ikonItem = tampilan ? tampilan.ikon(item) : IKON_CATATAN_SINGKAT;
   const labelTipe = tampilan ? tampilan.label(item) : String(item.kunci || "");
-  const tglInfo = item.tanggal ? formatTanggalTeks(item.tanggal) : "-";
+  const tglInfo = item.tanggal ? formatRentangTeksSampah(item) : "-";
   const badgeKelas = infoHari.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
   const kunciAman = escapeHtml(item.kunci);
   const idAman = escapeHtml(item.id);

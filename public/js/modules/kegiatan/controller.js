@@ -233,6 +233,7 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
   const idInput = document.getElementById("kegiatan-edit-id");
   const judulInput = document.getElementById("kegiatan-judul-input");
   const tanggalInput = document.getElementById("kegiatan-tanggal-input");
+  const tanggalSelesaiInput = document.getElementById("kegiatan-tanggal-selesai-input");
   const mulaiInput = document.getElementById("kegiatan-mulai-input");
   const selesaiInput = document.getElementById("kegiatan-selesai-input");
   const lokasiInput = document.getElementById("kegiatan-lokasi-input");
@@ -252,6 +253,7 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
     if (idInput) idInput.value = kegiatanEdit.id;
     if (judulInput) judulInput.value = kegiatanEdit.judul || "";
     if (tanggalInput) tanggalInput.value = kegiatanEdit.tanggal || hariIni();
+    if (tanggalSelesaiInput) tanggalSelesaiInput.value = kegiatanEdit.tanggalSelesai || "";
     if (mulaiInput) mulaiInput.value = kegiatanEdit.waktuMulai || "";
     if (selesaiInput) selesaiInput.value = kegiatanEdit.waktuSelesai || "";
     if (lokasiInput) lokasiInput.value = kegiatanEdit.lokasi || "";
@@ -272,6 +274,7 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
     if (idInput) idInput.value = "";
     if (judulInput) judulInput.value = "";
     if (tanggalInput) tanggalInput.value = tanggalTerpilihValid;
+    if (tanggalSelesaiInput) tanggalSelesaiInput.value = "";
     if (mulaiInput) mulaiInput.value = "";
     if (selesaiInput) selesaiInput.value = "";
     if (lokasiInput) lokasiInput.value = "";
@@ -364,6 +367,7 @@ function tutupDialogHapusKegiatan(kembalikanFokus = true) {
 function ambilDanValidasiDataForm() {
   const judul = String(document.getElementById("kegiatan-judul-input")?.value || "").trim();
   const tanggal = String(document.getElementById("kegiatan-tanggal-input")?.value || "").trim();
+  const tanggalSelesai = String(document.getElementById("kegiatan-tanggal-selesai-input")?.value || "").trim();
   const waktuMulai = String(document.getElementById("kegiatan-mulai-input")?.value || "").trim();
   const waktuSelesai = String(document.getElementById("kegiatan-selesai-input")?.value || "").trim();
   const lokasi = String(document.getElementById("kegiatan-lokasi-input")?.value || "").trim();
@@ -374,6 +378,12 @@ function ambilDanValidasiDataForm() {
   if (!judul) throw new Error("Judul kegiatan wajib diisi.");
   if (!tanggal || !parseTanggal(tanggal)) {
     throw new Error("Tanggal kegiatan wajib diisi dengan format tanggal yang benar.");
+  }
+  if (tanggalSelesai && !parseTanggal(tanggalSelesai)) {
+    throw new Error("Tanggal selesai harus berupa tanggal yang benar atau dikosongkan.");
+  }
+  if (tanggalSelesai && tanggalSelesai < tanggal) {
+    throw new Error("Tanggal selesai tidak boleh lebih awal dari tanggal mulai.");
   }
   if (!validJamOpsional(waktuMulai) || !validJamOpsional(waktuSelesai)) {
     throw new Error("Format waktu harus berupa jam:menit (HH:MM).");
@@ -386,7 +396,7 @@ function ambilDanValidasiDataForm() {
   }
 
   const status = DAFTAR_STATUS_KEGIATAN.includes(statusMentah) ? statusMentah : "Rencana";
-  return { judul, catatan, tanggal, waktuMulai, waktuSelesai, lokasi, kategoriId, status };
+  return { judul, catatan, tanggal, tanggalSelesai, waktuMulai, waktuSelesai, lokasi, kategoriId, status };
 }
 
 // --- Pintasan filter dari modul lain -------------------------------------------

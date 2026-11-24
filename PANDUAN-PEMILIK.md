@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.62**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.63**
 
 ---
 
@@ -130,7 +130,7 @@ Setiap modul mengikuti pola yang sama:
 | Berkas | Peran |
 |---|---|
 | `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). Modul yang sudah besar boleh dipecah lebih lanjut — sejak v1.8.52 `kegiatan/state.js`, sejak v1.8.54 `laporan/state.js`, sejak v1.8.55 `dokumen/state.js`, sejak v1.8.57 `catatan/state.js`, sejak v1.8.58 `pengaturan/state.js`, sejak v1.8.59 `sampah/state.js`, dan sejak v1.8.60 `kategori/state.js` (pabrik — dipecah menjadi `inti`/`langganan`/`mutasi` dengan objek konteks) hanya pintu re-export; isinya dipecah ke berkas per tanggung jawab (`inti`, `kueri`/`sumber`, `mutasi`, `hapus`, `libur`, `cadangan`, `langganan`/`penyusun`, `riwayat`), dengan impor satu arah tanpa lingkaran. Pola yang sama dipakai di luar modul: sejak v1.8.61 `js/boot-tema.js` (dan `js/jaring-sesi.js`), sejak v1.8.62 `js/sidebar.js` yang kini hanya `initSidebar` + pintu re-export dan memindahkan isinya ke `js/sidebar/*.js`. |
-| `format.js` | format tampilan (tanggal, ukuran, ikon jenis berkas) |
+| `format.js` | format tampilan (tanggal, ukuran, ikon jenis berkas). Sejak v1.8.63 juga memuat `formatRentangTanggal`/`formatRentangTanggalSingkat` untuk kegiatan berturutan — kegiatan satu hari tetap menampilkan teks yang sama seperti sebelumnya. |
 | `view.js` | perakitan HTML & pembacaan DOM. Tanpa API. |
 | `controller.js` | event listener, delegasi klik, orkestrasi state ↔ view |
 | `index.js` | pintu publik — **satu-satunya** berkas modul yang diimpor modul lain |
@@ -253,8 +253,10 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 | `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
 | `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
 
-Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.62 —
-Tahap 6, Tahap 7a, dan Tahap 7b tidak menambah kueri gabungan baru, sehingga deploy cukup `--only hosting`.
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.63 —
+Tahap 6, Tahap 7a, Tahap 7b, dan Tahap 8a tidak menambah kueri gabungan baru: kolom baru
+`tanggalSelesai` (kegiatan berturutan) hanya dibaca di sisi aplikasi, seluruh kueri tetap
+menyaring kolom `tanggal`, sehingga deploy cukup `--only hosting`.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
 salin indeks itu ke berkas ini agar ikut ter-deploy.

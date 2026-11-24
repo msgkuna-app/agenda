@@ -7,7 +7,7 @@
  * - Seluruh perhitungan tanggal HANYA memakai util-tanggal.js.
  */
 import { formatPesanGalatFirestore } from "./services/firestoreService.js";
-import { tanggalLokal, hariIni, tambahHari, parseTanggal } from "./util-tanggal.js";
+import { tanggalLokal, hariIni, tambahHari, parseTanggal, akhiriRentang, jumlahHariRentang, rentangBersinggungan } from "./util-tanggal.js";
 import { pindahKeBagian } from "./sidebar.js";
 import { escapeHtml, svgIkon, NAMA_HARI, NAMA_BULAN, NAMA_BULAN_PENDEK } from "./util-html.js";
 import {
@@ -20,7 +20,8 @@ import {
   bukaDialogHapusKegiatan,
   ubahStatusKegiatanCepat,
   kelasBadgeStatus,
-  sinkronkanJendelaTanggalKegiatan
+  sinkronkanJendelaTanggalKegiatan,
+  formatRentangTanggal
 } from "./modules/kegiatan/index.js";
 import { infoHari, adaDataTahun } from "./hari-libur.js";
 import { getDaftarDokumen, onPerubahanDokumen } from "./modules/dokumen/state.js";
@@ -46,6 +47,10 @@ const IKON_TAMBAH = (uk = 18) => svgIkon('<line x1="12" y1="5" x2="12" y2="19"/>
 const IKON_GALAT = svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18);
 const IKON_JAM = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);
 const IKON_LOKASI = svgIkon('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>', 15);
+
+// Batas pengaman jumlah hari yang diurai dari satu kegiatan berturutan, agar
+// salah isian (mis. tanggal selesai bertahun-tahun) tidak membebani kalender.
+const MAKS_HARI_RENTANG_KALENDER = 120;
 
 let jadwalSudahDiikat = false;
 let detailModalSudahDiikat = false;
@@ -182,8 +187,22 @@ function kelompokkanKegiatanPerTanggal(daftarKegiatan) {
   const peta = new Map();
   urutkanKegiatanKronologis(daftarKegiatan).forEach((item) => {
     if (!item.tanggal || !parseTanggal(item.tanggal)) return;
-    if (!peta.has(item.tanggal)) peta.set(item.tanggal, []);
-    peta.get(item.tanggal).push(item);
+    // Kegiatan berturutan didaftarkan pada SETIAP tanggal yang dicakupnya,
+    // sehingga kalender menampilkannya di seluruh hari rentang.
+    const tanggalAkhir = akhiriRentang(item.tanggal, item.tanggalSelesai);
+    let kursor = item.tanggal;
+    let nomorHari = 1;
+    while (kursor && kursor <= tanggalAkhir && nomorHari <= MAKS_HARI_RENTANG_KALENDER) {
+      if (!peta.has(kursor)) peta.set(kursor, []);
+      peta.get(kursor).push({
+        ...item,
+        hariKe: nomorHari,
+        totalHari: jumlahHariRentang(item),
+        adalahHariPertama: nomorHari === 1
+      });
+      kursor = tambahHari(1, parseTanggal(kursor));
+      nomorHari += 1;
+    }
   });
   return peta;
 }
@@ -197,11 +216,21 @@ function renderKartuItemJadwal(item) {
     (st) => `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
   ).join("");
 
+  const totalHari = jumlahHariRentang(item);
+  const kegiatanBerturutan = totalHari > 1;
+  const infoRentangHtml = kegiatanBerturutan
+    ? `<span class="kegiatan-meta-item">${IKON_KALENDER}<span>${escapeHtml(formatRentangTanggal(item))}</span></span>`
+    : "";
+  const labelLanjutanHtml = kegiatanBerturutan && item.hariKe > 1
+    ? `<span class="badge-lanjutan" title="Kegiatan ini berlanjut dari hari sebelumnya">Hari ke-${item.hariKe} dari ${totalHari}</span>`
+    : "";
+
   return `<article class="kegiatan-card jadwal-event-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
     <div class="kegiatan-card-top">
       <div class="kegiatan-badges-row">
         <span class="cat-badge cat-color-${escapeHtml(infoKat.warna)}"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
         <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
+        ${labelLanjutanHtml}
       </div>
       <div class="kegiatan-quick-status">
         <label for="jadwal-status-${escapeHtml(item.id)}" class="sr-only">Ubah status untuk ${escapeHtml(item.judul)}</label>
@@ -213,6 +242,7 @@ function renderKartuItemJadwal(item) {
     </h4>
     <div class="kegiatan-meta-list">
       <span class="kegiatan-meta-item">${IKON_JAM}<span>${escapeHtml(rentangWaktu)}</span></span>
+      ${infoRentangHtml}
       ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
     </div>
     ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
@@ -289,9 +319,28 @@ function renderKalenderBulanan(petaPerTanggal) {
       const daftarChipHtml = total > 0
         ? `<div class="cal-cell-events">${kegiatanHari.slice(0, maksChipDesktop).map((k) => {
             const infoKat = manajerKategoriKegiatan.cariInfoKategori(k.kategoriId);
-            const labelSingkat = k.waktuMulai ? `${k.waktuMulai} ${k.judul}` : k.judul;
-            return `<button type="button" class="cal-event-chip${k.status === "Selesai" ? " is-completed" : ""}" data-action="buka-detail-kegiatan" data-id="${escapeHtml(k.id)}" data-tanggal="${escapeHtml(sel.tanggalStr)}" title="${escapeHtml(labelSingkat)} (${escapeHtml(infoKat.nama)} • ${escapeHtml(k.status)})"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span class="cal-event-chip-text">${escapeHtml(labelSingkat)}</span></button>`;
+            const labelSingkat = k.adalahHariPertama && k.waktuMulai ? `${k.waktuMulai} ${k.judul}` : k.judul;
+            const kelasLanjutan = k.adalahHariPertama ? "" : " is-lanjutan";
+            const labelAriaLanjutan = k.adalahHariPertama ? "" : ` (lanjutan, hari ke-${k.hariKe} dari ${k.totalHari})`;
+            return `<button type="button" class="cal-event-chip${k.status === "Selesai" ? " is-completed" : ""}${kelasLanjutan}" data-action="buka-detail-kegiatan" data-id="${escapeHtml(k.id)}" data-tanggal="${escapeHtml(sel.tanggalStr)}" title="${escapeHtml(labelSingkat)} (${escapeHtml(infoKat.nama)} • ${escapeHtml(k.status)}${escapeHtml(labelAriaLanjutan)})"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span class="cal-event-chip-text">${escapeHtml(labelSingkat)}</span></button>`;
           }).join("")}${total > maksChipDesktop ? `<button type="button" class="cal-more-chip" data-action="pilih-tanggal" data-tanggal="${escapeHtml(sel.tanggalStr)}">+${total - maksChipDesktop} kegiatan lainnya</button>` : ""}</div>`
+        : "";
+
+      // Strip rentang: penanda visual kegiatan berturutan. Strip menyentuh tepi
+      // kiri-kanan sel sehingga hari berurutan membentuk satu garis bersambung;
+      // ujung dibulatkan pada hari pertama dan hari terakhir kegiatan.
+      const kegiatanRentang = kegiatanHari.filter((k) => k.totalHari > 1);
+      const stripHtml = kegiatanRentang.length > 0
+        ? `<span class="cal-range-strips" aria-hidden="true">${kegiatanRentang.slice(0, 2).map((k) => {
+            const infoKatStrip = manajerKategoriKegiatan.cariInfoKategori(k.kategoriId);
+            const kelasUjung = [
+              "cal-range-strip",
+              `cat-dot-${infoKatStrip.warna}`,
+              k.hariKe === 1 ? "is-awal" : "",
+              k.hariKe === k.totalHari ? "is-akhir" : ""
+            ].filter(Boolean).join(" ");
+            return `<span class="${kelasUjung}"></span>`;
+          }).join("")}</span>`
         : "";
 
       let labelAksesibel = `${formatTanggalLengkapIndonesia(sel.tanggalStr)}`;
@@ -312,6 +361,7 @@ function renderKalenderBulanan(petaPerTanggal) {
       ].filter(Boolean).join(" ");
 
       return `<div class="${kelasSel}" role="gridcell" data-tanggal="${escapeHtml(sel.tanggalStr)}">
+        ${stripHtml}
         <button type="button" class="cal-day-select-btn" data-action="pilih-tanggal" data-tanggal="${escapeHtml(sel.tanggalStr)}" aria-pressed="${adalahTerpilih ? "true" : "false"}" aria-label="${escapeHtml(labelAksesibel)}" ${infoH.keterangan ? `title="${escapeHtml(infoH.keterangan)}"` : ""}>
           <span class="cal-day-top"><span class="cal-day-number">${sel.hariAngka}</span>${adalahHariIni ? `<span class="cal-today-tag">Hari ini</span>` : ""}</span>
           ${penandaKategoriHtml}
@@ -396,7 +446,7 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
 
   const dalamRentang = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
-      (item) => Boolean(parseTanggal(item.tanggal)) && item.tanggal >= strAwal && item.tanggal <= strAkhir
+      (item) => rentangBersinggungan(item, strAwal, strAkhir)
     )
   );
   const keteranganRentang = `${formatTanggalRingkasIndonesia(strAwal)} – ${formatTanggalRingkasIndonesia(strAkhir)}`;
@@ -410,11 +460,28 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
     return;
   }
 
+  // Kegiatan berturutan yang sudah dimulai sebelum hari ini tetapi masih berjalan
+  // dikumpulkan terpisah sebagai "Sedang berlangsung" agar tidak hilang dari daftar.
+  const masihBerlangsung = dalamRentang.filter((item) => item.tanggal < strAwal);
+  const akanDatang = dalamRentang.filter((item) => item.tanggal >= strAwal);
+
   const grupTanggal = new Map();
-  dalamRentang.forEach((item) => {
+  akanDatang.forEach((item) => {
     if (!grupTanggal.has(item.tanggal)) grupTanggal.set(item.tanggal, []);
     grupTanggal.get(item.tanggal).push(item);
   });
+
+  const htmlSedangBerlangsung = masihBerlangsung.length > 0
+    ? `<section class="agenda-day-group agenda-ongoing-group" aria-label="Kegiatan sedang berlangsung">
+        <div class="agenda-day-header">
+          <div class="agenda-day-title-wrap">
+            <h3 class="agenda-day-title">Kegiatan sedang berlangsung</h3>
+            <span class="agenda-day-count">${masihBerlangsung.length} kegiatan</span>
+          </div>
+        </div>
+        <div class="kegiatan-list-grid">${masihBerlangsung.map((item) => renderKartuItemJadwal(item)).join("")}</div>
+      </section>`
+    : "";
 
   const grupHtml = Array.from(grupTanggal.entries()).map(([tgl, daftarItem]) => {
     const penandaRelatif = tgl === strAwal ? "Hari ini • " : tgl === strBesok ? "Besok • " : "";
@@ -449,11 +516,12 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
     </section>`;
   }).join("");
 
+  const totalTanggalAgenda = grupTanggal.size + (masihBerlangsung.length > 0 ? 1 : 0);
   region.innerHTML = `<div class="agenda-range-banner">
     <span class="agenda-range-text">Rentang 30 hari ke depan: <strong>${escapeHtml(keteranganRentang)}</strong></span>
-    <span class="agenda-range-total">${dalamRentang.length} kegiatan dalam ${grupTanggal.size} tanggal</span>
+    <span class="agenda-range-total">${dalamRentang.length} kegiatan dalam ${totalTanggalAgenda} tanggal</span>
   </div>
-  <div class="agenda-groups-stack">${grupHtml}</div>`;
+  <div class="agenda-groups-stack">${htmlSedangBerlangsung}${grupHtml}</div>`;
 }
 
 export function renderHalamanJadwal() {
@@ -527,7 +595,7 @@ function segarkanIsiDialogDetailKegiatan() {
     <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
   </div>
   <dl class="detail-meta-grid">
-    <div class="detail-meta-row"><dt>Tanggal</dt><dd>${escapeHtml(formatTanggalLengkapIndonesia(item.tanggal))}</dd></div>
+    <div class="detail-meta-row"><dt>Tanggal</dt><dd>${escapeHtml(formatRentangTanggal(item))}</dd></div>
     <div class="detail-meta-row"><dt>Waktu</dt><dd>${escapeHtml(rentangWaktu)}</dd></div>
     ${item.lokasi ? `<div class="detail-meta-row"><dt>Lokasi</dt><dd>${escapeHtml(item.lokasi)}</dd></div>` : ""}
   </dl>
