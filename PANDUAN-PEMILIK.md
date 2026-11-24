@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.53**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.54**
 
 ---
 
@@ -67,7 +67,7 @@ C:\agenda-arsip\
         catatan\            state | format | view | controller | index
         dokumen\            state | format | folder | unggah-kegiatan | view | kegiatan-view | controller | index
         foto\               state | view | controller | index (menempel pada kartu kegiatan)
-        laporan\            state | format | view | controller | index
+        laporan\            inti | sumber | penyusun | penyusun-rekap | penyusun-jenis | opsi-kategori | riwayat | state | format | view | controller | index
         kategori\           format | state | view | controller | index
         sampah\             format | normalisasi | state | view | controller | index
         pengaturan\         state | view | controller | index
@@ -125,7 +125,7 @@ Setiap modul mengikuti pola yang sama:
 
 | Berkas | Peran |
 |---|---|
-| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). Modul yang sudah besar boleh dipecah lebih lanjut — sejak v1.8.52 `kegiatan/state.js` hanya pintu re-export; isinya dipecah ke `inti.js` (state bersama + pembacaan + mutasi), `kueri.js` (pembacaan sekali pakai), dan `langganan.js` (langganan realtime), dengan impor satu arah `state.js -> inti.js <- (kueri.js, langganan.js)`. |
+| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). Modul yang sudah besar boleh dipecah lebih lanjut — sejak v1.8.52 `kegiatan/state.js` dan sejak v1.8.54 `laporan/state.js` hanya pintu re-export; isinya dipecah ke berkas per tanggung jawab (`inti`, `kueri`/`sumber`, `langganan`/`penyusun`, `riwayat`), dengan impor satu arah tanpa lingkaran. |
 | `format.js` | format tampilan (tanggal, ukuran, ikon jenis berkas) |
 | `view.js` | perakitan HTML & pembacaan DOM. Tanpa API. |
 | `controller.js` | event listener, delegasi klik, orkestrasi state ↔ view |
@@ -248,7 +248,7 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 | `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
 | `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
 
-Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.53 —
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.54 —
 Tahap D dan Tahap 2 tidak menambah kueri gabungan baru, sehingga deploy cukup `--only hosting`.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
