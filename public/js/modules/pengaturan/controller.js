@@ -14,13 +14,12 @@ import {
   KOLEKSI_HAPUS_LUNAK,
 } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  getDocs,
-  writeBatch,
-  formatPesanGalatFirestore,
-} from "../../services/firestoreService.js";
+  ambilDaftar,
+  hitungItem,
+  jalankanBatch,
+  simpanItem,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import {
   loginWithGoogle,
   isDriveTokenExpired,
@@ -537,11 +536,10 @@ export async function eksporSeluruhDataJson() {
     statusCadangan.terakhirEksporAt = sekarangIso;
 
     try {
-      const db = getFirestoreDb();
-      await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN), {
+      await simpanItem(KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN, {
         terakhirEksporAt: sekarangIso,
         updatedAt: sekarangIso
-      }, { merge: true });
+      });
     } catch (_err) {
       // Offline: salinan lokal sudah tersimpan di localStorage
     }
@@ -572,19 +570,17 @@ export async function jalankanMigrasiDihapusAt() {
   setStatusMigrasi(`<span style="color:var(--color-primary);">Memeriksa dokumen tanpa field dihapusAt...</span>`);
 
   try {
-    const db = getFirestoreDb();
-    const snapshots = await Promise.all(
-      KOLEKSI_HAPUS_LUNAK.map((info) => getDocs(collection(db, info.key)))
+    // Baca kelima koleksi sekaligus. Migrasi memang harus melihat SEMUA dokumen,
+    // termasuk yang ada di Tempat Sampah, karena tujuannya melengkapi field dihapusAt.
+    const hasilBaca = await Promise.all(
+      KOLEKSI_HAPUS_LUNAK.map((info) => ambilDaftar(info.key))
     );
 
     const hasilPerKoleksi = [];
     KOLEKSI_HAPUS_LUNAK.forEach((info, indeks) => {
-      const refs = [];
-      snapshots[indeks].docs.forEach((docSnap) => {
-        if (typeof docSnap.data().dihapusAt === "undefined") {
-          refs.push(docSnap.ref);
-        }
-      });
+      const refs = hasilBaca[indeks].items
+        .filter((item) => typeof item.dihapusAt === "undefined")
+        .map((item) => ({ jenis: "update", koleksi: info.key, id: item.id, data: { dihapusAt: null } }));
       hasilPerKoleksi.push({ info, refs });
     });
 
@@ -604,14 +600,7 @@ export async function jalankanMigrasiDihapusAt() {
 
     setStatusMigrasi(`<span>Ditemukan ${totalPerlu} dokumen (${rincian}) tanpa dihapusAt. Memperbarui...</span>`);
 
-    for (let i = 0; i < semuaRef.length; i += BATAS_OPERASI_BATCH) {
-      const chunk = semuaRef.slice(i, i + BATAS_OPERASI_BATCH);
-      const batch = writeBatch(db);
-      chunk.forEach((ref) => {
-        batch.update(ref, { dihapusAt: null });
-      });
-      await batch.commit();
-    }
+    await jalankanBatch(semuaRef);
 
     setStatusMigrasi(`<span style="color:var(--color-success); font-weight:600;">✓ Berhasil memigrasi ${totalPerlu} dokumen (${rincian}) dengan dihapusAt: null.</span>`);
     tampilkanToast(`Migrasi berhasil: ${totalPerlu} dokumen diperbarui`, "success");
@@ -858,15 +847,12 @@ async function jalankanImporDataBatch() {
   setProgresImpor(true);
 
   try {
-    const db = getFirestoreDb();
     setProgresImpor(true, { label: "Memeriksa data yang sudah ada di aplikasi...", pct: 5 });
 
     const petaIdSudahAda = new Map();
     for (const info of KOLEKSI_CADANGAN) {
-      const snap = await getDocs(collection(db, info.key));
-      const setIds = new Set();
-      snap.forEach((d) => setIds.add(d.id));
-      petaIdSudahAda.set(info.key, setIds);
+      const { items } = await ambilDaftar(info.key);
+      petaIdSudahAda.set(info.key, new Set(items.map((item) => item.id)));
     }
 
     const operasiTulis = [];
@@ -884,9 +870,15 @@ async function jalankanImporDataBatch() {
           dilewati += 1;
           continue;
         }
+        // merge: false wajib — impor bersifat MENIMPA penuh. Tanpa ini, field lama
+        // (mis. dihapusAt dari data yang sudah ada) akan tertinggal dan berbeda dari
+        // perilaku batch.set sebelumnya.
         operasiTulis.push({
-          ref: doc(db, info.key, entri.id),
-          data: entri.data
+          jenis: "set",
+          koleksi: info.key,
+          id: entri.id,
+          data: entri.data,
+          merge: false,
         });
         if (sudahAda) ditimpa += 1;
         else ditambahkan += 1;
@@ -898,17 +890,13 @@ async function jalankanImporDataBatch() {
       for (let indeksBatch = 0; indeksBatch < totalBatch; indeksBatch += 1) {
         const mulai = indeksBatch * BATAS_OPERASI_BATCH;
         const potongan = operasiTulis.slice(mulai, mulai + BATAS_OPERASI_BATCH);
-        const batch = writeBatch(db);
-        potongan.forEach((op) => {
-          batch.set(op.ref, op.data);
-        });
 
         const persen = 15 + ((indeksBatch + 1) / totalBatch) * 85;
         setProgresImpor(true, {
           label: `Menyimpan batch ${indeksBatch + 1} dari ${totalBatch} (${Math.min(mulai + potongan.length, operasiTulis.length)}/${operasiTulis.length} data)...`,
           pct: persen,
         });
-        await batch.commit();
+        await jalankanBatch(potongan);
       }
     } else {
       setProgresImpor(true, { label: "Tidak ada perubahan baru yang perlu ditulis.", pct: 100 });

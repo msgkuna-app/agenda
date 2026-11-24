@@ -15,12 +15,7 @@ import {
   KOLEKSI,
   DOK_PENGATURAN,
 } from "../../config/constants.js";
-import {
-  getFirestoreDb,
-  doc,
-  getDoc,
-  setDoc,
-} from "../../services/firestoreService.js";
+import { ambilSatu, simpanItem } from "../../services/firestoreRepository.js";
 import {
   hariIni,
   parseTanggal,
@@ -69,11 +64,8 @@ export function bacaPengaturanHariLiburLokal() {
 export async function muatPengaturanHariLibur() {
   bacaPengaturanHariLiburLokal();
   try {
-    const db = getFirestoreDb();
-    const docRef = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const data = snap.data();
+    const data = await ambilSatu(KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR);
+    if (data) {
       const cfg = {
         entri: Array.isArray(data.entri) ? data.entri : [],
         disembunyikan: Array.isArray(data.disembunyikan) ? data.disembunyikan : [],
@@ -113,8 +105,7 @@ export async function simpanPengaturanHariLibur(cfgBaru) {
   // Render tabel dikerjakan view lewat onPerubahanHariLibur (lihat controller).
 
   try {
-    const db = getFirestoreDb();
-    await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR), cfg, { merge: true });
+    await simpanItem(KOLEKSI.PENGATURAN, DOK_PENGATURAN.HARI_LIBUR, cfg);
   } catch (err) {
     console.warn("Gagal menyimpan ke Firestore pengaturan/hariLibur:", err);
   }
@@ -204,11 +195,8 @@ export async function muatPengaturanCadangan() {
   let perluTulisUlangServer = false;
 
   try {
-    const db = getFirestoreDb();
-    const docRef = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN);
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      const data = snap.data();
+    const data = await ambilSatu(KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN);
+    if (data) {
       // Pilih waktu ekspor yang PALING BARU. Dulu nilai server selalu menimpa salinan
       // lokal sehingga ekspor yang berhasil offline (atau yang tulis servernya gagal)
       // terasa hilang — pengingat pun muncul lagi setiap hari.
@@ -238,7 +226,7 @@ export async function muatPengaturanCadangan() {
       const pemulihan = { terakhirEksporAt: terakhirLokal, updatedAt: new Date().toISOString() };
       if (intervalLokal !== null) pemulihan.intervalHari = intervalLokal;
       try {
-        await setDoc(docRef, pemulihan, { merge: true });
+        await simpanItem(KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN, pemulihan);
       } catch (_e4) {
         // Biarkan; salinan lokal tetap dipakai
       }
@@ -269,11 +257,10 @@ export async function simpanIntervalCadangan(intervalBaru) {
   } catch (_e) {}
 
   try {
-    const db = getFirestoreDb();
-    await setDoc(doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN), {
+    await simpanItem(KOLEKSI.PENGATURAN, DOK_PENGATURAN.CADANGAN, {
       intervalHari: inv,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
   } catch (_err) {
     // Jika gagal (offline), salinan lokal sudah tersimpan
   }
