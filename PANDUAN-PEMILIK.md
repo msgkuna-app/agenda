@@ -177,6 +177,7 @@ diikuti perubahan pada berkas aturan tersebut.
 |---|---|---|
 | `judul` | string | wajib, 1–160 |
 | `tanggal` | string | wajib, `YYYY-MM-DD` (tepat 10 karakter) |
+| `tanggalSelesai` | string | opsional, ≤ 10 — hari terakhir kegiatan berturutan; kosong berarti satu hari (sejak v1.8.63) |
 | `status` | string | wajib, salah satu: `Rencana`, `Berjalan`, `Selesai` |
 | `catatan` | string | opsional, ≤ 5.000 |
 | `waktuMulai`, `waktuSelesai` | string | opsional, ≤ 10 (`HH:MM`) |
@@ -255,8 +256,17 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 
 Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.63 —
 Tahap 6, Tahap 7a, Tahap 7b, dan Tahap 8a tidak menambah kueri gabungan baru: kolom baru
-`tanggalSelesai` (kegiatan berturutan) hanya dibaca di sisi aplikasi, seluruh kueri tetap
-menyaring kolom `tanggal`, sehingga deploy cukup `--only hosting`.
+`tanggalSelesai` (kegiatan berturutan) hanya dibaca di sisi aplikasi dan seluruh kueri tetap
+menyaring kolom `tanggal`, sehingga **indeks** tidak perlu ditambah dan hosting cukup
+`--only hosting`.
+
+**Tetapi aturan tetap harus di-deploy.** Kolom baru wajib didaftarkan di `firestore.rules`
+(daftar `hasOnly` pada `validKegiatan`/`validKegiatanUbah`) dan dirilis dengan
+`firebase deploy --only firestore:rules`. Pada Tahap 8a langkah ini terlewat, sehingga
+seluruh penyimpanan kegiatan ditolak dengan pesan "Akses basis data ditolak. Pastikan Anda
+masuk menggunakan akun pemilik resmi." — pesan itu menyesatkan, karena penyebabnya validasi
+field, bukan autentikasi. Bila pesan itu muncul padahal Anda sudah masuk dengan akun yang
+benar, periksa lebih dulu apakah ada kolom baru yang belum terdaftar di aturan.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
 salin indeks itu ke berkas ini agar ikut ter-deploy.
@@ -666,7 +676,7 @@ Bila akun Google-nya sama dan hanya alamat email yang berubah (mis. ganti nama a
 | Kapan | Tindakan |
 |---|---|
 | Setiap mengubah JS/CSS | naikkan `VERSION` (`sw.js`) + `VERSI_CADANGAN_SW` (`constants.js`); daftarkan berkas baru di `APP_SHELL` |
-| Setiap mengubah field Firestore | perbarui `firestore.rules` **dan** kode `state.js` modul terkait; deploy aturan |
+| Setiap mengubah field Firestore | tambahkan field ke daftar `hasOnly` di `firestore.rules` (fungsi validasi **buat dan ubah**), perbarui `state.js` modul terkait, **dan** periksa jalur ekspor/impor cadangan di `pengaturan/controller.js`; deploy `--only firestore:rules` (tidak ikut `--only hosting`) |
 | Setiap menambah kueri gabungan | tambahkan indeks di `firestore.indexes.json`; deploy indeks |
 | Setiap deploy | `firebase deploy` (hosting + rules + indexes) |
 | Berkala | ekspor JSON cadangan; periksa Firebase Console → Firestore → Usage untuk kuota |
@@ -677,6 +687,7 @@ Bila akun Google-nya sama dan hanya alamat email yang berubah (mis. ganti nama a
 | Gejala | Penyebab | Solusi |
 |---|---|---|
 | `Missing or insufficient permissions` | email/UID di aturan tidak cocok, atau aturan belum di-deploy | periksa `firestore.rules`, deploy ulang |
+| "Akses basis data ditolak…" padahal sudah masuk dengan akun pemilik | **bukan** masalah login: ada field baru yang belum terdaftar di daftar `hasOnly` `firestore.rules`, sehingga validasi tulis gagal | tambahkan field itu di fungsi validasi buat **dan** ubah, lalu `firebase deploy --only firestore:rules` |
 | Aplikasi memuat versi lama | `VERSION` tidak dinaikkan | naikkan versi SW, muat ulang; bila tetap, hapus cache situs |
 | Berkas Drive "hilang" setelah ganti Client ID | izin `drive.file` terikat pada aplikasi (Client ID) | gunakan Client ID lama, atau pilih ulang berkas |
 | Unggah gagal 403 `storageQuota` | Drive penuh | kosongkan sampah Drive / tambah kapasitas |
