@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.63**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.69**
 
 ---
 
@@ -85,6 +85,7 @@ C:\agenda-arsip\
       tema.js               penerapan skema warna
       util-html.js          escapeHtml, svgIkon, nama hari/bulan
       util-tanggal.js       parsing & format tanggal lokal
+      lampiran-hari.js      logika lampiran (foto/dokumen) per hari pada kegiatan berturutan (v1.8.65)
 ```
 
 ### 2.2 Lapisan dan aturan arsitektur
@@ -111,8 +112,8 @@ Aturan yang wajib dipatuhi saat mengubah kode:
 | ID section | Label | Isi |
 |---|---|---|
 | `dashboard` | Dashboard | ringkasan hari ini, jadwal mendatang, pintasan |
-| `kegiatan` | Kegiatan | daftar kegiatan, foto & dokumen terkait, filter status/kategori |
-| `jadwal` | Jadwal | kalender bulanan + agenda |
+| `kegiatan` | Kegiatan | daftar kegiatan, foto & dokumen terkait, filter status/kategori; sejak v1.8.69 kegiatan berturutan tampil sebagai satu kartu per hari, dengan lampiran dan notulensi mengikuti hari kartu itu |
+| `jadwal` | Jadwal | kalender bulanan + agenda; sejak v1.8.65 juga menampilkan foto kegiatan dan menyaring lampiran sesuai hari yang dibuka; sejak v1.8.66 kartunya memuat informasi & tombol yang sama dengan halaman Kegiatan (catatan terkait, Rincian, Buat notulensi, Ubah, Hapus); sejak v1.8.67 notulensi yang dibuat dari kartu bertanggal hari kartu itu; sejak v1.8.68 Daftar Agenda 30 hari menampilkan kegiatan berturutan pada **setiap** harinya, bukan hanya hari pertama |
 | `dokumen` | Dokumen | arsip dokumen Google Drive + kategori/folder |
 | `catatan` | Catatan | catatan singkat + catatan Google Docs |
 | `laporan` | Laporan | rekapitulasi + ekspor ke Google Sheets / CSV |
@@ -202,12 +203,14 @@ diikuti perubahan pada berkas aturan tersebut.
 | `mimeType` | string | opsional, ≤ 150 |
 | `ukuran` | number | opsional, ≥ 0 (byte) |
 | `kategoriId`, `kegiatanId` | string | opsional, ≤ 100 |
+| `tanggal` | string | opsional, ≤ 10 — hari kegiatan tempat lampiran ini menempel pada kegiatan berturutan; kosong berarti hari pertama (sejak v1.8.65) |
 | `catatan` | string | opsional, ≤ 5.000 |
 | `tanggalUnggah`, `createdAt`, `updatedAt` | string | opsional, ≤ 50 |
 
 **`foto`** — `kegiatanId` (wajib, ≤ 100), `driveFileId` (wajib, ≤ 100), `namaFile` (wajib, ≤ 255),
-`tautan` (≤ 1000), `thumbnailLink` (≤ 2000), `mimeType` (≤ 150), `ukuran` (≥ 0), `catatan` (≤ 5000),
-`createdAt`, `updatedAt`.
+`tautan` (≤ 1000), `thumbnailLink` (≤ 2000), `mimeType` (≤ 150), `ukuran` (≥ 0),
+`tanggal` (≤ 10, opsional — hari tempat foto menempel pada kegiatan berturutan; kosong berarti
+hari pertama, sejak v1.8.65), `catatan` (≤ 5000), `createdAt`, `updatedAt`.
 
 **`catatan`**
 
@@ -254,19 +257,23 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 | `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
 | `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
 
-Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.63 —
-Tahap 6, Tahap 7a, Tahap 7b, dan Tahap 8a tidak menambah kueri gabungan baru: kolom baru
-`tanggalSelesai` (kegiatan berturutan) hanya dibaca di sisi aplikasi dan seluruh kueri tetap
-menyaring kolom `tanggal`, sehingga **indeks** tidak perlu ditambah dan hosting cukup
-`--only hosting`.
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.69 —
+Tahap 6, Tahap 7a, Tahap 7b, Tahap 8a, dan Tahap 8b tidak menambah kueri gabungan baru: kolom
+baru `tanggalSelesai` (kegiatan berturutan), `dokumen.tanggal`, dan `foto.tanggal` hanya dibaca
+di sisi aplikasi dan seluruh kueri tetap menyaring kolom `tanggal` (kegiatan) atau
+`tanggalUnggah`/`createdAt` (dokumen/foto), sehingga **indeks** tidak perlu ditambah dan
+hosting cukup `--only hosting`.
 
 **Tetapi aturan tetap harus di-deploy.** Kolom baru wajib didaftarkan di `firestore.rules`
-(daftar `hasOnly` pada `validKegiatan`/`validKegiatanUbah`) dan dirilis dengan
+(daftar `hasOnly` pada fungsi validasi **buat dan ubah** koleksi terkait) dan dirilis dengan
 `firebase deploy --only firestore:rules`. Pada Tahap 8a langkah ini terlewat, sehingga
 seluruh penyimpanan kegiatan ditolak dengan pesan "Akses basis data ditolak. Pastikan Anda
 masuk menggunakan akun pemilik resmi." — pesan itu menyesatkan, karena penyebabnya validasi
 field, bukan autentikasi. Bila pesan itu muncul padahal Anda sudah masuk dengan akun yang
-benar, periksa lebih dulu apakah ada kolom baru yang belum terdaftar di aturan.
+benar, periksa lebih dulu apakah ada kolom baru yang belum terdaftar di aturan. Tahap 8b
+(v1.8.65) sudah menerapkan aturan ini: `tanggal` terdaftar di `validDokumen`/`validDokumenUbah`
+dan `validFoto`/`validFotoUbah`, dan **aturan itu harus di-deploy sebelum `--only hosting`**. Pada v1.8.65
+ada **dua** perintah deploy karena `firestore.rules` ikut berubah.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
 salin indeks itu ke berkas ini agar ikut ter-deploy.

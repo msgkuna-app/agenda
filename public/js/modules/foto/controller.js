@@ -10,6 +10,11 @@ import { tampilkanToast } from "../../shared/toast.js";
 import { getDaftarKegiatan } from "../kegiatan/index.js";
 import { renderDaftarKegiatan } from "../kegiatan/view.js";
 import {
+  perbaruiPilihanHariLampiran,
+  ambilTanggalLampiranTerpilih,
+  labelTanggalLampiran
+} from "../../lampiran-hari.js";
+import {
   getDaftarFoto,
   onPerubahanFoto,
   langgananFoto,
@@ -28,6 +33,7 @@ let sudahDipasang = false;
 let sedangUnggah = false;
 let modalTerbuka = false;
 let kegiatanIdSaatIni = "";
+let tanggalSaatIni = "";
 let fokusSebelumModal = null;
 
 function setPesanGalatModal(pesan) {
@@ -45,7 +51,7 @@ function setPesanGalatModal(pesan) {
 }
 
 /** Membuka modal unggah untuk satu kegiatan tertentu (dipanggil dari kartu). */
-export function bukaModalUnggahFoto(kegiatanId) {
+export function bukaModalUnggahFoto(kegiatanId, tanggalAwal = "") {
   const id = String(kegiatanId || "").trim();
   const kegiatan = getDaftarKegiatan().find((k) => k.id === id);
   if (!id || !kegiatan) {
@@ -65,6 +71,18 @@ export function bukaModalUnggahFoto(kegiatanId) {
   const judulEl = document.getElementById("foto-upload-kegiatan-judul");
   if (judulEl) judulEl.textContent = kegiatan.judul || "(Tanpa judul)";
 
+  // Pilihan hari hanya muncul untuk kegiatan berturutan. Bila tersembunyi,
+  // tanggalSaatIni tetap kosong sehingga data lampiran sama seperti sebelumnya
+  // (lampiran tanpa tanggal dianggap milik hari pertama kegiatan).
+  perbaruiPilihanHariLampiran({
+    idSelect: "foto-upload-hari",
+    idWrap: "foto-upload-hari-wrap",
+    kegiatanId: id,
+    daftarKegiatan: getDaftarKegiatan(),
+    tanggalTerpilih: tanggalAwal
+  });
+  tanggalSaatIni = ambilTanggalLampiranTerpilih("foto-upload-hari");
+
   bersihkanFormUnggahFoto();
   setPesanGalatModal("");
   setelSedangUnggahFoto(false);
@@ -82,6 +100,7 @@ function tutupModalUnggahFoto(kembalikanFokus = true) {
   modalTerbuka = false;
   modal.hidden = true;
   kegiatanIdSaatIni = "";
+  tanggalSaatIni = "";
   bersihkanFormUnggahFoto();
   setPesanGalatModal("");
   if (kembalikanFokus && fokusSebelumModal && document.contains(fokusSebelumModal)) {
@@ -90,13 +109,12 @@ function tutupModalUnggahFoto(kembalikanFokus = true) {
   fokusSebelumModal = null;
 }
 
-async function unggahBerkasTerpilih(kegiatanId, berkas) {
+async function unggahBerkasTerpilih(kegiatanId, berkas, tanggalLampiran = "") {
   const daftar = Array.from(berkas || []);
   if (!daftar.length) {
     setPesanGalatModal("Pilih satu atau lebih berkas foto terlebih dahulu.");
     return;
   }
-
   const nonFoto = daftar.filter((f) => !String(f.type || "").startsWith("image/"));
   if (nonFoto.length) {
     setPesanGalatModal(`Berkas berikut bukan gambar: ${nonFoto.map((f) => f.name).join(", ")}.`);
@@ -130,6 +148,7 @@ async function unggahBerkasTerpilih(kegiatanId, berkas) {
       const hasil = await unggahan.promise;
       await simpanMetadataFoto({
         kegiatanId,
+        tanggal: tanggalLampiran,
         driveFileId: hasil.id,
         namaFile: hasil.name || file.name,
         tautan: hasil.webViewLink || "",
@@ -148,7 +167,9 @@ async function unggahBerkasTerpilih(kegiatanId, berkas) {
   setelSedangUnggahFoto(false);
 
   if (berhasil) {
-    tampilkanToast(`${berhasil} foto berhasil diunggah${gagal ? `, ${gagal} gagal` : ""}.`, gagal ? "info" : "sukses");
+    const labelHari = labelTanggalLampiran(tanggalLampiran);
+    const infoHari = labelHari ? ` pada ${labelHari}` : "";
+    tampilkanToast(`${berhasil} foto berhasil diunggah${infoHari}${gagal ? `, ${gagal} gagal` : ""}.`, gagal ? "info" : "sukses");
     if (!gagal) tutupModalUnggahFoto();
   } else if (!gagal) {
     setPesanGalatModal("Tidak ada berkas yang diunggah.");
@@ -216,7 +237,10 @@ export function initFoto() {
     const tombolUnggah = target.closest('[data-action="unggah-foto"]');
     if (tombolUnggah) {
       evt.preventDefault();
-      bukaModalUnggahFoto(tombolUnggah.getAttribute("data-id"));
+      bukaModalUnggahFoto(
+        tombolUnggah.getAttribute("data-id"),
+        tombolUnggah.getAttribute("data-tanggal") || ""
+      );
       return;
     }
 
@@ -229,6 +253,7 @@ export function initFoto() {
 
   // --- Modal unggah ---
   const inputBerkas = document.getElementById("foto-upload-file");
+  const selectHari = document.getElementById("foto-upload-hari");
   const form = document.getElementById("foto-upload-form");
   form?.addEventListener("submit", (evt) => {
     evt.preventDefault();
@@ -237,7 +262,12 @@ export function initFoto() {
       setPesanGalatModal("Kegiatan tujuan tidak valid. Tutup modal lalu coba lagi dari kartu kegiatan.");
       return;
     }
-    unggahBerkasTerpilih(kegiatanIdSaatIni, inputBerkas?.files);
+    unggahBerkasTerpilih(kegiatanIdSaatIni, inputBerkas?.files, tanggalSaatIni);
+  });
+
+  // Pengguna boleh memilih hari lain sebelum menekan Unggah ke Drive.
+  selectHari?.addEventListener("change", () => {
+    tanggalSaatIni = ambilTanggalLampiranTerpilih("foto-upload-hari");
   });
 
   inputBerkas?.addEventListener("change", () => {

@@ -16,6 +16,7 @@ import { pastikanFolderTujuanKategoriSiap } from "./folder.js";
  *   file: File,
  *   kegiatanId: string,
  *   kategoriId?: string,
+ *   tanggal?: string,
  *   catatan?: string,
  *   onProgress?: (persen: number, terunggah: number, total: number, infoDetail?: any) => void
  * }} opsi
@@ -25,6 +26,7 @@ export async function unggahBerkasSebagaiDokumenKegiatan({
   file,
   kegiatanId,
   kategoriId = "",
+  tanggal = "",
   catatan = "",
   onProgress,
 } = {}) {
@@ -64,6 +66,7 @@ export async function unggahBerkasSebagaiDokumenKegiatan({
     ukuran: Number.isFinite(Number(hasilDrive.size)) ? Number(hasilDrive.size) : file.size,
     kategoriId: String(kategoriId || "").trim(),
     kegiatanId: String(kegiatanId || "").trim(),
+    tanggal: String(tanggal || "").trim(),
     catatan: String(catatan || "").trim(),
     tanggalUnggah: sekarangIso,
     createdAt: sekarangIso,

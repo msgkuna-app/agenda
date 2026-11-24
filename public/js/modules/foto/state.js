@@ -24,6 +24,9 @@ function petakanFoto(d) {
   return {
     id: data.id,
     kegiatanId: String(data.kegiatanId || ""),
+    // Hari tempat foto ini disimpan pada kegiatan berturutan (Tahap 8b).
+    // Kosong berarti hari pertama kegiatan, sehingga data lama tetap terbaca.
+    tanggal: String(data.tanggal || ""),
     driveFileId: String(data.driveFileId || ""),
     namaFile: String(data.namaFile || ""),
     tautan: String(data.tautan || ""),
@@ -69,7 +72,7 @@ export function beritahuPerubahanFoto() {
 
 /**
  * Menyimpan metadata satu foto yang sudah diunggah ke Drive.
- * @param {{ kegiatanId: string, driveFileId: string, namaFile: string, tautan: string, mimeType: string, ukuran: number, catatan?: string }} data
+ * @param {{ kegiatanId: string, tanggal?: string, driveFileId: string, namaFile: string, tautan: string, mimeType: string, ukuran: number, catatan?: string }} data
  */
 export async function simpanMetadataFoto(data) {
   const kegiatanId = String(data?.kegiatanId || "").trim();
@@ -80,6 +83,7 @@ export async function simpanMetadataFoto(data) {
   const sekarang = new Date().toISOString();
   const idBaru = await tambahItem(KOLEKSI.FOTO, {
     kegiatanId,
+    tanggal: String(data?.tanggal || "").trim(),
     driveFileId,
     namaFile: String(data.namaFile || ""),
     tautan: String(data.tautan || ""),

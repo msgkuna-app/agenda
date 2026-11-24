@@ -1925,8 +1925,36 @@ html[data-drawer="open"] .app-sidebar {
   white-space: nowrap;
 }
 
-.agenda-ongoing-group .agenda-day-title {
-  color: var(--color-accent-text);
+.kegiatan-lanjutan-note {
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+/* Keterangan hari lampiran pada kegiatan berturutan (Tahap 8b) */
+.kegiatan-lampiran-hari {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Lencana hari pada kartu foto kegiatan berturutan */
+.foto-kartu-hari {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Keterangan hari pada baris dokumen kegiatan berturutan */
+.kegiatan-dokumen-hari {
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ==========================================================================

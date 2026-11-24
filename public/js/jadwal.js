@@ -7,6 +7,7 @@
  * - Seluruh perhitungan tanggal HANYA memakai util-tanggal.js.
  */
 import { formatPesanGalatFirestore } from "./services/firestoreService.js";
+import { MAKS_HARI_RENTANG, SATU_HARI_MS } from "./config/constants.js";
 import { tanggalLokal, hariIni, tambahHari, parseTanggal, akhiriRentang, jumlahHariRentang, rentangBersinggungan } from "./util-tanggal.js";
 import { pindahKeBagian } from "./sidebar.js";
 import { escapeHtml, svgIkon, NAMA_HARI, NAMA_BULAN, NAMA_BULAN_PENDEK } from "./util-html.js";
@@ -21,11 +22,17 @@ import {
   ubahStatusKegiatanCepat,
   kelasBadgeStatus,
   sinkronkanJendelaTanggalKegiatan,
-  formatRentangTanggal
+  formatRentangTanggal,
+  buatNotulensiUntukKegiatan
 } from "./modules/kegiatan/index.js";
+import { getCatatanTerkaitKegiatan, onPerubahanCatatan } from "./modules/catatan/index.js";
 import { infoHari, adaDataTahun } from "./hari-libur.js";
 import { getDaftarDokumen, onPerubahanDokumen } from "./modules/dokumen/state.js";
 import { htmlDokumenKegiatan } from "./modules/dokumen/kegiatan-view.js";
+import { getDaftarFoto, onPerubahanFoto } from "./modules/foto/state.js";
+import { htmlFotoKegiatan } from "./modules/foto/view.js";
+import { muatThumbnailDalam } from "./modules/foto/controller.js";
+import { saringLampiranHari } from "./lampiran-hari.js";
 
 // Nama hari/bulan & svgIkon kini diimpor dari util-html.js (Tahap 4: deduplikasi).
 // NAMA_HARI_DARI_MINGGU -> NAMA_HARI, NAMA_BULAN_PANJANG -> NAMA_BULAN, NAMA_BULAN_RINGKAS -> NAMA_BULAN_PENDEK.
@@ -47,10 +54,11 @@ const IKON_TAMBAH = (uk = 18) => svgIkon('<line x1="12" y1="5" x2="12" y2="19"/>
 const IKON_GALAT = svgIkon('<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>', 18);
 const IKON_JAM = svgIkon('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 15);
 const IKON_LOKASI = svgIkon('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>', 15);
+const IKON_CATATAN = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 15);
 
 // Batas pengaman jumlah hari yang diurai dari satu kegiatan berturutan, agar
 // salah isian (mis. tanggal selesai bertahun-tahun) tidak membebani kalender.
-const MAKS_HARI_RENTANG_KALENDER = 120;
+const MAKS_HARI_RENTANG_KALENDER = MAKS_HARI_RENTANG;
 
 let jadwalSudahDiikat = false;
 let detailModalSudahDiikat = false;
@@ -196,6 +204,7 @@ function kelompokkanKegiatanPerTanggal(daftarKegiatan) {
       if (!peta.has(kursor)) peta.set(kursor, []);
       peta.get(kursor).push({
         ...item,
+        tanggalHari: kursor,
         hariKe: nomorHari,
         totalHari: jumlahHariRentang(item),
         adalahHariPertama: nomorHari === 1
@@ -218,11 +227,37 @@ function renderKartuItemJadwal(item) {
 
   const totalHari = jumlahHariRentang(item);
   const kegiatanBerturutan = totalHari > 1;
+  // Kartu kegiatan berturutan dirender pada SETIAP tanggal dalam rentangnya — baik
+  // di kalender, panel tanggal terpilih, maupun Daftar Agenda 30 hari (sejak v1.8.68).
+  // Lampiran disaring agar hanya foto dan dokumen milik hari itu yang tampil; kartu
+  // halaman Kegiatan tetap menampilkan seluruh lampiran dalam satu kartu.
+  const tampilkanPerHari = kegiatanBerturutan && Boolean(item.tanggalHari);
+  const hariKe = Number.isFinite(Number(item.hariKe)) ? Number(item.hariKe) : 1;
+  const tanggalHari = String(item.tanggalHari || item.tanggal || "");
   const infoRentangHtml = kegiatanBerturutan
     ? `<span class="kegiatan-meta-item">${IKON_KALENDER}<span>${escapeHtml(formatRentangTanggal(item))}</span></span>`
     : "";
-  const labelLanjutanHtml = kegiatanBerturutan && item.hariKe > 1
-    ? `<span class="badge-lanjutan" title="Kegiatan ini berlanjut dari hari sebelumnya">Hari ke-${item.hariKe} dari ${totalHari}</span>`
+  const labelLanjutanHtml = tampilkanPerHari && hariKe > 1
+    ? `<span class="badge-lanjutan" title="Kegiatan ini berlanjut dari hari sebelumnya">Hari ke-${hariKe} dari ${totalHari}</span>`
+    : "";
+
+  const semuaFoto = getDaftarFoto().filter((f) => f.kegiatanId === item.id);
+  const semuaDokumen = getDaftarDokumen().filter((d) => d.kegiatanId === item.id);
+  const fotoHariIni = tampilkanPerHari ? saringLampiranHari(semuaFoto, item, tanggalHari, hariKe) : semuaFoto;
+  const dokumenHariIni = tampilkanPerHari ? saringLampiranHari(semuaDokumen, item, tanggalHari, hariKe) : semuaDokumen;
+  const labelLampiranHtml = tampilkanPerHari
+    ? `<p class="kegiatan-card-note kegiatan-lampiran-hari">Lampiran ${escapeHtml(formatTanggalRingkasIndonesia(tanggalHari))} — hari ke-${hariKe} dari ${totalHari}${hariKe === 1 ? " (hari pertama)" : ""}.</p>`
+    : "";
+  const lampiranHtml = `${labelLampiranHtml}
+    ${htmlFotoKegiatan(item.id, fotoHariIni, tanggalHari, item)}
+    ${htmlDokumenKegiatan(item.id, dokumenHariIni, tanggalHari, item)}`;
+
+  // Informasi yang sama dengan kartu halaman Kegiatan: jumlah catatan terkait
+  // serta tombol Rincian dan Buat notulensi (Tahap 8b).
+  const catatanTerkait = getCatatanTerkaitKegiatan(item.id);
+  const sedangOnline = navigator.onLine;
+  const metaCatatanHtml = catatanTerkait.length > 0
+    ? `<span class="kegiatan-meta-item">${IKON_CATATAN}<span>${catatanTerkait.length} catatan terkait</span></span>`
     : "";
 
   return `<article class="kegiatan-card jadwal-event-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
@@ -244,10 +279,13 @@ function renderKartuItemJadwal(item) {
       <span class="kegiatan-meta-item">${IKON_JAM}<span>${escapeHtml(rentangWaktu)}</span></span>
       ${infoRentangHtml}
       ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
+      ${metaCatatanHtml}
     </div>
     ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
-    ${htmlDokumenKegiatan(item.id, getDaftarDokumen().filter((d) => d.kegiatanId === item.id))}
-    <div class="kegiatan-card-footer">
+    ${lampiranHtml}
+    <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="buka-detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi-jadwal" data-id="${escapeHtml(item.id)}" data-tanggal="${escapeHtml(tampilkanPerHari ? tanggalHari : "")}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
       <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Ubah</button>
       <button type="button" class="btn-danger-outline btn-sm-touch" data-action="hapus-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Hapus</button>
     </div>
@@ -460,30 +498,44 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
     return;
   }
 
-  // Kegiatan berturutan yang sudah dimulai sebelum hari ini tetapi masih berjalan
-  // dikumpulkan terpisah sebagai "Sedang berlangsung" agar tidak hilang dari daftar.
-  const masihBerlangsung = dalamRentang.filter((item) => item.tanggal < strAwal);
-  const akanDatang = dalamRentang.filter((item) => item.tanggal >= strAwal);
-
+  // Setiap kegiatan didaftarkan pada SETIAP tanggal yang dicakupnya di dalam rentang
+  // 30 hari ini, sama seperti kalender bulanan. Tanpa ini kegiatan berturutan hanya
+  // muncul pada hari pertamanya, dan kartunya tidak membawa tanggal hari sehingga
+  // lampiran serta notulensi jatuh kembali ke hari pertama. Kegiatan yang sudah
+  // dimulai sebelum hari ini otomatis muncul di grup hari ini dengan nomor hari
+  // yang benar ("Hari ke-6 dari 9"), jadi bagian "sedang berlangsung" tidak perlu.
   const grupTanggal = new Map();
-  akanDatang.forEach((item) => {
-    if (!grupTanggal.has(item.tanggal)) grupTanggal.set(item.tanggal, []);
-    grupTanggal.get(item.tanggal).push(item);
+  dalamRentang.forEach((item) => {
+    const objMulai = parseTanggal(item.tanggal);
+    if (!objMulai) return;
+    const akhirKegiatan = akhiriRentang(item.tanggal, item.tanggalSelesai);
+    const totalHari = jumlahHariRentang(item);
+    // Mulai dari hari ini bila kegiatan sudah berjalan sebelumnya; nomor hari
+    // dihitung dari tanggal mulai kegiatan agar lencana "Hari ke-N" tetap benar.
+    const kursorAwal = item.tanggal < strAwal ? strAwal : item.tanggal;
+    const objKursorAwal = parseTanggal(kursorAwal);
+    if (!objKursorAwal) return;
+    let kursor = kursorAwal;
+    let nomorHari = Math.round((objKursorAwal.getTime() - objMulai.getTime()) / SATU_HARI_MS) + 1;
+    while (kursor && kursor <= akhirKegiatan && kursor <= strAkhir && nomorHari <= totalHari) {
+      if (!grupTanggal.has(kursor)) grupTanggal.set(kursor, []);
+      grupTanggal.get(kursor).push({
+        ...item,
+        tanggalHari: kursor,
+        hariKe: nomorHari,
+        totalHari,
+        adalahHariPertama: nomorHari === 1
+      });
+      const objKursor = parseTanggal(kursor);
+      if (!objKursor) break;
+      kursor = tambahHari(1, objKursor);
+      nomorHari += 1;
+    }
   });
+  const daftarTanggal = Array.from(grupTanggal.keys()).sort();
 
-  const htmlSedangBerlangsung = masihBerlangsung.length > 0
-    ? `<section class="agenda-day-group agenda-ongoing-group" aria-label="Kegiatan sedang berlangsung">
-        <div class="agenda-day-header">
-          <div class="agenda-day-title-wrap">
-            <h3 class="agenda-day-title">Kegiatan sedang berlangsung</h3>
-            <span class="agenda-day-count">${masihBerlangsung.length} kegiatan</span>
-          </div>
-        </div>
-        <div class="kegiatan-list-grid">${masihBerlangsung.map((item) => renderKartuItemJadwal(item)).join("")}</div>
-      </section>`
-    : "";
-
-  const grupHtml = Array.from(grupTanggal.entries()).map(([tgl, daftarItem]) => {
+  const grupHtml = daftarTanggal.map((tgl) => {
+    const daftarItem = grupTanggal.get(tgl) || [];
     const penandaRelatif = tgl === strAwal ? "Hari ini • " : tgl === strBesok ? "Besok • " : "";
     const infoGrup = infoHari(tgl);
 
@@ -516,12 +568,12 @@ function renderDaftarAgenda30Hari(semuaKegiatan) {
     </section>`;
   }).join("");
 
-  const totalTanggalAgenda = grupTanggal.size + (masihBerlangsung.length > 0 ? 1 : 0);
+  const totalTanggalAgenda = grupTanggal.size;
   region.innerHTML = `<div class="agenda-range-banner">
     <span class="agenda-range-text">Rentang 30 hari ke depan: <strong>${escapeHtml(keteranganRentang)}</strong></span>
     <span class="agenda-range-total">${dalamRentang.length} kegiatan dalam ${totalTanggalAgenda} tanggal</span>
   </div>
-  <div class="agenda-groups-stack">${htmlSedangBerlangsung}${grupHtml}</div>`;
+  <div class="agenda-groups-stack">${grupHtml}</div>`;
 }
 
 export function renderHalamanJadwal() {
@@ -549,6 +601,11 @@ export function renderHalamanJadwal() {
 
   renderKalenderBulanan(petaPerTanggal);
   renderDaftarAgenda30Hari(semuaKegiatan);
+
+  // Thumbnail foto dimuat lewat Drive API setelah kartu terpasang di DOM.
+  // Pengamat MutationObserver modul foto hanya mengawasi #kegiatan-list-region,
+  // sehingga kartu pada halaman Jadwal perlu pemanggilan eksplisit di sini.
+  muatThumbnailDalam(document);
 
   if (detailModalTerbuka) segarkanIsiDialogDetailKegiatan();
 }
@@ -811,6 +868,12 @@ export function initHalamanJadwal() {
           if (item) bukaModalFormKegiatan(item);
           return;
         }
+        if (aksi === "buat-notulensi-jadwal" && id) {
+          // Kirim hari kartu yang diklik agar notulensi bertanggal hari itu,
+          // bukan selalu hari pertama kegiatan berturutan.
+          buatNotulensiUntukKegiatan(id, tgl);
+          return;
+        }
         if (aksi === "hapus-kegiatan-jadwal" && id) {
           const item = getDaftarKegiatan().find((k) => k.id === id);
           if (item) bukaDialogHapusKegiatan(item);
@@ -845,8 +908,13 @@ export function initHalamanJadwal() {
   }
 
   onPerubahanKegiatan(() => renderHalamanJadwal());
-  // Dokumen terkait ditampilkan di kartu jadwal — segarkan saat data dokumen berubah.
+  // Dokumen, foto, & catatan terkait ditampilkan di kartu jadwal — segarkan saat berubah.
   onPerubahanDokumen(() => renderHalamanJadwal());
+  onPerubahanFoto(() => renderHalamanJadwal());
+  onPerubahanCatatan(() => renderHalamanJadwal());
+  // Tombol "Buat notulensi" nonaktif saat luring; render ulang begitu koneksi kembali.
+  window.addEventListener("online", () => renderHalamanJadwal());
+  window.addEventListener("offline", () => renderHalamanJadwal());
   renderHalamanJadwal();
 }
 

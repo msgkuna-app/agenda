@@ -53,6 +53,9 @@ export function petakanDokumen(d) {
     ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
     kategoriId: String(data.kategoriId || ""),
     kegiatanId: String(data.kegiatanId || ""),
+    // Hari tempat dokumen ini disimpan pada kegiatan berturutan (Tahap 8b).
+    // Kosong berarti hari pertama kegiatan, sehingga data lama tetap terbaca.
+    tanggal: String(data.tanggal || ""),
     catatan: String(data.catatan || ""),
     tanggalUnggah: String(data.tanggalUnggah || data.createdAt || ""),
     createdAt: String(data.createdAt || ""),

@@ -142,7 +142,7 @@ service cloud.firestore {
     function validDokumen(d) {
       return d.keys().hasOnly([
         'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
-        'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
+        'ukuran', 'kategoriId', 'kegiatanId', 'tanggal', 'catatan', 'tanggalUnggah',
         'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160
@@ -153,6 +153,7 @@ service cloud.firestore {
       && (!('ukuran' in d) || (d.ukuran is number && d.ukuran >= 0))
       && strOps(d, 'kategoriId', 100)
       && strOps(d, 'kegiatanId', 100)
+      && strOps(d, 'tanggal', 10)
       && strOps(d, 'catatan', 5000)
       && strOps(d, 'tanggalUnggah', 50)
       && strOps(d, 'createdAt', 50)
@@ -164,7 +165,7 @@ service cloud.firestore {
       let u = d.diff(resource.data).affectedKeys();
       return u.hasOnly([
         'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
-        'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
+        'ukuran', 'kategoriId', 'kegiatanId', 'tanggal', 'catatan', 'tanggalUnggah',
         'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && (!u.hasAny(['namaTampilan']) || (d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160))
@@ -175,6 +176,7 @@ service cloud.firestore {
       && angkaUbah(d, u, 'ukuran')
       && strUbah(d, u, 'kategoriId', 100)
       && strUbah(d, u, 'kegiatanId', 100)
+      && strUbah(d, u, 'tanggal', 10)
       && strUbah(d, u, 'catatan', 5000)
       && strUbah(d, u, 'tanggalUnggah', 50)
       && strUbah(d, u, 'createdAt', 50)
@@ -188,10 +190,11 @@ service cloud.firestore {
 
     function validFoto(d) {
       return d.keys().hasOnly([
-        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
+        'kegiatanId', 'tanggal', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
         'ukuran', 'catatan', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.kegiatanId is string && d.kegiatanId.size() >= 1 && d.kegiatanId.size() <= 100
+      && strOps(d, 'tanggal', 10)
       && d.driveFileId is string && d.driveFileId.size() >= 1 && d.driveFileId.size() <= 100
       && d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255
       && strOps(d, 'tautan', 1000)
@@ -207,10 +210,11 @@ service cloud.firestore {
     function validFotoUbah(d) {
       let u = d.diff(resource.data).affectedKeys();
       return u.hasOnly([
-        'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
+        'kegiatanId', 'tanggal', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
         'ukuran', 'catatan', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && strUbah(d, u, 'kegiatanId', 100)
+      && strUbah(d, u, 'tanggal', 10)
       && strUbah(d, u, 'driveFileId', 100)
       && strUbah(d, u, 'namaFile', 255)
       && strUbah(d, u, 'tautan', 1000)

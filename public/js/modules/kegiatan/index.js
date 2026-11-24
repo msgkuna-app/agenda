@@ -26,6 +26,7 @@ export {
   daftarkanPembukaDetailKegiatan,
   bukaModalFormKegiatan,
   bukaDialogHapusKegiatan,
+  buatNotulensiUntukKegiatan,
   terapkanFilterKategoriKegiatan,
   terapkanFilterStatusKegiatan,
   initHalamanKegiatan,

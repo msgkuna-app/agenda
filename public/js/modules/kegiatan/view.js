@@ -5,13 +5,14 @@
  * (kata kunci, kategori, status, urutan) tinggal di sini karena hanya
  * memengaruhi tampilan.
  */
-import { DAFTAR_STATUS_KEGIATAN } from "../../config/constants.js";
+import { DAFTAR_STATUS_KEGIATAN, MAKS_HARI_RENTANG } from "../../config/constants.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";
 import { TANPA_KATEGORI_INFO } from "../kategori/index.js";
 import { initFilterPanel } from "../../filter-panel.js";
-import { parseTanggal } from "../../util-tanggal.js";
+import { parseTanggal, jumlahHariRentang, akhiriRentang, geserTanggal } from "../../util-tanggal.js";
 import { infoHari } from "../../hari-libur.js";
 import { getCatatanTerkaitKegiatan } from "../../modules/catatan/index.js";
+import { saringLampiranHari, labelTanggalLampiran } from "../../lampiran-hari.js";
 import { getDaftarFoto } from "../foto/state.js";
 import { htmlFotoKegiatan } from "../foto/view.js";
 import { getDaftarDokumen } from "../dokumen/state.js";
@@ -253,6 +254,120 @@ function ambilKegiatanTersaring() {
   return tersaring;
 }
 
+/**
+ * Blok foto + dokumen untuk satu kartu kegiatan.
+ * Sejak v1.8.69 kegiatan berturutan dirender sebagai satu kartu PER HARI (sama
+ * seperti halaman Jadwal), sehingga blok ini hanya menampilkan lampiran milik hari
+ * kartu tersebut. Kegiatan satu hari menampilkan seluruh lampirannya seperti semula.
+ */
+function htmlBlokLampiranKegiatan(item, tampilkanPerHari, tanggalHari, hariKe) {
+  const fotoKegiatan = getDaftarFoto().filter((f) => f.kegiatanId === item.id);
+  const dokumenKegiatan = getDaftarDokumen().filter((d) => d.kegiatanId === item.id);
+  const totalHari = jumlahHariRentang(item);
+  const fotoTampil = tampilkanPerHari
+    ? saringLampiranHari(fotoKegiatan, item, tanggalHari, hariKe)
+    : fotoKegiatan;
+  const dokumenTampil = tampilkanPerHari
+    ? saringLampiranHari(dokumenKegiatan, item, tanggalHari, hariKe)
+    : dokumenKegiatan;
+  const keteranganHari = tampilkanPerHari
+    ? `<p class="kegiatan-card-note kegiatan-lampiran-hari">Lampiran ${escapeHtml(labelTanggalLampiran(tanggalHari))} — hari ke-${hariKe} dari ${totalHari}${hariKe === 1 ? " (hari pertama)" : ""}.</p>`
+    : "";
+  return `${keteranganHari}
+      ${htmlFotoKegiatan(item.id, fotoTampil, tanggalHari, item)}
+      ${htmlDokumenKegiatan(item.id, dokumenTampil, tanggalHari, item)}`;
+}
+
+/**
+ * Mengembangkan daftar kegiatan menjadi daftar kartu: kegiatan berturutan
+ * menghasilkan satu kartu untuk SETIAP hari rentangnya (pola sama dengan
+ * `kelompokkanKegiatanPerTanggal` di jadwal.js), sedangkan kegiatan satu hari
+ * menghasilkan satu kartu apa adanya. Nomor hari dihitung dari tanggal mulai,
+ * jadi lencana "Hari ke-N dari M" selalu benar.
+ * @param {Array} daftarKegiatan hasil penyaringan, sudah terurut
+ * @returns {Array}
+ */
+function kembangkanKartuPerHari(daftarKegiatan) {
+  const hasil = [];
+  daftarKegiatan.forEach((item) => {
+    const mulai = parseTanggal(item.tanggal);
+    const totalHari = jumlahHariRentang(item);
+    if (!mulai || totalHari <= 1) {
+      hasil.push(item);
+      return;
+    }
+    const akhir = akhiriRentang(item.tanggal, item.tanggalSelesai);
+    let kursor = item.tanggal;
+    let nomorHari = 1;
+    while (kursor && kursor <= akhir && nomorHari <= totalHari && nomorHari <= MAKS_HARI_RENTANG) {
+      hasil.push({
+        ...item,
+        tanggalHari: kursor,
+        hariKe: nomorHari,
+        totalHari,
+        adalahHariPertama: nomorHari === 1
+      });
+      kursor = geserTanggal(kursor, 1);
+      nomorHari += 1;
+    }
+  });
+  return hasil;
+}
+
+/** Satu kartu kegiatan (satu hari bila kegiatan berturutan). */
+function renderKartuKegiatan(item, sedangOnline) {
+  const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
+  const rentangWaktu = item.waktuMulai
+    ? item.waktuSelesai ? `${item.waktuMulai} – ${item.waktuSelesai}` : item.waktuMulai
+    : "";
+  const opsiStatusCepat = DAFTAR_STATUS_KEGIATAN.map(
+    (st) => `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
+  ).join("");
+  const catatanTerkait = getCatatanTerkaitKegiatan(item.id);
+
+  const totalHari = jumlahHariRentang(item);
+  const kegiatanBerturutan = totalHari > 1;
+  const tampilkanPerHari = kegiatanBerturutan && Boolean(item.tanggalHari);
+  const hariKe = Number.isFinite(Number(item.hariKe)) ? Number(item.hariKe) : 1;
+  const tanggalHari = String(item.tanggalHari || item.tanggal || "");
+  const labelHariHtml = tampilkanPerHari
+    ? `<span class="badge-lanjutan" title="Kartu ini mewakili satu hari dari kegiatan berturutan">Hari ke-${hariKe} dari ${totalHari}</span>`
+    : "";
+  // Id pemilih status harus unik: satu kegiatan berturutan menghasilkan beberapa kartu.
+  const idStatus = `quick-status-${item.id}${tampilkanPerHari ? `-${hariKe}` : ""}`;
+
+  return `<article class="kegiatan-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
+    <div class="kegiatan-card-top">
+      <div class="kegiatan-badges-row">
+        <span class="cat-badge cat-color-${escapeHtml(infoKat.warna)}"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
+        <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
+        ${labelHariHtml}
+      </div>
+      <div class="kegiatan-quick-status">
+        <label for="${escapeHtml(idStatus)}" class="sr-only">Ubah status cepat untuk ${escapeHtml(item.judul)}</label>
+        <select id="${escapeHtml(idStatus)}" class="quick-status-select" data-action="quick-status" data-id="${escapeHtml(item.id)}" aria-label="Ubah status cepat untuk ${escapeHtml(item.judul)}">${opsiStatusCepat}</select>
+      </div>
+    </div>
+    <h3 class="kegiatan-card-title">
+      <button type="button" class="event-title-trigger" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
+    </h3>
+    <div class="kegiatan-meta-list">
+      <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatRentangTanggal(item))}</span></span>
+      ${rentangWaktu ? `<span class="kegiatan-meta-item">${IKON_JAM_META}<span>${escapeHtml(rentangWaktu)}</span></span>` : ""}
+      ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI_META}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
+      ${catatanTerkait.length > 0 ? `<span class="kegiatan-meta-item">${IKON_CATATAN_META}<span>${catatanTerkait.length} catatan terkait</span></span>` : ""}
+    </div>
+    ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
+    ${htmlBlokLampiranKegiatan(item, tampilkanPerHari, tanggalHari, hariKe)}
+    <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}" data-tanggal="${escapeHtml(tampilkanPerHari ? tanggalHari : "")}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan" data-id="${escapeHtml(item.id)}">Ubah</button>
+      <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-kegiatan" data-id="${escapeHtml(item.id)}">Hapus</button>
+    </div>
+  </article>`;
+}
+
 export function renderDaftarKegiatan() {
   const region = document.getElementById("kegiatan-list-region");
   const barFilterAktif = document.getElementById("kegiatan-active-filter-bar");
@@ -268,13 +383,19 @@ export function renderDaftarKegiatan() {
   const adaFilter = kataKunciCari.trim() !== "" || filterKategoriId !== "ALL" || filterStatus !== "ALL";
   const hasil = ambilKegiatanTersaring();
   const totalAktif = getDaftarKegiatan().length;
+  // Kegiatan berturutan dipecah menjadi satu kartu per hari (v1.8.69); hitungan
+  // kegiatan tetap dipakai pada ringkasan, dan jumlah kartu disebutkan bila berbeda
+  // agar "+5 kartu" tidak disalahartikan sebagai kegiatan baru.
+  const kartuHasil = kembangkanKartuPerHari(hasil);
+  const selisihKartu = kartuHasil.length - hasil.length;
 
   if (barFilterAktif && ringkasanEl) {
     if (adaFilter || totalAktif > 0) {
       barFilterAktif.hidden = false;
+      const catatanKartu = selisihKartu > 0 ? ` (${kartuHasil.length} kartu, kegiatan berturutan dipecah per hari)` : "";
       ringkasanEl.textContent = adaFilter
-        ? `Menampilkan ${hasil.length} dari ${totalAktif} kegiatan dimuat`
-        : `Total ${totalAktif} kegiatan dimuat di perangkat`;
+        ? `Menampilkan ${hasil.length} dari ${totalAktif} kegiatan dimuat${catatanKartu}`
+        : `Total ${totalAktif} kegiatan dimuat di perangkat${catatanKartu}`;
     } else {
       barFilterAktif.hidden = true;
     }
@@ -295,47 +416,9 @@ export function renderDaftarKegiatan() {
   }
 
   const sedangOnline = navigator.onLine;
-  const htmlKartu = hasil.map((item) => {
-    const infoKat = manajerKategoriKegiatan.cariInfoKategori(item.kategoriId);
-    const rentangWaktu = item.waktuMulai
-      ? item.waktuSelesai ? `${item.waktuMulai} – ${item.waktuSelesai}` : item.waktuMulai
-      : "";
-    const opsiStatusCepat = DAFTAR_STATUS_KEGIATAN.map(
-      (st) => `<option value="${escapeHtml(st)}" ${item.status === st ? "selected" : ""}>${escapeHtml(st)}</option>`
-    ).join("");
-    const catatanTerkait = getCatatanTerkaitKegiatan(item.id);
-
-    return `<article class="kegiatan-card${item.status === "Selesai" ? " is-completed" : ""}" data-id="${escapeHtml(item.id)}">
-      <div class="kegiatan-card-top">
-        <div class="kegiatan-badges-row">
-          <span class="cat-badge cat-color-${escapeHtml(infoKat.warna)}"><span class="cat-dot cat-dot-${escapeHtml(infoKat.warna)}" aria-hidden="true"></span><span>${escapeHtml(infoKat.nama)}</span></span>
-          <span class="${kelasBadgeStatus(item.status)}">${escapeHtml(item.status)}</span>
-        </div>
-        <div class="kegiatan-quick-status">
-          <label for="quick-status-${escapeHtml(item.id)}" class="sr-only">Ubah status cepat untuk ${escapeHtml(item.judul)}</label>
-          <select id="quick-status-${escapeHtml(item.id)}" class="quick-status-select" data-action="quick-status" data-id="${escapeHtml(item.id)}" aria-label="Status kegiatan ${escapeHtml(item.judul)}">${opsiStatusCepat}</select>
-        </div>
-      </div>
-      <h3 class="kegiatan-card-title">
-        <button type="button" class="event-title-trigger" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">${escapeHtml(item.judul)}</button>
-      </h3>
-      <div class="kegiatan-meta-list">
-        <span class="kegiatan-meta-item">${IKON_KALENDER_META}<span>${escapeHtml(formatRentangTanggal(item))}</span></span>
-        ${rentangWaktu ? `<span class="kegiatan-meta-item">${IKON_JAM_META}<span>${escapeHtml(rentangWaktu)}</span></span>` : ""}
-        ${item.lokasi ? `<span class="kegiatan-meta-item">${IKON_LOKASI_META}<span>${escapeHtml(item.lokasi)}</span></span>` : ""}
-        ${catatanTerkait.length > 0 ? `<span class="kegiatan-meta-item">${IKON_CATATAN_META}<span>${catatanTerkait.length} catatan terkait</span></span>` : ""}
-      </div>
-      ${item.catatan ? `<p class="kegiatan-card-note">${escapeHtml(item.catatan)}</p>` : ""}
-      ${htmlFotoKegiatan(item.id, getDaftarFoto().filter((f) => f.kegiatanId === item.id))}
-      ${htmlDokumenKegiatan(item.id, getDaftarDokumen().filter((d) => d.kegiatanId === item.id))}
-      <div class="kegiatan-card-footer kegiatan-card-footer-wrap">
-        <button type="button" class="btn-secondary btn-sm-touch" data-action="detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
-        <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi" data-id="${escapeHtml(item.id)}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
-        <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan" data-id="${escapeHtml(item.id)}">Ubah</button>
-        <button type="button" class="btn-danger-outline btn-sm-touch" data-action="delete-kegiatan" data-id="${escapeHtml(item.id)}">Hapus</button>
-      </div>
-    </article>`;
-  }).join("");
+  const htmlKartu = kartuHasil
+    .map((item) => renderKartuKegiatan(item, sedangOnline))
+    .join("");
 
   const tombolMuatLebih = getAdaLebihBanyakKegiatan()
     ? `<div class="doc-load-more-bar">

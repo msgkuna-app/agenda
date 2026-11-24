@@ -75,6 +75,11 @@ export const TIGA_PULUH_HARI_MS = 30 * 24 * 60 * 60 * 1000;
 export const SATU_HARI_MS = 24 * 60 * 60 * 1000;
 export const INTERVAL_CEK_UPDATE_SW_MS = 60 * 60 * 1000;
 
+// Batas pengaman jumlah hari yang diurai dari satu kegiatan berturutan. Dipakai
+// bersama oleh kalender jadwal, penyusun laporan, dan pilihan hari lampiran agar
+// salah isian (mis. tanggal selesai bertahun-tahun) tidak membebani antarmuka.
+export const MAKS_HARI_RENTANG = 120;
+
 // Pencarian global
 export const DEBOUNCE_DELAY_MS = 120;
 export const BATAS_HASIL_PER_KELOMPOK = 5;
@@ -118,7 +123,7 @@ export const KOLEKSI_HAPUS_LUNAK = Object.freeze([
 ]);
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.63";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.69";
 
 // Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
 // di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.

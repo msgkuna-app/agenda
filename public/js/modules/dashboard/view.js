@@ -534,11 +534,12 @@ export function renderDashboard(opsi = {}) {
   const kegiatan7Hari = urutkanKegiatanKronologis(
     semuaKegiatan.filter(
       (item) =>
-        // Kartu 7 hari memuat kegiatan yang punya hari di besok..+7 hari, TETAPI
-        // tidak lagi yang mencakup hari ini — kegiatan seperti itu sudah tampil di
-        // kartu "Hari ini" dan sengaja tidak diulang (paritas perilaku lama).
-        rentangBersinggungan(item, strBesok, strTujuhHari) &&
-        !tanggalDalamRentang(item, strHariIni),
+        // Kartu 7 hari memuat SETIAP kegiatan yang punya hari di besok..+7 hari,
+        // termasuk kegiatan berturutan yang sudah dimulai hari ini atau sebelumnya
+        // dan masih berjalan. Kegiatan seperti itu memang muncul juga di kartu
+        // "Hari ini", tetapi ia benar-benar berlangsung pada rentang ini —
+        // menyembunyikannya membuat agenda berturutan tidak terlihat di sini.
+        rentangBersinggungan(item, strBesok, strTujuhHari),
     ),
   );
 

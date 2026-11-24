@@ -13,7 +13,7 @@ import { svgIkon, escapeHtml } from "../../util-html.js";
 import { formatUkuranBerkas } from "../dokumen/format.js";
 import { unggahBerkasSebagaiDokumenKegiatan } from "../dokumen/unggah-kegiatan.js";
 import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
-import { hariIni, parseTanggal } from "../../util-tanggal.js";
+import { hariIni, parseTanggal, tanggalDalamRentang } from "../../util-tanggal.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import {
@@ -215,14 +215,46 @@ function renderCatatanTerkaitDiDetailModal() {
   </section>`;
 }
 
-function picuBuatNotulensiUntukKegiatan(kegiatan) {
+function picuBuatNotulensiUntukKegiatan(kegiatan, tanggalAwal = "") {
   if (!kegiatan) return;
+  // Tanggal notulensi: hari yang sedang dibuka (bila diberikan dan masih di dalam
+  // rentang kegiatan), selain itu hari pertama kegiatan, selain itu hari ini.
+  const diminta = typeof tanggalAwal === "string" ? tanggalAwal.trim() : "";
+  const tanggalNotulensi = parseTanggal(diminta) && tanggalDalamRentang(kegiatan, diminta)
+    ? diminta
+    : parseTanggal(kegiatan.tanggal)
+      ? kegiatan.tanggal
+      : hariIni();
   bukaModalBuatCatatanGdoc({
     templat: "notulensi",
     kegiatanId: kegiatan.id,
-    tanggal: parseTanggal(kegiatan.tanggal) ? kegiatan.tanggal : hariIni(),
+    tanggal: tanggalNotulensi,
     judul: `Notulensi - ${kegiatan.judul}`
   });
+}
+
+/**
+ * Pintu publik pembuatan notulensi (Tahap 8b): kartu halaman Jadwal memakai
+ * jalur yang SAMA dengan halaman Kegiatan — templat "notulensi", kegiatanId,
+ * tanggal kegiatan, dan judul "Notulensi - <judul kegiatan>" — sehingga tidak
+ * ada logika preset yang disalin ke berkas lain.
+ *
+ * Sejak v1.8.67 `tanggalHari` boleh diberikan oleh pemanggil: pada kegiatan
+ * berturutan, kartu Jadwal merender satu kartu per hari, sehingga notulensi
+ * seharusnya bertanggal HARI YANG SEDANG DIBUKA, bukan selalu hari pertama.
+ * Tanggal di luar rentang kegiatan diabaikan (jatuh ke hari pertama).
+ *
+ * @param {string} kegiatanId
+ * @param {string} [tanggalHari] tanggal kartu yang diklik (YYYY-MM-DD)
+ * @returns {boolean} false bila id kosong atau kegiatan tidak ditemukan.
+ */
+export function buatNotulensiUntukKegiatan(kegiatanId, tanggalHari = "") {
+  const id = String(kegiatanId || "").trim();
+  if (!id) return false;
+  const kegiatan = getDaftarKegiatan().find((k) => k.id === id);
+  if (!kegiatan) return false;
+  picuBuatNotulensiUntukKegiatan(kegiatan, tanggalHari);
+  return true;
 }
 
 // --- Modal tambah / ubah kegiatan ---------------------------------------------
@@ -599,6 +631,7 @@ export function initHalamanKegiatan() {
 
       const aksi = btn.getAttribute("data-action");
       const id = btn.getAttribute("data-id");
+      const tgl = btn.getAttribute("data-tanggal") || "";
       if (!id) return;
 
       const item = getDaftarKegiatan().find((k) => k.id === id);
@@ -611,7 +644,9 @@ export function initHalamanKegiatan() {
           pembukaDetailKegiatanFn(item.id);
         }
       } else if (aksi === "buat-notulensi") {
-        picuBuatNotulensiUntukKegiatan(item);
+        // Kirim hari kartu yang diklik agar notulensi bertanggal hari itu,
+        // bukan selalu hari pertama kegiatan berturutan (v1.8.69).
+        picuBuatNotulensiUntukKegiatan(item, tgl);
       } else if (aksi === "edit-kegiatan") {
         bukaModalFormKegiatan(item);
       } else if (aksi === "delete-kegiatan") {

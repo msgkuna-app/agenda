@@ -68,6 +68,8 @@ export function normalkanDokumen(d) {
     ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
     kategoriId: String(data.kategoriId || ""),
     kegiatanId: String(data.kegiatanId || ""),
+    // Hari lampiran pada kegiatan berturutan (Tahap 8b); kosong = hari pertama.
+    tanggalLampiran: String(data.tanggal || ""),
     catatan: String(data.catatan || ""),
     tanggal: String(data.tanggalUnggah || data.createdAt || ""),
     createdAt: data.createdAt || "",

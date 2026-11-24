@@ -24,7 +24,7 @@ import {
 } from "../../services/driveService.js";
 import { loginWithGoogle, formatPesanGalatAuth } from "../../services/authService.js";
 import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
-import { onPerubahanKegiatan } from "../../modules/kegiatan/index.js";
+import { onPerubahanKegiatan, getDaftarKegiatan } from "../../modules/kegiatan/index.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import {
   manajerKategoriDokumen,
@@ -62,6 +62,11 @@ import {
 import { formatUkuranBerkas, infoJenisBerkasMime } from "./format.js";
 import { pastikanFolderTujuanKategoriSiap } from "./folder.js";
 import { tampilkanToast } from "../../shared/toast.js";
+import {
+  perbaruiPilihanHariLampiran,
+  ambilTanggalLampiranTerpilih,
+  normalkanTanggalLampiran
+} from "../../lampiran-hari.js";
 
 // --- State lokal controller --------------------------------------------------
 
@@ -418,7 +423,7 @@ async function jalankanSimpanUlangMetadata() {
   }
 }
 
-export function bukaModalUnggahDokumen(kegiatanIdAwal = "") {
+export function bukaModalUnggahDokumen(kegiatanIdAwal = "", tanggalAwal = "") {
   if (!navigator.onLine) {
     tampilkanGalatHalamanDokumen(
       "Tidak ada koneksi internet. Pengunggahan dokumen ke Google Drive memerlukan sambungan internet aktif.",
@@ -452,6 +457,13 @@ export function bukaModalUnggahDokumen(kegiatanIdAwal = "") {
 
   perbaruiDropdownKategoriDokumen();
   perbaruiDropdownKegiatanTerkait("dokumen-upload-kegiatan", String(kegiatanIdAwal || ""));
+  perbaruiPilihanHariLampiran({
+    idSelect: "dokumen-upload-hari",
+    idWrap: "dokumen-upload-hari-wrap",
+    kegiatanId: String(kegiatanIdAwal || ""),
+    daftarKegiatan: getDaftarKegiatan(),
+    tanggalTerpilih: tanggalAwal
+  });
 
   const filterKategoriId = getFilterKategoriId();
   if (katSelect instanceof HTMLSelectElement) {
@@ -525,6 +537,15 @@ function bukaModalEditDokumen(item) {
   setPesanGalatModalEdit("");
   perbaruiDropdownKategoriDokumen();
   perbaruiDropdownKegiatanTerkait("dokumen-edit-kegiatan", item.kegiatanId || "");
+  // Pilihan hari dokumen: tampil hanya bila kegiatan terkait berlangsung beberapa hari.
+  perbaruiPilihanHariLampiran({
+    idSelect: "dokumen-edit-hari",
+    idWrap: "dokumen-edit-hari-wrap",
+    kegiatanId: String(item.kegiatanId || ""),
+    daftarKegiatan: getDaftarKegiatan(),
+    tanggalTerpilih: item.tanggal || "",
+    keterangan: "Hari tempat dokumen ini ditampilkan pada kegiatan berturutan."
+  });
 
   if (idInput instanceof HTMLInputElement) idInput.value = item.id;
   if (namaInput instanceof HTMLInputElement) namaInput.value = item.namaTampilan || item.namaFile || "";
@@ -988,7 +1009,10 @@ function pasangAksiDokumenKegiatanSekali() {
     const tombolUnggah = target.closest('[data-action="unggah-dokumen-kegiatan"]');
     if (tombolUnggah) {
       evt.preventDefault();
-      bukaModalUnggahDokumen(tombolUnggah.getAttribute("data-id") || "");
+      bukaModalUnggahDokumen(
+        tombolUnggah.getAttribute("data-id") || "",
+        tombolUnggah.getAttribute("data-tanggal") || ""
+      );
       return;
     }
 
@@ -1060,6 +1084,31 @@ function pasangEventModalUnggah() {
     }
   });
 
+  // Mengganti kegiatan terkait ikut menyusun ulang pilihan hari lampiran:
+  // kegiatan berturutan menampilkan pilihan hari, kegiatan satu hari menyembunyikannya.
+  document.getElementById("dokumen-upload-kegiatan")?.addEventListener("change", (e) => {
+    const sel = e.target instanceof HTMLSelectElement ? e.target : null;
+    if (!sel) return;
+    perbaruiPilihanHariLampiran({
+      idSelect: "dokumen-upload-hari",
+      idWrap: "dokumen-upload-hari-wrap",
+      kegiatanId: sel.value,
+      daftarKegiatan: getDaftarKegiatan()
+    });
+  });
+
+  document.getElementById("dokumen-edit-kegiatan")?.addEventListener("change", (e) => {
+    const sel = e.target instanceof HTMLSelectElement ? e.target : null;
+    if (!sel) return;
+    perbaruiPilihanHariLampiran({
+      idSelect: "dokumen-edit-hari",
+      idWrap: "dokumen-edit-hari-wrap",
+      kegiatanId: sel.value,
+      daftarKegiatan: getDaftarKegiatan(),
+      keterangan: "Hari tempat dokumen ini ditampilkan pada kegiatan berturutan."
+    });
+  });
+
   uploadForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     setPesanGalatModalUnggah("");
@@ -1092,6 +1141,13 @@ function pasangEventModalUnggah() {
     const namaTampilanInput = String(document.getElementById("dokumen-upload-nama")?.value || "").trim();
     const catatan = String(document.getElementById("dokumen-upload-catatan")?.value || "").trim();
     const kegiatanId = String(document.getElementById("dokumen-upload-kegiatan")?.value || "").trim();
+    // Tanggal hari lampiran: dari pilihan hari bila kegiatan berturutan, selain itu
+    // tanggal kegiatan itu sendiri. Dinormalkan agar selalu berada di dalam rentang.
+    const kegiatanTerpilih = getDaftarKegiatan().find((k) => k.id === kegiatanId) || null;
+    const tanggalLampiran = normalkanTanggalLampiran(
+      ambilTanggalLampiranTerpilih("dokumen-upload-hari"),
+      kegiatanTerpilih
+    );
     const cancelBtn = document.getElementById("dokumen-upload-cancel-btn");
     const submitBtn = document.getElementById("dokumen-upload-submit-btn");
 
@@ -1143,6 +1199,7 @@ function pasangEventModalUnggah() {
         ukuran: Number.isFinite(Number(hasilDrive.size)) ? Number(hasilDrive.size) : file.size,
         kategoriId,
         kegiatanId,
+        tanggal: tanggalLampiran,
         catatan
       };
 
@@ -1201,6 +1258,11 @@ function pasangEventModalEdit() {
     const kategoriIdBaru = String(document.getElementById("dokumen-edit-kategori")?.value || "").trim();
     const catatanBaru = String(document.getElementById("dokumen-edit-catatan")?.value || "").trim();
     const kegiatanIdBaru = String(document.getElementById("dokumen-edit-kegiatan")?.value || "").trim();
+    const kegiatanBaru = getDaftarKegiatan().find((k) => k.id === kegiatanIdBaru) || null;
+    const tanggalLampiranBaru = normalkanTanggalLampiran(
+      ambilTanggalLampiranTerpilih("dokumen-edit-hari"),
+      kegiatanBaru
+    );
 
     if (!namaTampilanBaru) {
       setPesanGalatModalEdit("Nama tampilan dokumen wajib diisi.");
@@ -1236,6 +1298,7 @@ function pasangEventModalEdit() {
         kategoriId: idEfektifBaru,
         catatan: catatanBaru,
         kegiatanId: kegiatanIdBaru,
+        tanggal: tanggalLampiranBaru,
         updatedAt: new Date().toISOString()
       });
 

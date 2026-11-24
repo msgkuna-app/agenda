@@ -19,6 +19,7 @@ import {
   ambilSemuaCatatanSekaliPakai
 } from "../catatan/index.js";
 import { geserTanggal } from "../../util-tanggal.js";
+import { MAKS_HARI_RENTANG } from "../../config/constants.js";
 
 let cacheKegiatanLaporan = null;
 let rentangTerakhirKegiatan = "";
@@ -28,7 +29,7 @@ let sedangMemuatDataSekaliPakai = false;
 
 // Seberapa jauh ke belakang jendela pengambilan kegiatan dilebarkan, agar
 // kegiatan berturutan yang dimulai sebelum periode laporan tetap ikut terbaca.
-const MAKS_HARI_RENTANG_LAPORAN = 120;
+const MAKS_HARI_RENTANG_LAPORAN = MAKS_HARI_RENTANG;
 
 export function getCacheKegiatanLaporan() {
   return cacheKegiatanLaporan;

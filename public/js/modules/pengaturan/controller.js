@@ -449,6 +449,7 @@ export async function eksporSeluruhDataJson() {
         kategoriId: d.kategoriId || "",
         namaKategori: infoKat.nama,
         kegiatanId: d.kegiatanId || "",
+        tanggal: d.tanggal || "",
         catatan: d.catatan || "",
         tanggalUnggah: d.tanggalUnggah || "",
         createdAt: d.createdAt || "",
@@ -706,6 +707,9 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
         ukuran: Number.isFinite(Number(mentah.ukuran)) ? Number(mentah.ukuran) : 0,
         kategoriId: String(mentah.kategoriId || "").trim(),
         kegiatanId: String(mentah.kegiatanId || "").trim(),
+        // Hari lampiran (Tahap 8b): hanya tanggal sah yang diterima; selain itu
+        // kosong, yang berarti "hari pertama kegiatan".
+        tanggal: parseTanggal(String(mentah.tanggal || "").trim()) ? String(mentah.tanggal).trim() : "",
         catatan: String(mentah.catatan || ""),
         tanggalUnggah: String(mentah.tanggalUnggah || mentah.createdAt || sekarang),
         // Wajib ada sejak Tahap D: kueri aktif memakai where("dihapusAt", "==", null),
