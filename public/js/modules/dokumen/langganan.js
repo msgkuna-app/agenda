@@ -17,6 +17,7 @@ import {
   beritahuPerubahanDokumen,
   tandaiDokumenSudahDimuat,
   getKursorTambahan,
+  setKursorTambahan,
   setPenandaHalamanAkhir,
   setAdaLebihBanyakDokumen,
   setSedangMemuatLebihDokumen,
