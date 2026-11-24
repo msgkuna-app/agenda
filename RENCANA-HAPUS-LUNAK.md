@@ -1,6 +1,6 @@
 # Rencana — Hapus Lunak untuk Dokumen, Foto, dan Laporan
 
-Status: **Tahap A, B, dan C+E SELESAI.** Tahap D belum dikerjakan.
+Status: **Tahap A, B, C+E, dan D SELESAI.** Rencana hapus lunak tuntas.
 Versi aplikasi saat rencana disusun: **v1.8.41** (commit a1f7d39). Disusun 2026-11-24.
 
 | Tahap | Isi | Versi | Status |
@@ -205,7 +205,7 @@ Catatan pelaksanaan:
 - Penghapusan tetap **hanya** memindahkan berkas ke Sampah Google Drive; berkas tidak
   dihapus permanen dari Drive.
 
-### Tahap D — Alihkan kueri ke hapus lunak (v1.8.45)
+### Tahap D — Alihkan kueri ke hapus lunak (v1.8.45) — SELESAI 2026-11-24
 1. `dokumen/state.js`: `langgananDokumen`, `muatLebihBanyakDokumen`,
    `ambilSemuaDokumenSekaliPakai`, dan `hitungDokumenPemakaiServer` menambahkan
    `where("dihapusAt", "==", null)`; kursor paginasi disesuaikan dengan urutan baru.
@@ -216,6 +216,23 @@ Catatan pelaksanaan:
    bagian 6 butir 3, **hanya item aktif yang diekspor**.
 5. Uji menyeluruh: daftar Dokumen, daftar Foto pada kartu Kegiatan, riwayat Laporan,
    pencarian global, ekspor JSON, impor JSON, dan penghitung pemakai kategori.
+
+Catatan pelaksanaan:
+- **Tidak ada indeks Firestore baru yang dibutuhkan.** Tiga indeks `(dihapusAt ASC +
+  tanggalUnggah/createdAt DESC)` sudah dibuat pada Tahap A dan persis cocok dengan
+  kueri baru, sehingga deploy tetap cukup `firebase deploy --only hosting`.
+- Kursor paginasi dokumen (`startAfter`) tetap sahih karena `orderBy("tanggalUnggah",
+  "desc")` tidak berubah posisinya; hanya ditambahkan penyaring kesamaan sebelum
+  pengurutan.
+- `getDaftarDokumen()`, `getDaftarFoto()`, dan `getDaftarLaporan()` **tetap** menyaring
+  `dihapusAt` di sisi klien. Penyaring itu kini berperan sebagai jaring pengaman untuk
+  sisa peta dari sesi sebelum pembaruan, bukan lagi mekanisme utama.
+- `langgananRiwayatLaporan` yang sebelumnya memanggil `onSnapshot(collection(...))`
+  kini memakai `query(collection(...), where(...))`; impor `query` dan `where`
+  ditambahkan di `laporan/state.js`.
+- Payload impor `dokumen` dan `laporan` kini menulis `dihapusAt: null` secara eksplisit
+  (koleksi `kegiatan` dan `catatan` sudah melakukannya sejak sebelumnya). Berkas
+  cadangan lama tanpa field ini tetap dapat diimpor dan langsung tampil sebagai aktif.
 
 ### Tahap E — Daftarkan tiga jenis baru ke Tempat Sampah (v1.8.46) — **DIGABUNG KE TAHAP C**
 
@@ -243,9 +260,9 @@ Tahap C + E. Nomor versi v1.8.46 tidak lagi dipakai.
 | `modules/pengaturan/view.js` | A | teks tombol dan status migrasi |
 | `modules/sampah/{state,view,controller}.js` | B, C+E | berbasis tabel jenis; lima jenis terdaftar |
 | `modules/sampah/normalisasi.js` (baru) | B, C+E | bentuk baku item per jenis; didaftarkan di APP_SHELL |
-| `modules/dokumen/{state,index,controller,view}.js` | C+E, D | hapus lunak; radio dihapus; penyaring (D) |
-| `modules/foto/{state,index,controller,view}.js` | C+E, D | hapus lunak; `confirm()` baru; penyaring (D) |
-| `modules/laporan/{state,index,controller,view}.js` | C+E, D | hapus lunak; teks modal; penyaring (D) |
+| `modules/dokumen/{state,index,controller,view}.js` | C+E, D | hapus lunak; radio dihapus; penyaring kueri (D) |
+| `modules/foto/{state,index,controller,view}.js` | C+E, D | hapus lunak; `confirm()` baru; penyaring kueri (D) |
+| `modules/laporan/{state,index,controller,view}.js` | C+E, D | hapus lunak; teks modal; penyaring kueri (D) |
 | `public/index.html` | C+E | radio hapus dokumen dihapus; teks tombol & judul modal |
 | `public/sw.js`, `config/constants.js` | A–D | naikkan versi tiap tahap |
 | `STRUKTUR.md` | A–D | catatan tiap tahap |

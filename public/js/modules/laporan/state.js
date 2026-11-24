@@ -14,7 +14,9 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  onSnapshot
+  onSnapshot,
+  query,
+  where
 } from "../../services/firestoreService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { urutkanDaftarKategori } from "../kategori/index.js";
@@ -108,8 +110,9 @@ function beritahuSumberSiap() {
  * Fase 6 Bagian C1: Mengekspor akses metadata riwayat laporan dari memori/langganan tunggal.
  */
 export function getDaftarLaporan() {
-  // Riwayat ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di daftar riwayat.
-  // Penyaringan lokal; Tahap D memindahkannya ke kueri Firestore.
+  // Sejak Tahap D langgananRiwayatLaporan sudah menyaring where("dihapusAt", "==", null),
+  // sehingga daftar hanya berisi riwayat aktif. Penyaring lokal ini dipertahankan sebagai
+  // jaring pengaman untuk sisa data dari sesi sebelum pembaruan.
   return daftarRiwayatLaporan.filter((item) => !item.dihapusAt).map((item) => ({ ...item }));
 }
 
@@ -722,14 +725,15 @@ export async function hapusPermanenRiwayatLaporan(item) {
 }
 
 /**
- * Berlangganan koleksi riwayat laporan (seluruh dokumen, urutan bebas —
- * pengurutan dilakukan saat render).
+ * Berlangganan koleksi riwayat laporan. Sejak Tahap D kueri menyaring
+ * where("dihapusAt", "==", null), sehingga riwayat di Tempat Sampah tidak terbaca;
+ * urutan tetap bebas karena pengurutan dilakukan saat render.
  * @param {{ onData?: () => void, onGalat?: (err: unknown) => void }} opsi
  */
 export function langgananRiwayatLaporan(opsi = {}) {
   const db = getFirestoreDb();
   unsubscribeSnapshotLaporan = onSnapshot(
-    collection(db, KOLEKSI.LAPORAN),
+    query(collection(db, KOLEKSI.LAPORAN), where("dihapusAt", "==", null)),
     (snapshot) => {
       daftarRiwayatLaporan = snapshot.docs.map((dok) => {
         const d = dok.data() || {};

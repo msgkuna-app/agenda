@@ -92,8 +92,9 @@ export const DOK_PENGATURAN = Object.freeze({
 });
 
 // Koleksi yang memakai hapus lunak (dihapusAt) beserta label tampilannya.
-// Dipakai bersama oleh: pemeriksa migrasi di Pengaturan, Tempat Sampah, dan
-// rencana pengalihan kueri Tahap D. Urutan di sini = urutan tampilan Tempat Sampah.
+// Dipakai bersama oleh: pemeriksa migrasi di Pengaturan dan Tempat Sampah.
+// Sejak Tahap D (v1.8.45) seluruh kueri daftar juga menyaring where("dihapusAt","==",null).
+// Urutan di sini = urutan tampilan Tempat Sampah.
 export const KOLEKSI_HAPUS_LUNAK = Object.freeze([
   Object.freeze({ key: KOLEKSI.KEGIATAN, label: "Kegiatan", satuan: "kegiatan" }),
   Object.freeze({ key: KOLEKSI.CATATAN, label: "Catatan", satuan: "catatan" }),
@@ -103,7 +104,7 @@ export const KOLEKSI_HAPUS_LUNAK = Object.freeze([
 ]);
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.44";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.45";
 
 // Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
 // di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.

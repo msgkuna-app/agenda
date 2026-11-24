@@ -710,6 +710,10 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
         kegiatanId: String(mentah.kegiatanId || "").trim(),
         catatan: String(mentah.catatan || ""),
         tanggalUnggah: String(mentah.tanggalUnggah || mentah.createdAt || sekarang),
+        // Wajib ada sejak Tahap D: kueri aktif memakai where("dihapusAt", "==", null),
+        // yang TIDAK cocok untuk dokumen tanpa field ini. Berkas cadangan lama yang
+        // belum memuat dihapusAt tetap dapat diimpor dan langsung tampil sebagai aktif.
+        dihapusAt: null,
         createdAt: String(mentah.createdAt || sekarang),
         updatedAt: String(mentah.updatedAt || sekarang)
       }
@@ -760,6 +764,8 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
         tanggalDari: String(mentah.tanggalDari || ""),
         tanggalSampai: String(mentah.tanggalSampai || ""),
         jumlahBaris: Number.isFinite(Number(mentah.jumlahBaris)) ? Number(mentah.jumlahBaris) : 0,
+        // Wajib ada sejak Tahap D: kueri aktif memakai where("dihapusAt", "==", null).
+        dihapusAt: null,
         createdAt: String(mentah.createdAt || sekarang)
       }
     };

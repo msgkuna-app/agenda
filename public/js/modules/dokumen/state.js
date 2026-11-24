@@ -78,8 +78,9 @@ export function getDaftarDokumen() {
     const lama = gabungan.get(k);
     if (!lama || String(v.updatedAt || "") > String(lama.updatedAt || "")) gabungan.set(k, v);
   });
-  // Dokumen ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di daftar utama.
-  // Penyaringan ini lokal; Tahap D memindahkannya ke kueri Firestore agar paginasi akurat.
+  // Sejak Tahap D seluruh kueri Firestore sudah menyaring where("dihapusAt", "==", null),
+  // sehingga peta hanya berisi dokumen aktif. Penyaring lokal ini dipertahankan sebagai
+  // jaring pengaman untuk sisa peta dari sesi sebelum pembaruan, dan biayanya dapat diabaikan.
   return Array.from(gabungan.values())
     .filter((d) => !d.dihapusAt)
     .map((d) => ({ ...d }));
@@ -262,6 +263,7 @@ export async function muatLebihBanyakDokumen() {
     const db = getFirestoreDb();
     const q = query(
       collection(db, KOLEKSI.DOKUMEN),
+      where("dihapusAt", "==", null),
       orderBy("tanggalUnggah", "desc"),
       startAfter(kursorAwal),
       limit(UKURAN_HALAMAN_DOKUMEN)
@@ -274,11 +276,8 @@ export async function muatLebihBanyakDokumen() {
     if (!snap.empty) {
       kursorDokumenTambahan = snap.docs[snap.docs.length - 1];
     }
-    // Batas "masih ada lagi" tetap dihitung dari jumlah dokumen mentah yang terbaca.
-    // Dokumen ber-dihapusAt ikut terhitung di sini, jadi satu halaman bisa tampak
-    // kosong setelah penyaringan lokal; tombol "muat lebih banyak" tetap tersedia
-    // selama batch yang terbaca penuh, sehingga isi Tempat Sampah tidak menghentikan
-    // paginasi. Tahap D memindahkan penyaringan ke kueri sehingga hitungan ini akurat.
+    // Sejak Tahap D kueri sudah menyaring dokumen di Tempat Sampah, sehingga jumlah
+    // dokumen yang terbaca sama dengan jumlah dokumen aktif yang akan tampil.
     adaLebihBanyakDokumenHalaman = snap.docs.length >= UKURAN_HALAMAN_DOKUMEN;
     return null;
   } catch (err) {
@@ -290,12 +289,19 @@ export async function muatLebihBanyakDokumen() {
 }
 
 /**
- * Jembatan sekali pakai untuk mengambil seluruh dokumen dari server.
+ * Jembatan sekali pakai untuk mengambil seluruh dokumen aktif dari server.
  * Digunakan oleh Laporan, Ekspor Cadangan, dan Pencarian Global mendalam.
+ * Sejak Tahap D kueri menyaring where("dihapusAt", "==", null), sehingga dokumen di
+ * Tempat Sampah tidak ikut terbaca. Ini juga yang menjaga aturan "ekspor JSON hanya
+ * memuat item aktif" tanpa penyaringan tambahan di pemanggil.
  */
 export async function ambilSemuaDokumenSekaliPakai() {
   const db = getFirestoreDb();
-  const q = query(collection(db, KOLEKSI.DOKUMEN), orderBy("tanggalUnggah", "desc"));
+  const q = query(
+    collection(db, KOLEKSI.DOKUMEN),
+    where("dihapusAt", "==", null),
+    orderBy("tanggalUnggah", "desc")
+  );
   const snap = await getDocs(q);
   snap.forEach((docSnap) => {
     petaDokumenTambahan.set(docSnap.id, petakanDokumen(docSnap));
@@ -322,9 +328,11 @@ export function langgananDokumen(opsi = {}) {
   );
 
   const db = getFirestoreDb();
-  // Fase 5: Listener dibatasi 100 dokumen terbaru
+  // Fase 5: Listener dibatasi 100 dokumen terbaru. Sejak Tahap D kueri menyaring
+  // dokumen di Tempat Sampah, sehingga 100 baris yang terbaca semuanya tampil.
   const q = query(
     collection(db, KOLEKSI.DOKUMEN),
+    where("dihapusAt", "==", null),
     orderBy("tanggalUnggah", "desc"),
     limit(UKURAN_HALAMAN_DOKUMEN)
   );

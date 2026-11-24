@@ -13,6 +13,7 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   formatPesanGalatFirestore,
@@ -44,8 +45,9 @@ function petakanFoto(docSnap) {
 }
 
 export function getDaftarFoto() {
-  // Foto ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di kartu kegiatan.
-  // Penyaringan lokal; Tahap D memindahkannya ke kueri Firestore.
+  // Sejak Tahap D langgananFoto sudah menyaring where("dihapusAt", "==", null), sehingga
+  // peta hanya berisi foto aktif. Penyaring lokal ini dipertahankan sebagai jaring
+  // pengaman untuk sisa peta dari sesi sebelum pembaruan.
   return Array.from(petaFoto.values())
     .filter((f) => !f.dihapusAt)
     .map((f) => ({ ...f }))
@@ -189,8 +191,11 @@ export function langgananFoto(opsi = {}) {
   beritahuPerubahanFoto();
 
   const db = getFirestoreDb();
+  // Sejak Tahap D kueri menyaring foto di Tempat Sampah, sehingga batas UKURAN_HALAMAN_FOTO
+  // terpakai seluruhnya oleh foto aktif.
   const q = query(
     collection(db, KOLEKSI.FOTO),
+    where("dihapusAt", "==", null),
     orderBy("createdAt", "desc"),
     limit(UKURAN_HALAMAN_FOTO)
   );
