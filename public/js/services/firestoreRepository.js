@@ -89,6 +89,9 @@ function susunMeta(snapshot, items) {
   return {
     kosong: dokumen.length === 0,
     jumlah: items.length,
+    // true bila snapshot berasal dari cache lokal (belum tersinkron ke server).
+    // Dipakai modul kategori untuk menunda seeding kategori bawaan.
+    dariCache: Boolean(snapshot.metadata && snapshot.metadata.fromCache),
     dokumenTerakhir: dokumen.length > 0 ? dokumen[dokumen.length - 1] : null,
   };
 }

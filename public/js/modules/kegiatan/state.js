@@ -8,21 +8,13 @@
  */
 import { DAFTAR_STATUS_KEGIATAN, UKURAN_HALAMAN_KEGIATAN, KOLEKSI } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-  getCountFromServer,
-  formatPesanGalatFirestore,
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  ambilDaftar,
+  perbaruiItem,
+  hapusItem,
+  hitungItem,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { buatManajerKategori, KATEGORI_KEGIATAN_BAWAAN } from "../kategori/index.js";
 import { tanggalLokal } from "../../util-tanggal.js";
 
@@ -59,25 +51,26 @@ export function setelOpsiPeristiwaKegiatan(opsi = {}) {
 }
 
 /**
- * Normalisasi satu dokumen Firestore menjadi bentuk yang dipakai seluruh UI.
+ * Normalisasi satu dokumen Firestore (objek biasa { id, ...data } dari
+ * services/firestoreRepository.js) menjadi bentuk yang dipakai seluruh UI.
  * Dipakai oleh listener jendela, listener halaman, paginasi, dan ambil-semua
  * agar bentuknya seragam.
  */
-function petakanKegiatan(docSnap) {
-  const d = docSnap.data() || {};
+function petakanKegiatan(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
-    judul: String(d.judul || ""),
-    catatan: String(d.catatan || ""),
-    tanggal: String(d.tanggal || ""),
-    waktuMulai: String(d.waktuMulai || ""),
-    waktuSelesai: String(d.waktuSelesai || ""),
-    lokasi: String(d.lokasi || ""),
-    kategoriId: String(d.kategoriId || ""),
-    status: DAFTAR_STATUS_KEGIATAN.includes(d.status) ? d.status : "Rencana",
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    id: data.id,
+    judul: String(data.judul || ""),
+    catatan: String(data.catatan || ""),
+    tanggal: String(data.tanggal || ""),
+    waktuMulai: String(data.waktuMulai || ""),
+    waktuSelesai: String(data.waktuSelesai || ""),
+    lokasi: String(data.lokasi || ""),
+    kategoriId: String(data.kategoriId || ""),
+    status: DAFTAR_STATUS_KEGIATAN.includes(data.status) ? data.status : "Rencana",
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }
 
@@ -178,8 +171,7 @@ export function terapkanPerubahanLokalKegiatan(id, perubahan) {
 export async function hapusLunakKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
+  await perbaruiItem(KOLEKSI.KEGIATAN, targetId, {
     dihapusAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
@@ -192,8 +184,7 @@ export async function hapusLunakKegiatan(id) {
 export async function pulihkanKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
+  await perbaruiItem(KOLEKSI.KEGIATAN, targetId, {
     dihapusAt: null,
     updatedAt: new Date().toISOString()
   });
@@ -202,8 +193,7 @@ export async function pulihkanKegiatan(id) {
 export async function hapusPermanenKegiatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID kegiatan tidak valid.");
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.KEGIATAN, targetId));
+  await hapusItem(KOLEKSI.KEGIATAN, targetId);
   petaKegiatanJendela.delete(targetId);
   petaKegiatanHalaman.delete(targetId);
   petaKegiatanTambahan.delete(targetId);
@@ -215,7 +205,6 @@ export async function ubahStatusKegiatanCepat(id, statusBaru) {
   if (!targetId || !DAFTAR_STATUS_KEGIATAN.includes(statusBaru)) {
     throw new Error("Status kegiatan tidak valid.");
   }
-  const db = getFirestoreDb();
   const sebelumnya = getDaftarKegiatan().find((item) => item.id === targetId) || null;
   const sekarang = new Date().toISOString();
 
@@ -224,7 +213,7 @@ export async function ubahStatusKegiatanCepat(id, statusBaru) {
   beritahuPerubahanKegiatan();
 
   try {
-    await updateDoc(doc(db, KOLEKSI.KEGIATAN, targetId), {
+    await perbaruiItem(KOLEKSI.KEGIATAN, targetId, {
       status: statusBaru,
       updatedAt: sekarang
     });
@@ -244,29 +233,15 @@ export async function ubahStatusKegiatanCepat(id, statusBaru) {
 
 /**
  * Fase 5: Menghitung kegiatan yang menggunakan kategori tertentu secara akurat
- * menggunakan getCountFromServer agar tidak bergantung pada data yang terpotong paginasi.
+ * lewat agregasi server (hitungItem) agar tidak bergantung pada data yang terpotong paginasi.
  */
 export async function hitungKegiatanPemakaiServer(kategoriId) {
   const target = String(kategoriId || "").trim();
   try {
-    const db = getFirestoreDb();
-    if (!target) {
-      // Tanpa kategori: kategoriId == ""
-      const q = query(
-        collection(db, KOLEKSI.KEGIATAN),
-        where("kategoriId", "==", ""),
-        where("dihapusAt", "==", null)
-      );
-      const snap = await getCountFromServer(q);
-      return snap.data().count;
-    }
-    const q = query(
-      collection(db, KOLEKSI.KEGIATAN),
-      where("kategoriId", "==", target),
-      where("dihapusAt", "==", null)
-    );
-    const snap = await getCountFromServer(q);
-    return snap.data().count;
+    return await hitungItem(KOLEKSI.KEGIATAN, [
+      ["kategoriId", "==", target],
+      ["dihapusAt", "==", null]
+    ]);
   } catch (_e) {
     // Fallback luring ke memori yang sudah dimuat
     if (!target) {
@@ -286,23 +261,22 @@ export async function muatLebihBanyakKegiatan() {
   beritahuPerubahanKegiatan();
 
   try {
-    const db = getFirestoreDb();
-    const q = query(
-      collection(db, KOLEKSI.KEGIATAN),
-      where("dihapusAt", "==", null),
-      orderBy("tanggal", "desc"),
-      startAfter(lastDocKegiatanHalaman),
-      limit(UKURAN_HALAMAN_KEGIATAN)
-    );
-    const snap = await getDocs(q);
-    snap.forEach((docSnap) => {
-      petaKegiatanTambahan.set(docSnap.id, petakanKegiatan(docSnap));
+    const { items, meta } = await ambilDaftar(KOLEKSI.KEGIATAN, {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["tanggal", "desc"],
+      mulaiSetelah: lastDocKegiatanHalaman,
+      batas: UKURAN_HALAMAN_KEGIATAN,
+    });
+    items.forEach((item) => {
+      petaKegiatanTambahan.set(item.id, petakanKegiatan(item));
     });
 
-    if (!snap.empty) {
-      lastDocKegiatanHalaman = snap.docs[snap.docs.length - 1];
+    // meta.dokumenTerakhir adalah DocumentSnapshot mentah — satu-satunya bentuk
+    // yang diterima startAfter oleh Firestore.
+    if (meta.dokumenTerakhir) {
+      lastDocKegiatanHalaman = meta.dokumenTerakhir;
     }
-    adaLebihBanyakKegiatanHalaman = snap.docs.length >= UKURAN_HALAMAN_KEGIATAN;
+    adaLebihBanyakKegiatanHalaman = meta.jumlah >= UKURAN_HALAMAN_KEGIATAN;
     return null;
   } catch (err) {
     return formatPesanGalatFirestore(err);
@@ -317,15 +291,12 @@ export async function muatLebihBanyakKegiatan() {
  * Digunakan oleh Ekspor Cadangan dan Pencarian Global mendalam.
  */
 export async function ambilSemuaKegiatanSekaliPakai() {
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.KEGIATAN),
-    where("dihapusAt", "==", null),
-    orderBy("tanggal", "desc")
-  );
-  const snap = await getDocs(q);
-  snap.forEach((docSnap) => {
-    petaKegiatanTambahan.set(docSnap.id, petakanKegiatan(docSnap));
+  const { items } = await ambilDaftar(KOLEKSI.KEGIATAN, {
+    filter: [["dihapusAt", "==", null]],
+    urutkan: ["tanggal", "desc"],
+  });
+  items.forEach((item) => {
+    petaKegiatanTambahan.set(item.id, petakanKegiatan(item));
   });
   beritahuPerubahanKegiatan();
   return getDaftarKegiatan();
@@ -336,20 +307,19 @@ export async function ambilSemuaKegiatanSekaliPakai() {
  * Digunakan oleh modul Laporan.
  */
 export async function ambilKegiatanRentangTanggal(tanggalDari, tanggalSampai) {
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.KEGIATAN),
-    where("dihapusAt", "==", null),
-    where("tanggal", ">=", tanggalDari),
-    where("tanggal", "<=", tanggalSampai),
-    orderBy("tanggal", "asc")
-  );
-  const snap = await getDocs(q);
+  const { items } = await ambilDaftar(KOLEKSI.KEGIATAN, {
+    filter: [
+      ["dihapusAt", "==", null],
+      ["tanggal", ">=", tanggalDari],
+      ["tanggal", "<=", tanggalSampai],
+    ],
+    urutkan: ["tanggal", "asc"],
+  });
   const hasil = [];
-  snap.forEach((docSnap) => {
-    const item = petakanKegiatan(docSnap);
-    petaKegiatanTambahan.set(docSnap.id, item);
-    hasil.push(item);
+  items.forEach((item) => {
+    const dipetakan = petakanKegiatan(item);
+    petaKegiatanTambahan.set(item.id, dipetakan);
+    hasil.push(dipetakan);
   });
   return hasil;
 }
@@ -386,32 +356,33 @@ export function mulaiLanggananJendelaKegiatan(tglAwal, tglAkhir) {
   jendelaAwalAktif = tglAwal;
   jendelaAkhirAktif = tglAkhir;
 
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.KEGIATAN),
-    where("dihapusAt", "==", null),
-    where("tanggal", ">=", tglAwal),
-    where("tanggal", "<=", tglAkhir),
-    orderBy("tanggal", "asc")
-  );
-
-  unsubscribeSnapshotJendela = onSnapshot(
-    q,
-    (snapshot) => {
-      petaKegiatanJendela.clear();
-      snapshot.forEach((docSnap) => {
-        petaKegiatanJendela.set(docSnap.id, petakanKegiatan(docSnap));
-      });
-      sudahDimuatPertamaKali = true;
-      if (typeof opsiPeristiwa.onSuksesJendela === "function") opsiPeristiwa.onSuksesJendela();
-      beritahuPerubahanKegiatan();
+  unsubscribeSnapshotJendela = langgananKoleksi(
+    KOLEKSI.KEGIATAN,
+    {
+      filter: [
+        ["dihapusAt", "==", null],
+        ["tanggal", ">=", tglAwal],
+        ["tanggal", "<=", tglAkhir],
+      ],
+      urutkan: ["tanggal", "asc"],
     },
-    (err) => {
-      sudahDimuatPertamaKali = true;
-      if (typeof opsiPeristiwa.onGalatJendela === "function") {
-        opsiPeristiwa.onGalatJendela(formatPesanGalatFirestore(err));
+    {
+      onData: (items) => {
+        petaKegiatanJendela.clear();
+        items.forEach((item) => {
+          petaKegiatanJendela.set(item.id, petakanKegiatan(item));
+        });
+        sudahDimuatPertamaKali = true;
+        if (typeof opsiPeristiwa.onSuksesJendela === "function") opsiPeristiwa.onSuksesJendela();
+        beritahuPerubahanKegiatan();
+      },
+      onGalat: (err) => {
+        sudahDimuatPertamaKali = true;
+        if (typeof opsiPeristiwa.onGalatJendela === "function") {
+          opsiPeristiwa.onGalatJendela(formatPesanGalatFirestore(err));
+        }
+        beritahuPerubahanKegiatan();
       }
-      beritahuPerubahanKegiatan();
     }
   );
 }
@@ -422,32 +393,31 @@ export function mulaiLanggananHalamanKegiatan() {
     unsubscribeSnapshotHalaman = null;
   }
 
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.KEGIATAN),
-    where("dihapusAt", "==", null),
-    orderBy("tanggal", "desc"),
-    limit(UKURAN_HALAMAN_KEGIATAN)
-  );
-
-  unsubscribeSnapshotHalaman = onSnapshot(
-    q,
-    (snapshot) => {
-      petaKegiatanHalaman.clear();
-      snapshot.forEach((docSnap) => {
-        petaKegiatanHalaman.set(docSnap.id, petakanKegiatan(docSnap));
-      });
-
-      if (!snapshot.empty) {
-        lastDocKegiatanHalaman = snapshot.docs[snapshot.docs.length - 1];
-      }
-      adaLebihBanyakKegiatanHalaman = snapshot.docs.length >= UKURAN_HALAMAN_KEGIATAN;
-      sudahDimuatPertamaKali = true;
-      beritahuPerubahanKegiatan();
+  unsubscribeSnapshotHalaman = langgananKoleksi(
+    KOLEKSI.KEGIATAN,
+    {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["tanggal", "desc"],
+      batas: UKURAN_HALAMAN_KEGIATAN,
     },
-    (err) => {
-      if (typeof opsiPeristiwa.onGalatHalaman === "function") {
-        opsiPeristiwa.onGalatHalaman(formatPesanGalatFirestore(err));
+    {
+      onData: (items, meta) => {
+        petaKegiatanHalaman.clear();
+        items.forEach((item) => {
+          petaKegiatanHalaman.set(item.id, petakanKegiatan(item));
+        });
+
+        if (meta.dokumenTerakhir) {
+          lastDocKegiatanHalaman = meta.dokumenTerakhir;
+        }
+        adaLebihBanyakKegiatanHalaman = meta.jumlah >= UKURAN_HALAMAN_KEGIATAN;
+        sudahDimuatPertamaKali = true;
+        beritahuPerubahanKegiatan();
+      },
+      onGalat: (err) => {
+        if (typeof opsiPeristiwa.onGalatHalaman === "function") {
+          opsiPeristiwa.onGalatHalaman(formatPesanGalatFirestore(err));
+        }
       }
     }
   );

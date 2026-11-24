@@ -3,25 +3,20 @@
  * Pabrik `buatManajerKategori` — pengelola kategori generik untuk koleksi
  * "kategoriKegiatan" maupun "kategoriDokumen": langganan real-time, pembuatan
  * kategori bawaan anti-duplikat, tambah, ubah, pengurutan naik/turun,
- * penghapusan aman dengan getCountFromServer, serta metadata folder Drive.
+ * penghapusan aman dengan hitungItem (getCountFromServer), serta metadata folder Drive.
  * TANPA DOM. Instansi manajer dibuat oleh modules/kegiatan/state.js dan
  * modules/dokumen/state.js (Aturan #5, #7, #8, #9, #10, #12).
  */
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  writeBatch,
-  getCountFromServer,
-  formatPesanGalatFirestore
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  ambilDaftar,
+  tambahItem,
+  perbaruiItem,
+  hapusItem,
+  hitungItem,
+  jalankanBatch,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import {
   normalisasiWarnaKategori,
   urutkanDaftarKategori,
@@ -69,7 +64,7 @@ export function buatManajerKategori(konfigurasi) {
   }
 
   /**
-   * Membuat kategori bawaan secara idempoten (memakai ID dokumen deterministik di dalam writeBatch)
+   * Membuat kategori bawaan secara idempoten (memakai ID dokumen deterministik via jalankanBatch)
    * hanya bila koleksi benar-benar kosong sehingga aman dijalankan berulang tanpa membuat ganda.
    */
   async function pastikanKategoriBawaanJikaKosong() {
@@ -78,19 +73,15 @@ export function buatManajerKategori(konfigurasi) {
     }
     sedangSeeding = true;
     try {
-      const db = getFirestoreDb();
-      const kolRef = collection(db, namaKoleksiKategori);
-      const snap = await getDocs(kolRef);
-      if (!snap.empty) {
+      const { items } = await ambilDaftar(namaKoleksiKategori);
+      if (items.length > 0) {
         sudahCekSeedSesiIni = true;
         return;
       }
 
       const sekarang = new Date().toISOString();
-      const batch = writeBatch(db);
-      daftarBawaan.forEach((item, idx) => {
+      const operasi = daftarBawaan.map((item, idx) => {
         const docId = item.id || `bawaan-${idx + 1}`;
-        const ref = doc(db, namaKoleksiKategori, docId);
         const payload = {
           nama: item.nama,
           warna: normalisasiWarnaKategori(item.warna),
@@ -102,9 +93,11 @@ export function buatManajerKategori(konfigurasi) {
           payload.folderId = "";
           payload.folderSinkron = false;
         }
-        batch.set(ref, payload);
+        // merge: false — kategori bawaan ditulis dengan id deterministik; isinya
+        // harus persis payload ini, bukan gabungan dengan sisa dokumen lama.
+        return { jenis: "set", koleksi: namaKoleksiKategori, id: docId, data: payload, merge: false };
       });
-      await batch.commit();
+      await jalankanBatch(operasi);
       sudahCekSeedSesiIni = true;
     } catch (_err) {
       // Biarkan snapshot berikutnya mencoba lagi bila saat ini belum siap
@@ -127,40 +120,40 @@ export function buatManajerKategori(konfigurasi) {
       penerimaSubscribeAktif = onUpdate;
     }
 
-    const db = getFirestoreDb();
-    const kolRef = collection(db, namaKoleksiKategori);
-
-    unsubscribeSnapshot = onSnapshot(
-      kolRef,
-      async (snapshot) => {
-        if (snapshot.empty && !snapshot.metadata.fromCache && !sudahCekSeedSesiIni) {
-          await pastikanKategoriBawaanJikaKosong();
-        }
-
-        const hasil = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() || {};
-          const entri = {
-            id: docSnap.id,
-            nama: String(data.nama || "").trim(),
-            warna: normalisasiWarnaKategori(data.warna),
-            urutan: Number.isFinite(Number(data.urutan)) ? Number(data.urutan) : 9999,
-            createdAt: data.createdAt || "",
-            updatedAt: data.updatedAt || ""
-          };
-          if (pakaiFolderDrive) {
-            entri.folderId = String(data.folderId || "").trim();
-            entri.folderSinkron = Boolean(entri.folderId) && data.folderSinkron === true;
+    unsubscribeSnapshot = langgananKoleksi(
+      namaKoleksiKategori,
+      {},
+      {
+        onData: async (items, meta) => {
+          // Seeding ditunda bila snapshot berasal dari cache: koleksi bisa saja
+          // sebenarnya sudah berisi data di server.
+          if (meta.kosong && !meta.dariCache && !sudahCekSeedSesiIni) {
+            await pastikanKategoriBawaanJikaKosong();
           }
-          hasil.push(entri);
-        });
 
-        kategoriList = urutkanDaftarKategori(hasil);
-        beritahuPerubahan();
-      },
-      (err) => {
-        if (typeof onError === "function") {
-          onError(formatPesanGalatFirestore(err));
+          const hasil = items.map((item) => {
+            const entri = {
+              id: item.id,
+              nama: String(item.nama || "").trim(),
+              warna: normalisasiWarnaKategori(item.warna),
+              urutan: Number.isFinite(Number(item.urutan)) ? Number(item.urutan) : 9999,
+              createdAt: item.createdAt || "",
+              updatedAt: item.updatedAt || ""
+            };
+            if (pakaiFolderDrive) {
+              entri.folderId = String(item.folderId || "").trim();
+              entri.folderSinkron = Boolean(entri.folderId) && item.folderSinkron === true;
+            }
+            return entri;
+          });
+
+          kategoriList = urutkanDaftarKategori(hasil);
+          beritahuPerubahan();
+        },
+        onGalat: (err) => {
+          if (typeof onError === "function") {
+            onError(formatPesanGalatFirestore(err));
+          }
         }
       }
     );
@@ -267,7 +260,6 @@ export function buatManajerKategori(konfigurasi) {
       0
     );
     const sekarang = new Date().toISOString();
-    const db = getFirestoreDb();
     const payload = {
       nama,
       warna,
@@ -279,8 +271,8 @@ export function buatManajerKategori(konfigurasi) {
       payload.folderId = String(input?.folderId || "").trim();
       payload.folderSinkron = Boolean(payload.folderId) && input?.folderSinkron === true;
     }
-    const docRef = await addDoc(collection(db, namaKoleksiKategori), payload);
-    return { id: docRef.id, nama, warna };
+    const idBaru = await tambahItem(namaKoleksiKategori, payload);
+    return { id: idBaru, nama, warna };
   }
 
   /**
@@ -300,8 +292,7 @@ export function buatManajerKategori(konfigurasi) {
     const namaBerubah = sebelumnya ? sebelumnya.nama !== nama : true;
 
     const sekarang = new Date().toISOString();
-    const db = getFirestoreDb();
-    await updateDoc(doc(db, namaKoleksiKategori, targetId), {
+    await perbaruiItem(namaKoleksiKategori, targetId, {
       nama,
       warna,
       updatedAt: sekarang
@@ -332,12 +323,11 @@ export function buatManajerKategori(konfigurasi) {
     if (typeof dataFolder.folderId === "string") {
       patch.folderId = dataFolder.folderId.trim();
     }
-    const db = getFirestoreDb();
-    await updateDoc(doc(db, namaKoleksiKategori, targetId), patch);
+    await perbaruiItem(namaKoleksiKategori, targetId, patch);
   }
 
   /**
-   * Menggeser urutan kategori naik (-1) atau turun (+1) dengan writeBatch (tidak menyentuh Drive).
+   * Menggeser urutan kategori naik (-1) atau turun (+1) dengan jalankanBatch (tidak menyentuh Drive).
    * @param {string} id
    * @param {"up" | "down"} arah
    */
@@ -354,24 +344,24 @@ export function buatManajerKategori(konfigurasi) {
     salinan.splice(targetIdx, 0, dipindah);
 
     const sekarang = new Date().toISOString();
-    const db = getFirestoreDb();
-    const batch = writeBatch(db);
-
+    const operasi = [];
     salinan.forEach((item, posisi) => {
       const urutanBaru = posisi + 1;
       if (item.urutan !== urutanBaru) {
-        batch.update(doc(db, namaKoleksiKategori, item.id), {
-          urutan: urutanBaru,
-          updatedAt: sekarang
+        operasi.push({
+          jenis: "update",
+          koleksi: namaKoleksiKategori,
+          id: item.id,
+          data: { urutan: urutanBaru, updatedAt: sekarang }
         });
       }
     });
 
-    await batch.commit();
+    await jalankanBatch(operasi);
   }
 
   /**
-   * Menghitung jumlah dokumen pemakai kategori langsung dari server menggunakan getCountFromServer.
+   * Menghitung jumlah dokumen pemakai kategori langsung dari server (hitungItem).
    * @param {string} kategoriId
    * @returns {Promise<number>}
    */
@@ -381,17 +371,14 @@ export function buatManajerKategori(konfigurasi) {
         `Penghapusan kategori memerlukan koneksi internet untuk memeriksa jumlah ${labelItemPemakai} di server.`
       );
     }
-    const db = getFirestoreDb();
-    const q = query(
-      collection(db, namaKoleksiPemakai),
-      where("kategoriId", "==", String(kategoriId || "").trim())
-    );
-    const agregat = await getCountFromServer(q);
-    return agregat.data().count;
+    // Penghitung server TIDAK menyaring dihapusAt dengan sengaja: pesan galat di
+    // bawah menyebut "termasuk yang ada di Tempat Sampah", karena menghapus kategori
+    // yang masih dirujuk item terhapus lunak akan memutus relasi saat dipulihkan.
+    return hitungItem(namaKoleksiPemakai, [["kategoriId", "==", String(kategoriId || "").trim()]]);
   }
 
   /**
-   * Menghapus kategori setelah memeriksa ulang ke server dengan getCountFromServer tepat sebelum menghapus.
+   * Menghapus kategori setelah memeriksa ulang ke server (hitungItem) tepat sebelum menghapus.
    * Ditolak saat offline atau jika jumlah pemakai > 0.
    * @param {string} id
    */
@@ -428,8 +415,7 @@ export function buatManajerKategori(konfigurasi) {
       throw galatDipakai;
     }
 
-    const db = getFirestoreDb();
-    await deleteDoc(doc(db, namaKoleksiKategori, targetId));
+    await hapusItem(namaKoleksiKategori, targetId);
     return snapshotSebelumHapus;
   }
 
