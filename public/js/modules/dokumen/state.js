@@ -8,6 +8,9 @@ import { UKURAN_HALAMAN_DOKUMEN, KOLEKSI } from "../../config/constants.js";
 import {
   getFirestoreDb,
   collection,
+  doc,
+  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -19,7 +22,7 @@ import {
   formatPesanGalatFirestore,
 } from "../../services/firestoreService.js";
 import { buatManajerKategori, KATEGORI_DOKUMEN_BAWAAN } from "../kategori/index.js";
-import { resetCacheDrive } from "../../services/driveService.js";
+import { resetCacheDrive, pindahkanItemKeSampahDrive } from "../../services/driveService.js";
 
 export const manajerKategoriDokumen = buatManajerKategori({
   namaKoleksiKategori: KOLEKSI.KATEGORI_DOKUMEN,
@@ -61,6 +64,7 @@ function petakanDokumen(docSnap) {
     tanggalUnggah: String(d.tanggalUnggah || d.createdAt || ""),
     createdAt: String(d.createdAt || ""),
     updatedAt: String(d.updatedAt || ""),
+    dihapusAt: d.dihapusAt || null,
   };
 }
 
@@ -74,7 +78,11 @@ export function getDaftarDokumen() {
     const lama = gabungan.get(k);
     if (!lama || String(v.updatedAt || "") > String(lama.updatedAt || "")) gabungan.set(k, v);
   });
-  return Array.from(gabungan.values()).map((d) => ({ ...d }));
+  // Dokumen ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di daftar utama.
+  // Penyaringan ini lokal; Tahap D memindahkannya ke kueri Firestore agar paginasi akurat.
+  return Array.from(gabungan.values())
+    .filter((d) => !d.dihapusAt)
+    .map((d) => ({ ...d }));
 }
 
 export function isDokumenSudahDimuat() {
@@ -118,6 +126,73 @@ export function hapusDokumenDariPeta(id) {
   petaDokumenTambahan.delete(id);
 }
 
+// --- Hapus lunak -------------------------------------------------------------
+
+/**
+ * Hapus lunak satu dokumen: hanya menulis dihapusAt + updatedAt.
+ * SENGAJA tidak memanggil Drive sama sekali, sehingga berhasil juga saat luring —
+ * berbeda dari catatan yang menolak dihapus saat luring. Berkas Drive baru
+ * dipindahkan ke Sampah Drive pada hapus permanen (lihat hapusPermanenDokumen).
+ */
+export async function hapusLunakDokumen(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID dokumen tidak valid.");
+  const db = getFirestoreDb();
+  const sekarang = new Date().toISOString();
+  await updateDoc(doc(db, KOLEKSI.DOKUMEN, targetId), {
+    dihapusAt: sekarang,
+    updatedAt: sekarang,
+  });
+  hapusDokumenDariPeta(targetId);
+  beritahuPerubahanDokumen();
+}
+
+/** Pulihkan dokumen dari Tempat Sampah: kembalikan dihapusAt menjadi null. */
+export async function pulihkanDokumen(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID dokumen tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, KOLEKSI.DOKUMEN, targetId), {
+    dihapusAt: null,
+    updatedAt: new Date().toISOString(),
+  });
+  hapusDokumenDariPeta(targetId);
+  beritahuPerubahanDokumen();
+}
+
+/**
+ * Hapus permanen dokumen: pindahkan berkas ke Sampah Google Drive lalu hapus
+ * dokumen Firestore. Berkas yang sudah tidak ada di Drive (isNotFound) tidak
+ * menghalangi penghapusan metadata.
+ *
+ * Saat luring metadata TIDAK dihapus (penghapusan ditolak dengan galat): menghapus
+ * metadata tanpa memindahkan berkas akan meninggalkan berkas yatim di Google Drive.
+ * @param {{ id: string, driveFileId?: string }} item
+ */
+export async function hapusPermanenDokumen(item) {
+  const targetId = String(item && item.id ? item.id : item || "").trim();
+  if (!targetId) throw new Error("ID dokumen tidak valid.");
+  const driveFileId = String((item && item.driveFileId) || "").trim();
+
+  if (driveFileId) {
+    if (!navigator.onLine) {
+      throw new Error(
+        "Tidak ada koneksi internet. Berkas dokumen harus dipindahkan ke Sampah Google Drive lebih dulu; sambungkan perangkat lalu coba lagi."
+      );
+    }
+    try {
+      await pindahkanItemKeSampahDrive(driveFileId);
+    } catch (errDrive) {
+      if (!errDrive || !errDrive.isNotFound) throw errDrive;
+    }
+  }
+
+  const db = getFirestoreDb();
+  await deleteDoc(doc(db, KOLEKSI.DOKUMEN, targetId));
+  hapusDokumenDariPeta(targetId);
+  beritahuPerubahanDokumen();
+}
+
 // --- Pemberitahuan perubahan ------------------------------------------------
 
 export function onPerubahanDokumen(listener) {
@@ -145,12 +220,19 @@ export async function hitungDokumenPemakaiServer(kategoriId) {
   const target = String(kategoriId || "").trim();
   try {
     const db = getFirestoreDb();
-    if (!target) {
-      const q = query(collection(db, KOLEKSI.DOKUMEN), where("kategoriId", "==", ""));
-      const snap = await getCountFromServer(q);
-      return snap.data().count;
-    }
-    const q = query(collection(db, KOLEKSI.DOKUMEN), where("kategoriId", "==", target));
+    // Hanya dokumen aktif yang dihitung: dokumen di Tempat Sampah tidak lagi "memakai"
+    // kategori, sejalan dengan dialog Kelola Kategori yang memperingatkan sebelum hapus.
+    const q = target
+      ? query(
+          collection(db, KOLEKSI.DOKUMEN),
+          where("kategoriId", "==", target),
+          where("dihapusAt", "==", null)
+        )
+      : query(
+          collection(db, KOLEKSI.DOKUMEN),
+          where("kategoriId", "==", ""),
+          where("dihapusAt", "==", null)
+        );
     const snap = await getCountFromServer(q);
     return snap.data().count;
   } catch (_e) {
@@ -192,6 +274,11 @@ export async function muatLebihBanyakDokumen() {
     if (!snap.empty) {
       kursorDokumenTambahan = snap.docs[snap.docs.length - 1];
     }
+    // Batas "masih ada lagi" tetap dihitung dari jumlah dokumen mentah yang terbaca.
+    // Dokumen ber-dihapusAt ikut terhitung di sini, jadi satu halaman bisa tampak
+    // kosong setelah penyaringan lokal; tombol "muat lebih banyak" tetap tersedia
+    // selama batch yang terbaca penuh, sehingga isi Tempat Sampah tidak menghentikan
+    // paginasi. Tahap D memindahkan penyaringan ke kueri sehingga hitungan ini akurat.
     adaLebihBanyakDokumenHalaman = snap.docs.length >= UKURAN_HALAMAN_DOKUMEN;
     return null;
   } catch (err) {

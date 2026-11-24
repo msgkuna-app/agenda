@@ -14,6 +14,9 @@ export {
   hitungDokumenPemakaiServer,
   muatLebihBanyakDokumen,
   ambilSemuaDokumenSekaliPakai,
+  hapusLunakDokumen,
+  pulihkanDokumen,
+  hapusPermanenDokumen,
 } from "./state.js";
 
 // --- Format ------------------------------------------------------------------

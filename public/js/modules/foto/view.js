@@ -24,7 +24,7 @@ function kartuFotoHtml(f) {
           ? `<img alt="${escapeHtml(f.namaFile)}" loading="lazy" data-thumb-drive="${escapeHtml(f.driveFileId)}" />`
           : `<span class="foto-kartu-kosong">${svgIkon(IKON_GAMBAR, 28)}</span>`}
       </a>
-      <button type="button" class="tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}" title="Hapus foto" aria-label="Hapus foto ${escapeHtml(f.namaFile)}">${svgIkon(IKON_HAPUS, 16)}</button>
+      <button type="button" class="tombol-hapus-foto" data-id-foto="${escapeHtml(f.id)}" title="Pindahkan ke Tempat Sampah" aria-label="Pindahkan foto ${escapeHtml(f.namaFile)} ke Tempat Sampah">${svgIkon(IKON_HAPUS, 16)}</button>
       <figcaption class="foto-kartu-meta">
         <span class="foto-kartu-nama" title="${escapeHtml(f.namaFile)}">${escapeHtml(f.namaFile)}</span>
         <span class="foto-kartu-keterangan">${formatUkuran(f.ukuran)}</span>

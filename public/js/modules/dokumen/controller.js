@@ -15,7 +15,6 @@ import {
   doc,
   addDoc,
   updateDoc,
-  deleteDoc,
   formatPesanGalatFirestore,
 } from "../../services/firestoreService.js";
 import {
@@ -34,7 +33,7 @@ import {
   manajerKategoriDokumen,
   getDaftarDokumen,
   onPerubahanDokumen,
-  hapusDokumenDariPeta,
+  hapusLunakDokumen,
   beritahuPerubahanDokumen,
   hitungDokumenPemakaiServer,
   muatLebihBanyakDokumen,
@@ -65,6 +64,7 @@ import {
 } from "./view.js";
 import { formatUkuranBerkas, infoJenisBerkasMime } from "./format.js";
 import { pastikanFolderTujuanKategoriSiap } from "./folder.js";
+import { tampilkanToast } from "../../shared/toast.js";
 
 // --- State lokal controller --------------------------------------------------
 
@@ -397,7 +397,10 @@ async function jalankanSimpanUlangMetadata() {
       ...dataFormUploadPending,
       tanggalUnggah: sekarangIso,
       createdAt: sekarangIso,
-      updatedAt: sekarangIso
+      updatedAt: sekarangIso,
+      // Dokumen baru wajib memuat dihapusAt = null: kueri aktif memakai
+      // where("dihapusAt", "==", null), yang TIDAK cocok untuk dokumen tanpa field ini.
+      dihapusAt: null
     });
 
     berkasDriveTersimpanPending = null;
@@ -573,8 +576,6 @@ function setPesanGalatModalHapus(pesan) {
 function bukaDialogHapusDokumen(item) {
   const modal = document.getElementById("dokumen-delete-modal");
   const desc = document.getElementById("dokumen-delete-desc");
-  const radioAppOnly = document.getElementById("dokumen-delete-mode-app");
-  const radioDrive = document.getElementById("dokumen-delete-mode-drive");
   const cancelBtn = document.getElementById("dokumen-delete-cancel-btn");
   if (!modal || !item) return;
 
@@ -584,13 +585,7 @@ function bukaDialogHapusDokumen(item) {
 
   const label = item.namaTampilan || item.namaFile || "dokumen ini";
   if (desc) {
-    desc.textContent = `Pilih cara menghapus "${label}" (${formatUkuranBerkas(item.ukuran)}):`;
-  }
-  if (radioAppOnly instanceof HTMLInputElement) {
-    radioAppOnly.checked = true;
-  }
-  if (radioDrive instanceof HTMLInputElement) {
-    radioDrive.disabled = !navigator.onLine;
+    desc.textContent = `"${label}" (${formatUkuranBerkas(item.ukuran)}) akan dipindahkan ke Tempat Sampah. Berkas aslinya tetap tersimpan di Google Drive, dan Anda dapat memulihkannya dalam 30 hari.`;
   }
 
   hapusModalTerbuka = true;
@@ -1274,40 +1269,26 @@ function pasangEventModalHapus() {
   deleteConfirmBtn?.addEventListener("click", async () => {
     if (!dokumenAkanDihapus) return;
     const target = dokumenAkanDihapus;
-    const radioTrashDrive = document.getElementById("dokumen-delete-mode-drive");
-    const buangKeSampahDrive = radioTrashDrive instanceof HTMLInputElement && radioTrashDrive.checked;
 
     setPesanGalatModalHapus("");
     if (deleteConfirmBtn instanceof HTMLButtonElement) {
       deleteConfirmBtn.disabled = true;
-      deleteConfirmBtn.textContent = "Menghapus...";
+      deleteConfirmBtn.textContent = "Memindahkan...";
     }
 
     try {
-      if (buangKeSampahDrive && target.driveFileId) {
-        if (!navigator.onLine) {
-          throw new Error("Tidak ada koneksi internet untuk memindahkan berkas ke Sampah Drive. Pilih \"Hapus dari daftar aplikasi saja\".");
-        }
-        try {
-          await pindahkanItemKeSampahDrive(target.driveFileId);
-        } catch (errDrive) {
-          if (!errDrive || !errDrive.isNotFound) {
-            throw errDrive;
-          }
-        }
-      }
-
-      const db = getFirestoreDb();
-      await deleteDoc(doc(db, KOLEKSI.DOKUMEN, target.id));
-      hapusDokumenDariPeta(target.id);
+      // Hapus lunak: hanya metadata yang ditandai. Berkas Google Drive tidak disentuh
+      // sama sekali sehingga tindakan ini berhasil juga saat luring; berkas baru
+      // dipindahkan ke Sampah Drive saat dokumen dihapus permanen dari Tempat Sampah.
+      await hapusLunakDokumen(target.id);
       tutupDialogHapusDokumen(false);
-      beritahuPerubahanDokumen();
+      tampilkanToast("Dokumen dipindahkan ke Tempat Sampah.", "success");
     } catch (err) {
-      setPesanGalatModalHapus(formatPesanGalatDrive(err));
+      setPesanGalatModalHapus(formatPesanGalatFirestore(err));
     } finally {
       if (deleteConfirmBtn instanceof HTMLButtonElement) {
         deleteConfirmBtn.disabled = false;
-        deleteConfirmBtn.textContent = "Hapus Dokumen";
+        deleteConfirmBtn.textContent = "Pindahkan ke Tempat Sampah";
       }
     }
   });

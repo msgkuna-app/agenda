@@ -1,7 +1,18 @@
 # Rencana — Hapus Lunak untuk Dokumen, Foto, dan Laporan
 
-Status: **RENCANA, belum dikerjakan.** Versi aplikasi saat rencana disusun: **v1.8.41**
-(commit a1f7d39). Disusun 2026-11-24.
+Status: **Tahap A, B, dan C+E SELESAI.** Tahap D belum dikerjakan.
+Versi aplikasi saat rencana disusun: **v1.8.41** (commit a1f7d39). Disusun 2026-11-24.
+
+| Tahap | Isi | Versi | Status |
+|---|---|---|---|
+| A | Aturan Firestore, indeks, migrasi `dihapusAt` | v1.8.42 | **SELESAI** 2026-11-24 |
+| B | Generalisasi modul Tempat Sampah berbasis tabel jenis | v1.8.43 | **SELESAI** 2026-11-24 |
+| C + E | Hapus lunak dokumen/foto/laporan + Tempat Sampah lima jenis | v1.8.44 | **SELESAI** 2026-11-24 |
+| D | Alihkan kueri Firestore ke `where("dihapusAt","==",null)` | v1.8.45 | belum |
+
+Selama Tahap A sampai C+E, penyaringan item terhapus masih dilakukan **di sisi klien**
+(`getDaftarDokumen`, `getDaftarFoto`, `getDaftarLaporan` menyaring `dihapusAt` secara
+lokal). Tahap D memindahkannya ke kueri Firestore dan menyesuaikan payload ekspor/impor.
 
 ---
 
@@ -148,22 +159,51 @@ Catatan pelaksanaan:
 - Kata dialog konfirmasi ("Item kegiatan …") dan label toast diambil dari
   `KOLEKSI_HAPUS_LUNAK.satuan` / `.label` di `config/constants.js`, bukan ditulis ulang.
 
-### Tahap C — Hapus lunak untuk dokumen & foto (v1.8.44)
-1. `dokumen/state.js` dan `foto/state.js`: tambahkan `hapusLunak(id)`, `pulihkan(id)`,
-   dan `hapusPermanen(id)`.
+### Tahap C + E — Hapus lunak dokumen/foto/laporan & Tempat Sampah lima jenis (v1.8.44) — **SELESAI 2026-11-24**
+
+Kedua tahap **digabung menjadi satu langkah**. Rencana semula memisahkan pengalihan
+tombol hapus (C) dari pendaftaran jenis baru ke Tempat Sampah (E); bila dipisah, akan
+ada satu rilis di mana item yang dihapus menghilang dari daftar tetapi belum muncul di
+Tempat Sampah sehingga tidak dapat dipulihkan. Digabung, tidak ada jendela seperti itu.
+
+1. `dokumen/state.js`, `foto/state.js`, `laporan/state.js`: ditambahkan
+   `hapusLunak(id)`, `pulihkan(id)`, dan `hapusPermanen(item)`.
 2. `hapusLunak(id)` hanya menulis `dihapusAt` + `updatedAt`. **Tidak memanggil Drive**
    dan karenanya berhasil juga saat luring.
 3. `pulihkan(id)` mengembalikan `dihapusAt` menjadi `null`. Tidak menyentuh Drive karena
    berkas belum pernah dipindahkan.
-4. `hapusPermanen(id)` — inilah satu-satunya tempat `pindahkanItemKeSampahDrive`
-   dipanggil untuk dokumen dan foto, lalu `deleteDoc`. Rotari tombol radio
-   `#dokumen-delete-mode-drive` dipindahkan dari dialog hapus ke dialog hapus permanen di
-   Tempat Sampah (Tahap E); bila Anda lebih suka disederhanakan, radio itu dapat dihapus
-   dan perilakunya dijadikan tetap.
-5. `foto/controller.js:157-171` — `confirm()` diubah menjadi pemberitahuan "dipindahkan
-   ke Tempat Sampah" dan tidak lagi memanggil Drive.
-6. Uji: hapus lunak satu dokumen dan satu foto dalam keadaan luring, lalu pastikan
-   keduanya masih ada di Firestore dan berkasnya masih ada di Google Drive.
+4. `hapusPermanen(item)` — satu-satunya tempat `pindahkanItemKeSampahDrive` dipanggil
+   untuk dokumen dan foto, lalu `deleteDoc`.
+5. `foto/controller.js` — `confirm()` diubah menjadi pemberitahuan "dipindahkan ke
+   Tempat Sampah" dan tidak lagi memanggil Drive.
+6. `sampah/state.js`: `JENIS_SAMPAH` diperluas menjadi lima jenis, sehingga kelima
+   koleksi hapus lunak dilanggan dengan `where("dihapusAt", "!=", null)`.
+7. `sampah/controller.js`: `PENANGAN_JENIS` diperluas menjadi lima entri.
+8. `sampah/view.js`: `TAMPILAN_JENIS` diperluas menjadi lima entri (ikon + label).
+9. Hapus permanen dari Tempat Sampah memindahkan berkas Drive dokumen dan foto lebih
+   dulu, lalu `deleteDoc`; hal yang sama berlaku pada **tombol Kosongkan** dan pada
+   **pembersihan otomatis >30 hari**, agar berkas tidak tertinggal di Drive setelah
+   metadata dihapus.
+10. Uji: hapus satu dokumen, satu foto, dan satu laporan; pastikan ketiganya muncul di
+    Tempat Sampah; pulihkan satu; hapus permanen satu dan pastikan berkasnya berpindah
+    ke Sampah Google Drive.
+
+Catatan pelaksanaan:
+- Radio `#dokumen-delete-mode-drive` **dihapus** dari dialog hapus dokumen; perilakunya
+  kini tetap: berkas selalu dipindahkan ke Sampah Google Drive saat hapus permanen.
+  Pemindahan berkas dilakukan di Tempat Sampah, bukan lagi di dialog hapus, sehingga
+  hapus lunak tetap berhasil saat luring.
+- Karena pemindahan berkas memerlukan jaringan, hapus permanen **menolak** item
+  berberkas saat luring (tombol konfirmasi dinonaktifkan dan state.js melempar galat),
+  dan pembersihan otomatis >30 hari dilewati saat luring. Tanpa aturan ini, metadata
+  terhapus sementara berkasnya menjadi yatim di Google Drive.
+- Bila pemindahan berkas gagal karena sebab lain, item **tidak** dihapus dan tetap
+  tampil di Tempat Sampah untuk dicoba lagi. Berkas yang sudah tidak ada di Drive
+  (`isNotFound`) tidak menghalangi penghapusan metadata.
+- Teks antarmuka diseragamkan: judul modal dan label tombol memakai "Pindahkan ke
+  Tempat Sampah" (dokumen, foto, riwayat laporan).
+- Penghapusan tetap **hanya** memindahkan berkas ke Sampah Google Drive; berkas tidak
+  dihapus permanen dari Drive.
 
 ### Tahap D — Alihkan kueri ke hapus lunak (v1.8.45)
 1. `dokumen/state.js`: `langgananDokumen`, `muatLebihBanyakDokumen`,
@@ -174,13 +214,18 @@ Catatan pelaksanaan:
 4. `pengaturan/controller.js`: penyusun payload ekspor/impor (`:696-720`) menyertakan
    `dihapusAt` sehingga berkas cadangan lama tetap dapat diimpor. Sesuai keputusan
    bagian 6 butir 3, **hanya item aktif yang diekspor**.
-5. Tombol hapus di antarmuka diarahkan ke `hapusLunak` (Tahap C).
-6. Uji menyeluruh: daftar Dokumen, daftar Foto pada kartu Kegiatan, riwayat Laporan,
+5. Uji menyeluruh: daftar Dokumen, daftar Foto pada kartu Kegiatan, riwayat Laporan,
    pencarian global, ekspor JSON, impor JSON, dan penghitung pemakai kategori.
 
-### Tahap E — Daftarkan tiga jenis baru ke Tempat Sampah (v1.8.46)
-1. `sampah/state.js`: tambahkan tiga langganan dan tiga peta.
-2. `sampah/controller.js`: cabang pulihkan dan hapus permanen untuk tiga jenis baru.
+### Tahap E — Daftarkan tiga jenis baru ke Tempat Sampah (v1.8.46) — **DIGABUNG KE TAHAP C**
+
+Tahap ini dilebur ke Tahap C di atas (v1.8.44); lihat alasannya pada catatan pembuka
+Tahap C + E. Nomor versi v1.8.46 tidak lagi dipakai.
+
+1. ~~`sampah/state.js`: tambahkan tiga langganan dan tiga peta.~~ → tabel `JENIS_SAMPAH`
+   saja yang diperluas; peta dan langganan sudah dibangkitkan dari tabel sejak Tahap B.
+2. ~~`sampah/controller.js`: cabang pulihkan dan hapus permanen untuk tiga jenis baru.~~
+   → satu entri `PENANGAN_JENIS` per jenis.
 3. Hapus permanen dari Tempat Sampah memanggil `pindahkanItemKeSampahDrive` untuk
    dokumen dan foto (berkas baru dipindahkan di titik ini), lalu `deleteDoc`.
 4. Pembersihan otomatis >30 hari mencakup tiga jenis baru **dan** memindahkan berkas
@@ -192,17 +237,18 @@ Catatan pelaksanaan:
 
 | Berkas | Tahap | Perubahan |
 |---|---|---|
-| `firestore.rules` | A | 6 validator + 2 field baru |
+| `firestore.rules` | A | 6 validator + field `dihapusAt` |
 | `firestore.indexes.json` | A | +3 indeks |
 | `modules/pengaturan/controller.js` | A, D | migrasi diperluas; payload ekspor/impor |
 | `modules/pengaturan/view.js` | A | teks tombol dan status migrasi |
-| `modules/sampah/{state,view,controller}.js` | B, E | berbasis tabel jenis |
-| `modules/sampah/normalisasi.js` (baru) | B, E | bentuk baku item per jenis; didaftarkan di APP_SHELL |
-| `modules/dokumen/{state,controller}.js` | C, D | hapus lunak + penyaring |
-| `modules/foto/{state,controller}.js` | C, D | hapus lunak + penyaring |
-| `modules/laporan/{state}.js` | C, D | hapus lunak + penyaring |
-| `public/sw.js`, `config/constants.js` | A–E | naikkan versi tiap tahap |
-| `STRUKTUR.md` | A–E | catatan tiap tahap |
+| `modules/sampah/{state,view,controller}.js` | B, C+E | berbasis tabel jenis; lima jenis terdaftar |
+| `modules/sampah/normalisasi.js` (baru) | B, C+E | bentuk baku item per jenis; didaftarkan di APP_SHELL |
+| `modules/dokumen/{state,index,controller,view}.js` | C+E, D | hapus lunak; radio dihapus; penyaring (D) |
+| `modules/foto/{state,index,controller,view}.js` | C+E, D | hapus lunak; `confirm()` baru; penyaring (D) |
+| `modules/laporan/{state,index,controller,view}.js` | C+E, D | hapus lunak; teks modal; penyaring (D) |
+| `public/index.html` | C+E | radio hapus dokumen dihapus; teks tombol & judul modal |
+| `public/sw.js`, `config/constants.js` | A–D | naikkan versi tiap tahap |
+| `STRUKTUR.md` | A–D | catatan tiap tahap |
 
 `services/firestoreService.js` **tidak diubah** pada rencana ini. Bila Tahap 2
 (repositori) dikerjakan lebih dulu, penyesuaiannya cukup di `firestoreRepository.js`.
@@ -222,10 +268,10 @@ Catatan pelaksanaan:
      perlu dipindahkan saat dihapus permanen". Karena itu penanda ini boleh **tidak**
      ditambahkan ke `firestore.rules` — cukup `dihapusAt` saja. Ini menyederhanakan
      Tahap A: tidak ada field baru, hanya `dihapusAt` pada enam validator.
-   - Radio `#dokumen-delete-mode-drive` ("buang berkas ke Sampah Drive") perlu
-     dipindahkan dari dialog hapus ke dialog **hapus permanen di Tempat Sampah**, atau
-     dihapus sama sekali dan diganti perilaku tetap (selalu pindahkan berkas saat hapus
-     permanen). Keputusan ini akan dikonfirmasi lagi pada Tahap C.
+   - Radio `#dokumen-delete-mode-drive` ("buang berkas ke Sampah Drive") **dihapus** pada
+     Tahap C; perilakunya menjadi tetap: berkas selalu dipindahkan ke Sampah Google Drive
+     saat hapus permanen. Pemindahan itu terjadi di Tempat Sampah (tombol per item,
+     tombol Kosongkan, dan pembersihan otomatis >30 hari), bukan di dialog hapus.
    - Pulihkan dari Tempat Sampah hanya perlu mengembalikan `dihapusAt` menjadi `null`
      tanpa menyentuh Drive, sehingga jauh lebih sederhana daripada alur catatan.
 
@@ -240,14 +286,14 @@ Catatan pelaksanaan:
 
 | Tahap | Isi | Beban |
 |---|---|---|
-| A | Aturan, indeks, migrasi | sedang — **wajib paling awal** |
-| B | Generalisasi modul Sampah | sedang |
-| C | Hapus lunak untuk dokumen & foto | sedang |
+| A | Aturan, indeks, migrasi | sedang — **wajib paling awal** — SELESAI |
+| B | Generalisasi modul Sampah | sedang — SELESAI |
+| C + E | Hapus lunak dokumen/foto/laporan + lima jenis di Tempat Sampah | sedang–berat — SELESAI |
 | D | Alihkan kueri | berat — paling banyak berkas |
-| E | Tiga jenis baru di Tempat Sampah | sedang |
 
-Lima tahap, masing-masing satu commit dan satu kenaikan versi Service Worker. Perkiraan
-keseluruhan setara dua kali pekerjaan perbaikan tiga bug pada v1.8.41.
+Empat langkah kerja, masing-masing satu commit dan satu kenaikan versi Service Worker
+(A = v1.8.42, B = v1.8.43, C+E = v1.8.44, D = v1.8.45). Perkiraan keseluruhan setara
+dua kali pekerjaan perbaikan tiga bug pada v1.8.41.
 
 ## 8. Yang tidak termasuk
 

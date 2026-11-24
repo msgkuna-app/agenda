@@ -193,7 +193,7 @@ export function renderRiwayatLaporan() {
           </a>
           <div class="catatan-footer-actions">
             <button type="button" class="btn-danger-outline btn-sm-touch" data-laporan-action="hapus-riwayat" data-id="${escapeHtml(item.id)}">
-              ${IKON_HAPUS}<span>Hapus dari Riwayat</span>
+              ${IKON_HAPUS}<span>Pindahkan ke Tempat Sampah</span>
             </button>
           </div>
         </div>

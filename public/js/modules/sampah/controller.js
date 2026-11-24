@@ -5,21 +5,26 @@
  * toast. Semua operasi Firestore ada di state.js; semua render di view.js.
  *
  * Perilaku tiap jenis diatur tabel PENANGAN_JENIS, sehingga controller tidak lagi
- * bercabang `tipe === "kegiatan" ? … : catatan`. Tahap E cukup menambah entri baru
- * di tabel itu (dan langganan di state.js).
+ * bercabang `tipe === "kegiatan" ? … : catatan`. Menambah jenis baru cukup menambah
+ * satu entri di tabel itu.
  */
 import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { KOLEKSI, KOLEKSI_HAPUS_LUNAK } from "../../config/constants.js";
 import { pulihkanKegiatan, hapusPermanenKegiatan } from "../kegiatan/index.js";
 import { pulihkanCatatan, hapusPermanenCatatan } from "../catatan/index.js";
+import { pulihkanDokumen, hapusPermanenDokumen } from "../dokumen/index.js";
+import { pulihkanFoto, hapusPermanenFoto } from "../foto/index.js";
+import { pulihkanRiwayatLaporan, hapusPermanenRiwayatLaporan } from "../laporan/index.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import {
   ambilItemSampahMentah,
   hapusItemSampah,
+  hitungItemSampahBerberkas,
   hitungTotalItemSampah,
   kosongkanSemuaItemSampah,
   langgananSampah,
   lepasLanggananSampah,
+  punyaBerkasDrive,
   resetFlagPembersihanSampah
 } from "./state.js";
 import { initFilterPanel } from "../../filter-panel.js";
@@ -35,9 +40,14 @@ import {
  * Perilaku per jenis item Tempat Sampah.
  * - `pulihkan(id, item)`: mengembalikan item; boleh mengembalikan
  *   `{ pesanDrive }` untuk pesan tambahan (catatan Google Docs).
- * - `hapusPermanen(id, item)`: menghapus dari Firestore.
+ * - `hapusPermanen(id, item)`: menghapus dari Firestore; untuk dokumen dan foto,
+ *   sekaligus memindahkan berkas Drive-nya ke Sampah Google Drive.
  * Kata untuk kalimat dialog ("Item kegiatan …") diambil dari tabel bersama
  * KOLEKSI_HAPUS_LUNAK di config/constants.js agar tidak ditulis dua kali.
+ *
+ * Hapus lunak tidak pernah menyentuh Google Drive, sehingga pemulihan juga tidak
+ * perlu memulihkan apa pun di Drive: berkas baru dipindahkan ke Sampah Drive pada
+ * hapus permanen (baik dari sini maupun dari pembersihan otomatis > 30 hari).
  */
 const PENANGAN_JENIS = {
   [KOLEKSI.KEGIATAN]: {
@@ -50,6 +60,27 @@ const PENANGAN_JENIS = {
   [KOLEKSI.CATATAN]: {
     pulihkan: (id, item) => pulihkanCatatan(id, item),
     hapusPermanen: (id) => hapusPermanenCatatan(id)
+  },
+  [KOLEKSI.DOKUMEN]: {
+    pulihkan: async (id) => {
+      await pulihkanDokumen(id);
+      return { pesanDrive: "" };
+    },
+    hapusPermanen: (id, item) => hapusPermanenDokumen(item)
+  },
+  [KOLEKSI.FOTO]: {
+    pulihkan: async (id) => {
+      await pulihkanFoto(id);
+      return { pesanDrive: "" };
+    },
+    hapusPermanen: (id, item) => hapusPermanenFoto(item)
+  },
+  [KOLEKSI.LAPORAN]: {
+    pulihkan: async (id) => {
+      await pulihkanRiwayatLaporan(id);
+      return { pesanDrive: "" };
+    },
+    hapusPermanen: (id, item) => hapusPermanenRiwayatLaporan(item)
   }
 };
 
@@ -70,6 +101,7 @@ function bukaDialogHapusPermanen(tipe, id) {
   const modal = document.getElementById("sampah-hapus-permanen-modal");
   const desc = document.getElementById("sampah-hapus-permanen-desc");
   const cancelBtn = document.getElementById("sampah-hapus-permanen-cancel-btn");
+  const confirmBtn = document.getElementById("sampah-hapus-permanen-confirm-btn");
   if (!modal) return;
 
   const penangan = ambilPenangan(tipe);
@@ -79,10 +111,30 @@ function bukaDialogHapusPermanen(tipe, id) {
   fokusSebelumModalSampah = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   itemAkanDihapusPermanen = { tipe, item };
 
+  const berberkas = punyaBerkasDrive(item);
+  const luring = !navigator.onLine;
+
   if (desc) {
     const info = infoPerKunci.get(tipe);
     const satuan = info ? info.satuan : tipe;
-    desc.textContent = `Item ${satuan} "${item.judul || "Tanpa Judul"}" akan dihapus permanen dari Firestore dan tidak dapat dipulihkan kembali.`;
+    const bagian = [
+      `Item ${satuan} "${item.judul || "Tanpa Judul"}" akan dihapus permanen dari Firestore dan tidak dapat dipulihkan kembali.`
+    ];
+    if (berberkas) {
+      bagian.push("Berkas aslinya di Google Drive juga dipindahkan ke Sampah Google Drive.");
+    }
+    if (berberkas && luring) {
+      bagian.push(
+        "Perangkat sedang luring, sehingga berkas tidak dapat dipindahkan ke Sampah Google Drive saat ini. Sambungkan perangkat lalu coba lagi."
+      );
+    }
+    desc.textContent = bagian.join(" ");
+  }
+
+  // Tanpa jaringan, berkas Drive tidak dapat dipindahkan; menonaktifkan konfirmasi
+  // mencegah metadata terhapus sementara berkasnya tertinggal di Drive.
+  if (confirmBtn instanceof HTMLButtonElement) {
+    confirmBtn.disabled = berberkas && luring;
   }
 
   modal.hidden = false;
@@ -107,6 +159,7 @@ function bukaDialogKosongkanSampah() {
   const modal = document.getElementById("sampah-kosongkan-modal");
   const desc = document.getElementById("sampah-kosongkan-desc");
   const cancelBtn = document.getElementById("sampah-kosongkan-cancel-btn");
+  const confirmBtn = document.getElementById("sampah-kosongkan-confirm-btn");
   if (!modal) return;
 
   const total = hitungTotalItemSampah();
@@ -115,9 +168,29 @@ function bukaDialogKosongkanSampah() {
     return;
   }
 
+  const jumlahBerberkas = hitungItemSampahBerberkas();
+  const luring = !navigator.onLine;
   fokusSebelumModalSampah = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
   if (desc) {
-    desc.textContent = `Semua ${total} item di Tempat Sampah akan dihapus permanen dari Firestore. Tindakan ini tidak dapat dibatalkan.`;
+    const bagian = [
+      `Semua ${total} item di Tempat Sampah akan dihapus permanen dari Firestore. Tindakan ini tidak dapat dibatalkan.`
+    ];
+    if (jumlahBerberkas > 0) {
+      bagian.push(
+        `Berkas asli dari ${jumlahBerberkas} item di antaranya juga dipindahkan ke Sampah Google Drive.`
+      );
+    }
+    if (jumlahBerberkas > 0 && luring) {
+      bagian.push(
+        "Perangkat sedang luring, sehingga berkas tidak dapat dipindahkan ke Sampah Google Drive saat ini. Sambungkan perangkat lalu coba lagi."
+      );
+    }
+    desc.textContent = bagian.join(" ");
+  }
+
+  if (confirmBtn instanceof HTMLButtonElement) {
+    confirmBtn.disabled = jumlahBerberkas > 0 && luring;
   }
 
   modal.hidden = false;
@@ -289,7 +362,15 @@ export function initHalamanSampah() {
         await kosongkanSemuaItemSampah();
         tutupDialogKosongkanSampah(false);
         renderHalamanSampah();
-        tampilkanToast("Tempat Sampah berhasil dikosongkan", "success");
+        // Sisa item mungkin ada bila berkas Drive-nya gagal dipindahkan: item seperti
+        // itu sengaja tidak dihapus, jadi pesannya disesuaikan agar tidak menyesatkan.
+        const sisa = hitungTotalItemSampah();
+        tampilkanToast(
+          sisa === 0
+            ? "Tempat Sampah berhasil dikosongkan"
+            : `Sebagian item berhasil dihapus permanen; ${sisa} item tersisa karena berkas Google Drive-nya gagal dipindahkan`,
+          sisa === 0 ? "success" : "warning"
+        );
       } catch (err) {
         tutupDialogKosongkanSampah(false);
         tampilkanGalatHalamanSampah(formatPesanGalatFirestore(err));
@@ -317,7 +398,7 @@ export function initHalamanSampah() {
 
 /**
  * Memulai langganan query mandiri Tempat Sampah untuk setiap jenis aktif
- * (kegiatan dan catatan pada tahap ini): where("dihapusAt", "!=", null).
+ * (kelima koleksi hapus lunak): where("dihapusAt", "!=", null).
  */
 export function subscribeSampah() {
   unsubscribeSampah();

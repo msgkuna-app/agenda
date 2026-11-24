@@ -416,7 +416,7 @@ export function renderDaftarDokumen() {
             <button type="button" class="icon-btn" data-doc-action="edit" data-id="${escapeHtml(item.id)}" title="Ubah metadata" aria-label="Ubah metadata ${escapeHtml(namaUtama)}">
               ${svgIkon('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>', 17)}
             </button>
-            <button type="button" class="icon-btn doc-action-danger" data-doc-action="delete" data-id="${escapeHtml(item.id)}" title="Hapus dokumen" aria-label="Hapus ${escapeHtml(namaUtama)}">
+            <button type="button" class="icon-btn doc-action-danger" data-doc-action="delete" data-id="${escapeHtml(item.id)}" title="Pindahkan ke Tempat Sampah" aria-label="Pindahkan ${escapeHtml(namaUtama)} ke Tempat Sampah">
               ${svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 17)}
             </button>
           </div>
@@ -445,7 +445,7 @@ export function renderDaftarDokumen() {
               </button>
               <button type="button" class="doc-kebab-item doc-kebab-item-danger" role="menuitem" data-doc-action="delete" data-id="${escapeHtml(item.id)}">
                 ${svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16)}
-                <span>Hapus</span>
+                <span>Pindahkan</span>
               </button>
             </div>
           </div>
@@ -521,14 +521,5 @@ export function perbaruiStatusJaringanDokumen() {
   const btnSubmitUnggah = document.getElementById("dokumen-upload-submit-btn");
   if (btnSubmitUnggah instanceof HTMLButtonElement && !unggahSedangBerjalan) {
     btnSubmitUnggah.disabled = !online;
-  }
-
-  const radioTrashDrive = document.getElementById("dokumen-delete-mode-drive");
-  if (radioTrashDrive instanceof HTMLInputElement) {
-    radioTrashDrive.disabled = !online;
-    if (!online && radioTrashDrive.checked) {
-      const radioApp = document.getElementById("dokumen-delete-mode-app");
-      if (radioApp instanceof HTMLInputElement) radioApp.checked = true;
-    }
   }
 }

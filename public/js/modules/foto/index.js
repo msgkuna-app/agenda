@@ -7,6 +7,9 @@ export {
   onPerubahanFoto,
   simpanMetadataFoto,
   hapusDokumenFoto,
+  hapusLunakFoto,
+  pulihkanFoto,
+  hapusPermanenFoto,
   langgananFoto,
   lepasLanggananFoto,
 } from "./state.js";

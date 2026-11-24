@@ -73,6 +73,9 @@ export async function unggahBerkasSebagaiDokumenKegiatan({
     tanggalUnggah: sekarangIso,
     createdAt: sekarangIso,
     updatedAt: sekarangIso,
+    // Wajib ada sejak awal: kueri aktif memakai where("dihapusAt", "==", null), yang
+    // TIDAK cocok untuk dokumen tanpa field ini.
+    dihapusAt: null,
   });
   beritahuPerubahanDokumen();
 

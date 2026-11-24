@@ -26,7 +26,7 @@ function itemDokumenHtml(item) {
         <a class="kegiatan-dokumen-nama" href="${escapeHtml(tautanAman)}" target="_blank" rel="noopener noreferrer" title="Buka ${escapeHtml(nama)} di Google Drive">${escapeHtml(nama)}</a>
         <span class="kegiatan-dokumen-meta">${escapeHtml(jenis.label)} · ${escapeHtml(ukuran)}</span>
       </div>
-      <button type="button" class="tombol-hapus-dokumen-kegiatan" data-id-dokumen="${escapeHtml(item.id)}" title="Hapus dokumen" aria-label="Hapus dokumen ${escapeHtml(nama)}">${svgIkon(IKON_HAPUS, 16)}</button>
+      <button type="button" class="tombol-hapus-dokumen-kegiatan" data-id-dokumen="${escapeHtml(item.id)}" title="Pindahkan ke Tempat Sampah" aria-label="Pindahkan dokumen ${escapeHtml(nama)} ke Tempat Sampah">${svgIkon(IKON_HAPUS, 16)}</button>
     </li>`;
 }
 

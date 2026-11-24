@@ -16,6 +16,9 @@ import { formatTanggalTeks, hitungInformasiHariSampah } from "./format.js";
 const IKON_KEGIATAN = svgIkon('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', 20);
 const IKON_CATATAN_SINGKAT = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>', 20);
 const IKON_CATATAN_GDOC = svgIkon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="15.5" x2="16" y2="15.5"/>', 20);
+const IKON_DOKUMEN = svgIkon('<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="9" y1="14" x2="15" y2="14"/>', 20);
+const IKON_FOTO = svgIkon('<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>', 20);
+const IKON_LAPORAN = svgIkon('<path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="12" y="6" width="3" height="11"/><rect x="17" y="13" width="3" height="4"/>', 20);
 const IKON_SAMPAH = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>', 22);
 const IKON_PULIHKAN = svgIkon('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>', 16);
 const IKON_HAPUS_PERMANEN = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16);
@@ -32,6 +35,18 @@ const TAMPILAN_JENIS = {
   [KOLEKSI.CATATAN]: {
     ikon: (item) => (item.jenis === JENIS_CATATAN_GDOC ? IKON_CATATAN_GDOC : IKON_CATATAN_SINGKAT),
     label: (item) => (item.jenis === JENIS_CATATAN_GDOC ? "Google Docs" : "Catatan")
+  },
+  [KOLEKSI.DOKUMEN]: {
+    ikon: () => IKON_DOKUMEN,
+    label: () => "Dokumen"
+  },
+  [KOLEKSI.FOTO]: {
+    ikon: () => IKON_FOTO,
+    label: () => "Foto"
+  },
+  [KOLEKSI.LAPORAN]: {
+    ikon: () => IKON_LAPORAN,
+    label: () => "Laporan"
   }
 };
 
@@ -189,6 +204,9 @@ function htmlKartuSampah(item) {
   const badgeKelas = infoHari.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
   const kunciAman = escapeHtml(item.kunci);
   const idAman = escapeHtml(item.id);
+  // Isi ringkas: catatan (kegiatan/dokumen/foto) atau isi (catatan) atau keterangan
+  // terhitung (laporan, mis. "1 Agu 2026 - 31 Agu 2026 • 42 baris").
+  const excerpt = item.catatan || item.isi || item.keterangan || "";
 
   return `
     <div class="kegiatan-card sampah-card" data-sampah-tipe="${kunciAman}" data-sampah-id="${idAman}">
@@ -206,8 +224,7 @@ function htmlKartuSampah(item) {
         <div class="sampah-icon-wrap" aria-hidden="true">${ikonItem}</div>
         <div class="sampah-text-wrap">
           <h3 class="kegiatan-card-title sampah-title">${escapeHtml(item.judul || "Tanpa Judul")}</h3>
-          ${item.catatan ? `<p class="sampah-excerpt">${escapeHtml(item.catatan)}</p>` : ""}
-          ${item.isi ? `<p class="sampah-excerpt">${escapeHtml(item.isi)}</p>` : ""}
+          ${excerpt ? `<p class="sampah-excerpt">${escapeHtml(excerpt)}</p>` : ""}
         </div>
       </div>
 
@@ -257,11 +274,11 @@ export function renderHalamanSampah() {
     btnKosongkan.disabled = totalSemua === 0;
   }
 
-  // Saring berdasarkan kata kunci pencarian (judul, catatan, isi)
+  // Saring berdasarkan kata kunci pencarian (judul, catatan, isi, keterangan)
   const kunci = kataKunciSampah.trim().toLowerCase();
   if (kunci) {
     daftarTampil = daftarTampil.filter((item) => {
-      const gabungan = `${item.judul || ""} ${item.catatan || ""} ${item.isi || ""}`.toLowerCase();
+      const gabungan = `${item.judul || ""} ${item.catatan || ""} ${item.isi || ""} ${item.keterangan || ""}`.toLowerCase();
       return gabungan.includes(kunci);
     });
   }

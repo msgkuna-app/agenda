@@ -9,6 +9,7 @@ import {
   collection,
   doc,
   addDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
@@ -16,6 +17,7 @@ import {
   limit,
   formatPesanGalatFirestore,
 } from "../../services/firestoreService.js";
+import { pindahkanItemKeSampahDrive } from "../../services/driveService.js";
 
 const petaFoto = new Map();
 let unsubscribeSnapshotFoto = null;
@@ -37,11 +39,15 @@ function petakanFoto(docSnap) {
     catatan: String(d.catatan || ""),
     createdAt: String(d.createdAt || ""),
     updatedAt: String(d.updatedAt || ""),
+    dihapusAt: d.dihapusAt || null,
   };
 }
 
 export function getDaftarFoto() {
+  // Foto ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di kartu kegiatan.
+  // Penyaringan lokal; Tahap D memindahkannya ke kueri Firestore.
   return Array.from(petaFoto.values())
+    .filter((f) => !f.dihapusAt)
     .map((f) => ({ ...f }))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
@@ -89,17 +95,85 @@ export async function simpanMetadataFoto(data) {
     catatan: String(data.catatan || ""),
     createdAt: sekarang,
     updatedAt: sekarang,
+    // Foto baru wajib memuat dihapusAt = null: kueri aktif memakai
+    // where("dihapusAt", "==", null), yang TIDAK cocok untuk dokumen tanpa field ini.
+    dihapusAt: null,
   });
   return ref.id;
 }
 
 /**
- * Menghapus dokumen foto dari Firestore. Berkas di Drive TIDAK dihapus di sini —
- * controller yang memindahkan berkas ke tempat sampah Drive.
+ * Menghapus dokumen foto dari Firestore tanpa memindahkan berkas Drive.
+ * Dipertahankan sebagai jalur "hapus metadata saja"; alur normal memakai
+ * hapusLunakFoto (dari tombol hapus) dan hapusPermanenFoto (dari Tempat Sampah).
  */
 export async function hapusDokumenFoto(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID foto tidak valid.");
+  const db = getFirestoreDb();
+  await deleteDoc(doc(db, KOLEKSI.FOTO, targetId));
+  petaFoto.delete(targetId);
+  beritahuPerubahanFoto();
+}
+
+/**
+ * Hapus lunak satu foto: hanya menulis dihapusAt + updatedAt, tanpa menyentuh Drive,
+ * sehingga berhasil juga saat luring. Berkas Drive baru dipindahkan ke Sampah Drive
+ * pada hapus permanen (hapusPermanenFoto).
+ */
+export async function hapusLunakFoto(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID foto tidak valid.");
+  const db = getFirestoreDb();
+  const sekarang = new Date().toISOString();
+  await updateDoc(doc(db, KOLEKSI.FOTO, targetId), {
+    dihapusAt: sekarang,
+    updatedAt: sekarang,
+  });
+  petaFoto.delete(targetId);
+  beritahuPerubahanFoto();
+}
+
+/** Pulihkan foto dari Tempat Sampah: kembalikan dihapusAt menjadi null. */
+export async function pulihkanFoto(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID foto tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, KOLEKSI.FOTO, targetId), {
+    dihapusAt: null,
+    updatedAt: new Date().toISOString(),
+  });
+  petaFoto.delete(targetId);
+  beritahuPerubahanFoto();
+}
+
+/**
+ * Hapus permanen foto: pindahkan berkas ke Sampah Google Drive lalu hapus dokumen
+ * Firestore. Berkas yang sudah tidak ada di Drive tidak menghalangi penghapusan
+ * metadata.
+ *
+ * Saat luring metadata TIDAK dihapus (penghapusan ditolak dengan galat): menghapus
+ * metadata tanpa memindahkan berkas akan meninggalkan berkas yatim di Google Drive.
+ * @param {{ id: string, driveFileId?: string }} item
+ */
+export async function hapusPermanenFoto(item) {
+  const targetId = String(item && item.id ? item.id : item || "").trim();
+  if (!targetId) throw new Error("ID foto tidak valid.");
+  const driveFileId = String((item && item.driveFileId) || "").trim();
+
+  if (driveFileId) {
+    if (!navigator.onLine) {
+      throw new Error(
+        "Tidak ada koneksi internet. Berkas foto harus dipindahkan ke Sampah Google Drive lebih dulu; sambungkan perangkat lalu coba lagi."
+      );
+    }
+    try {
+      await pindahkanItemKeSampahDrive(driveFileId);
+    } catch (errDrive) {
+      if (!errDrive || !errDrive.isNotFound) throw errDrive;
+    }
+  }
+
   const db = getFirestoreDb();
   await deleteDoc(doc(db, KOLEKSI.FOTO, targetId));
   petaFoto.delete(targetId);

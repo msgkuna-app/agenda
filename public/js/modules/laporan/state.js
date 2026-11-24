@@ -12,6 +12,7 @@ import {
   collection,
   doc,
   addDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot
 } from "../../services/firestoreService.js";
@@ -107,7 +108,9 @@ function beritahuSumberSiap() {
  * Fase 6 Bagian C1: Mengekspor akses metadata riwayat laporan dari memori/langganan tunggal.
  */
 export function getDaftarLaporan() {
-  return daftarRiwayatLaporan.map((item) => ({ ...item }));
+  // Riwayat ber-dihapusAt adalah isi Tempat Sampah: tidak boleh muncul di daftar riwayat.
+  // Penyaringan lokal; Tahap D memindahkannya ke kueri Firestore.
+  return daftarRiwayatLaporan.filter((item) => !item.dihapusAt).map((item) => ({ ...item }));
 }
 
 export function isLaporanSudahDimuat() {
@@ -669,15 +672,53 @@ export async function simpanRiwayatLaporan({
     tanggalDari: dari,
     tanggalSampai: sampai,
     jumlahBaris,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    // Riwayat baru wajib memuat dihapusAt = null: kueri aktif memakai
+    // where("dihapusAt", "==", null), yang TIDAK cocok untuk dokumen tanpa field ini.
+    dihapusAt: null
   });
 }
 
-export async function hapusRiwayatLaporan(id) {
+/**
+ * Hapus lunak riwayat laporan: menulis dihapusAt + updatedAt saja.
+ * Laporan tidak memiliki berkas Drive, sehingga pulihkan dan hapus permanen
+ * cukup menyentuh Firestore.
+ *
+ * Jalur hapus permanen langsung (deleteDoc tanpa lewat Tempat Sampah) sengaja
+ * tidak lagi disediakan: seluruh penghapusan harus melewati hapus lunak agar
+ * item dapat dipulihkan dalam 30 hari.
+ */
+export async function hapusLunakRiwayatLaporan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
   const db = getFirestoreDb();
+  const sekarang = new Date().toISOString();
+  await updateDoc(doc(db, KOLEKSI.LAPORAN, targetId), {
+    dihapusAt: sekarang,
+    updatedAt: sekarang,
+  });
+  daftarRiwayatLaporan = daftarRiwayatLaporan.filter((item) => item.id !== targetId);
+}
+
+/** Pulihkan riwayat laporan dari Tempat Sampah. */
+export async function pulihkanRiwayatLaporan(id) {
+  const targetId = String(id || "").trim();
+  if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
+  const db = getFirestoreDb();
+  await updateDoc(doc(db, KOLEKSI.LAPORAN, targetId), {
+    dihapusAt: null,
+    updatedAt: new Date().toISOString(),
+  });
+  daftarRiwayatLaporan = daftarRiwayatLaporan.filter((item) => item.id !== targetId);
+}
+
+/** Hapus permanen riwayat laporan (tanpa berkas Drive). */
+export async function hapusPermanenRiwayatLaporan(item) {
+  const targetId = String(item && item.id ? item.id : item || "").trim();
+  if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
+  const db = getFirestoreDb();
   await deleteDoc(doc(db, KOLEKSI.LAPORAN, targetId));
+  daftarRiwayatLaporan = daftarRiwayatLaporan.filter((laporan) => laporan.id !== targetId);
 }
 
 /**
@@ -703,7 +744,8 @@ export function langgananRiwayatLaporan(opsi = {}) {
           tanggalDari: String(d.tanggalDari || ""),
           tanggalSampai: String(d.tanggalSampai || ""),
           jumlahBaris: Number.isFinite(Number(d.jumlahBaris)) ? Number(d.jumlahBaris) : 0,
-          createdAt: String(d.createdAt || "")
+          createdAt: String(d.createdAt || ""),
+          dihapusAt: d.dihapusAt || null
         };
       });
       riwayatSudahDimuat = true;

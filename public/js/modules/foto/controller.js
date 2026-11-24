@@ -5,7 +5,7 @@
  * dalam kartu kegiatan. Halaman Foto tersendiri sudah dihapus.
  */
 import { MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
-import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, pindahkanItemKeSampahDrive, ambilThumbnailFotoDrive } from "../../services/driveService.js";
+import { formatPesanGalatDrive, pastikanFolderFotoDrive, unggahBerkasKeDrive, ambilThumbnailFotoDrive } from "../../services/driveService.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import { getDaftarKegiatan } from "../kegiatan/index.js";
 import { renderDaftarKegiatan } from "../kegiatan/view.js";
@@ -15,13 +15,14 @@ import {
   langgananFoto,
   lepasLanggananFoto,
   simpanMetadataFoto,
-  hapusDokumenFoto,
+  hapusLunakFoto,
 } from "./state.js";
 import {
   renderPratinjauUnggah,
   bersihkanFormUnggahFoto,
   setelSedangUnggahFoto,
 } from "./view.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 
 let sudahDipasang = false;
 let sedangUnggah = false;
@@ -157,16 +158,16 @@ async function unggahBerkasTerpilih(kegiatanId, berkas) {
 async function hapusFoto(id) {
   const target = getDaftarFoto().find((f) => f.id === id);
   if (!target) return;
-  if (!confirm(`Hapus foto "${target.namaFile}"? Berkas akan dipindahkan ke tempat sampah Google Drive.`)) return;
+  if (!confirm(`Pindahkan foto "${target.namaFile}" ke Tempat Sampah? Berkas aslinya tetap tersimpan di Google Drive dan dapat dipulihkan dalam 30 hari.`)) return;
 
   try {
-    if (target.driveFileId) {
-      await pindahkanItemKeSampahDrive(target.driveFileId);
-    }
-    await hapusDokumenFoto(id);
-    tampilkanToast("Foto dihapus.", "sukses");
+    // Hapus lunak: hanya metadata yang ditandai, Drive tidak disentuh sama sekali,
+    // sehingga berhasil juga saat luring. Berkas dipindahkan ke Sampah Drive saat
+    // foto dihapus permanen dari Tempat Sampah.
+    await hapusLunakFoto(id);
+    tampilkanToast("Foto dipindahkan ke Tempat Sampah.", "success");
   } catch (err) {
-    tampilkanToast(`Gagal menghapus foto: ${formatPesanGalatDrive(err)}`, "galat");
+    tampilkanToast(`Gagal memindahkan foto: ${formatPesanGalatFirestore(err)}`, "danger");
   }
 }
 

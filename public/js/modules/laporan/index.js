@@ -6,7 +6,10 @@ export {
   DAFTAR_JENIS_LAPORAN,
   getDaftarLaporan,
   isLaporanSudahDimuat,
-  pastikanDataLaporanTersedia
+  pastikanDataLaporanTersedia,
+  hapusLunakRiwayatLaporan,
+  pulihkanRiwayatLaporan,
+  hapusPermanenRiwayatLaporan
 } from "./state.js";
 
 export { perbaruiStatusJaringanLaporan } from "./view.js";

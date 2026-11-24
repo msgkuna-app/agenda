@@ -36,7 +36,7 @@ import {
   susunDataLaporanSaatIni,
   getDaftarLaporan,
   simpanRiwayatLaporan,
-  hapusRiwayatLaporan,
+  hapusLunakRiwayatLaporan,
   langgananRiwayatLaporan,
   lepasLanggananRiwayatLaporan,
   setelOpsiPeristiwaLaporan
@@ -80,7 +80,7 @@ function bukaModalHapusRiwayat(idRiwayat) {
 
   if (alertBox) alertBox.hidden = true;
   if (desc) {
-    desc.textContent = `Catatan "${item.nama || "Laporan"}" akan dihapus dari daftar Riwayat Laporan di aplikasi ini. Berkas spreadsheet asli di Google Drive Anda TIDAK ikut dihapus.`;
+    desc.textContent = `Catatan "${item.nama || "Laporan"}" akan dipindahkan ke Tempat Sampah dan dapat dipulihkan dalam 30 hari. Berkas spreadsheet asli di Google Drive Anda TIDAK ikut dihapus.`;
   }
 
   modal.hidden = false;
@@ -113,8 +113,12 @@ async function konfirmasiHapusRiwayatLaporan() {
   if (alertBox) alertBox.hidden = true;
 
   try {
-    await hapusRiwayatLaporan(itemRiwayatAkanDihapus.id);
+    await hapusLunakRiwayatLaporan(itemRiwayatAkanDihapus.id);
     tutupModalHapusRiwayat(true);
+    tampilkanNotifikasiLaporan({
+      pesan: "Riwayat laporan dipindahkan ke Tempat Sampah dan dapat dipulihkan dalam 30 hari.",
+      tipe: "success"
+    });
   } catch (err) {
     if (alertBox && alertText) {
       alertText.textContent = formatPesanGalatFirestore(err);

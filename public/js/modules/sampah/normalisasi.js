@@ -52,3 +52,68 @@ export function normalkanCatatan(docSnap) {
     dihapusAt: d.dihapusAt || null
   };
 }
+
+/** Bentuk baku satu dokumen arsip di Tempat Sampah. */
+export function normalkanDokumen(docSnap) {
+  const d = docSnap.data();
+  return {
+    id: docSnap.id,
+    kunci: KOLEKSI.DOKUMEN,
+    judul: String(d.namaTampilan || d.namaFile || ""),
+    namaFile: String(d.namaFile || ""),
+    driveFileId: String(d.driveFileId || ""),
+    mimeType: String(d.mimeType || ""),
+    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
+    kategoriId: String(d.kategoriId || ""),
+    kegiatanId: String(d.kegiatanId || ""),
+    catatan: String(d.catatan || ""),
+    tanggal: String(d.tanggalUnggah || d.createdAt || ""),
+    createdAt: d.createdAt || "",
+    updatedAt: d.updatedAt || "",
+    dihapusAt: d.dihapusAt || null
+  };
+}
+
+/** Bentuk baku satu foto kegiatan di Tempat Sampah. */
+export function normalkanFoto(docSnap) {
+  const d = docSnap.data();
+  return {
+    id: docSnap.id,
+    kunci: KOLEKSI.FOTO,
+    judul: String(d.namaFile || ""),
+    namaFile: String(d.namaFile || ""),
+    driveFileId: String(d.driveFileId || ""),
+    kegiatanId: String(d.kegiatanId || ""),
+    mimeType: String(d.mimeType || ""),
+    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
+    catatan: String(d.catatan || ""),
+    tanggal: String(d.createdAt || ""),
+    createdAt: d.createdAt || "",
+    updatedAt: d.updatedAt || "",
+    dihapusAt: d.dihapusAt || null
+  };
+}
+
+/** Bentuk baku satu riwayat laporan di Tempat Sampah. */
+export function normalkanLaporan(docSnap) {
+  const d = docSnap.data();
+  const rentang = String(d.rentangTanggal || "");
+  const jumlahBaris = Number.isFinite(Number(d.jumlahBaris)) ? Number(d.jumlahBaris) : 0;
+  return {
+    id: docSnap.id,
+    kunci: KOLEKSI.LAPORAN,
+    judul: String(d.nama || ""),
+    jenis: String(d.jenis || ""),
+    jenisLabel: String(d.jenisLabel || ""),
+    tautan: String(d.tautan || ""),
+    rentangTanggal: rentang,
+    jumlahBaris,
+    // Baris keterangan siap tampil: kartu Tempat Sampah tidak perlu tahu cara
+    // menyusunnya, cukup menampilkan field ini bila tidak kosong.
+    keterangan: [rentang, jumlahBaris > 0 ? `${jumlahBaris} baris` : ""].filter(Boolean).join(" • "),
+    tanggal: String(d.tanggalDari || d.createdAt || ""),
+    createdAt: d.createdAt || "",
+    updatedAt: d.updatedAt || "",
+    dihapusAt: d.dihapusAt || null
+  };
+}

@@ -5,8 +5,15 @@
  * TANPA DOM: pembaruan tampilan dipicu controller lewat callback onData/onGalat
  * pada langgananSampah().
  *
- * Seluruh perilaku diatur tabel JENIS_SAMPAH. Menambah jenis baru (Tahap E) cukup
- * dengan menambah satu baris di tabel itu beserta fungsi normalkan-nya.
+ * Seluruh perilaku diatur tabel JENIS_SAMPAH. Menambah jenis baru cukup dengan
+ * menambah satu baris di tabel itu beserta fungsi normalkan-nya.
+ *
+ * Sejak v1.8.44 kelima koleksi hapus lunak terdaftar, termasuk dokumen dan foto yang
+ * berberkas di Google Drive. Setiap penghapusan permanen (tombol per item, tombol
+ * Kosongkan, dan pembersihan otomatis >30 hari) memindahkan berkas Drive lebih dulu
+ * agar berkas tidak menjadi yatim. Pemindahan itu memerlukan jaringan, sehingga
+ * pembersihan otomatis dilewati saat luring dan kedua tombol hapus permanen menolak
+ * item berberkas saat luring.
  */
 import { TIGA_PULUH_HARI_MS, BATAS_OPERASI_BATCH, KOLEKSI } from "../../config/constants.js";
 import {
@@ -18,17 +25,27 @@ import {
   query,
   where
 } from "../../services/firestoreService.js";
-import { normalkanKegiatan, normalkanCatatan } from "./normalisasi.js";
+import { pindahkanItemKeSampahDrive } from "../../services/driveService.js";
+import {
+  normalkanKegiatan,
+  normalkanCatatan,
+  normalkanDokumen,
+  normalkanFoto,
+  normalkanLaporan
+} from "./normalisasi.js";
 
 /**
  * Tabel jenis item Tempat Sampah. `kunci` adalah nama koleksi Firestore sekaligus
- * nilai data-sampah-tipe di antarmuka. Tabel ini sengaja hanya memuat dua jenis
- * sampai Tahap E mendaftarkan dokumen, foto, dan laporan — koleksi yang belum
- * terdaftar tidak dilanggan sama sekali, sehingga tidak ada kueri baru yang berjalan.
+ * nilai data-sampah-tipe di antarmuka. Sejak v1.8.44 kelima koleksi hapus lunak
+ * terdaftar; seluruhnya sudah termigrasi ke field dihapusAt sehingga kueri
+ * where("dihapusAt", "!=", null) aman dijalankan.
  */
 const JENIS_SAMPAH = [
   { kunci: KOLEKSI.KEGIATAN, normalkan: normalkanKegiatan },
-  { kunci: KOLEKSI.CATATAN, normalkan: normalkanCatatan }
+  { kunci: KOLEKSI.CATATAN, normalkan: normalkanCatatan },
+  { kunci: KOLEKSI.DOKUMEN, normalkan: normalkanDokumen },
+  { kunci: KOLEKSI.FOTO, normalkan: normalkanFoto },
+  { kunci: KOLEKSI.LAPORAN, normalkan: normalkanLaporan }
 ];
 
 const petaPerJenis = new Map();      // kunci -> Map(id -> item)
@@ -92,6 +109,17 @@ export function hitungTotalItemSampah() {
   return total;
 }
 
+/** Jumlah item di Tempat Sampah yang masih menunjuk berkas Google Drive. */
+export function hitungItemSampahBerberkas() {
+  let total = 0;
+  JENIS_SAMPAH.forEach((jenis) => {
+    petaPerJenis.get(jenis.kunci).forEach((item) => {
+      if (punyaBerkasDrive(item)) total += 1;
+    });
+  });
+  return total;
+}
+
 /** Reset tanda pembersihan otomatis (sekali per sesi). */
 export function resetFlagPembersihanSampah() {
   sudahPernahBersihkanOtomatisSesiIni = false;
@@ -113,36 +141,93 @@ async function hapusBatchMaks500(db, daftarRef) {
   }
 }
 
-/** Kumpulkan { koleksi, id } seluruh item yang lolos penyaring. */
-function kumpulkanRefSampah(penyaring) {
-  const daftarRef = [];
+/**
+ * Kumpulkan item yang lolos penyaring beserta kunci koleksinya. Dipakai jalur
+ * hapus permanen yang perlu memeriksa `driveFileId` sebelum metadata dihapus.
+ * @param {((item: object) => boolean) | null} penyaring
+ * @returns {Array<{ koleksi: string, item: object }>}
+ */
+function kumpulkanItemSampah(penyaring) {
+  const hasil = [];
   JENIS_SAMPAH.forEach((jenis) => {
     petaPerJenis.get(jenis.kunci).forEach((item) => {
       if (!penyaring || penyaring(item)) {
-        daftarRef.push({ koleksi: jenis.kunci, id: item.id });
+        hasil.push({ koleksi: jenis.kunci, item });
       }
     });
   });
-  return daftarRef;
+  return hasil;
 }
 
 /**
- * Kosongkan Tempat Sampah: hapus semua item dari seluruh jenis aktif via batch,
- * lalu kosongkan semua peta. Pemanggil (controller) sudah menjamin daftar tidak kosong.
+ * True bila item ini menunjuk berkas Google Drive (dokumen dan foto).
+ * Dipakai internal modul ini dan controller (untuk memperingatkan saat luring).
+ */
+export function punyaBerkasDrive(item) {
+  return String((item && item.driveFileId) || "").trim() !== "";
+}
+
+/**
+ * Pindahkan berkas Drive milik satu item ke Sampah Google Drive.
+ * Kegiatan, catatan singkat, dan riwayat laporan tidak punya berkas, sehingga
+ * langsung dianggap beres. Berkas yang sudah tidak ada (isNotFound) juga dianggap
+ * beres agar metadatanya tetap boleh dihapus.
+ * @param {object} item
+ * @returns {Promise<boolean>} true bila metadata boleh dihapus sekarang.
+ */
+async function pindahkanBerkasDriveItem(item) {
+  if (!punyaBerkasDrive(item)) return true;
+  try {
+    await pindahkanItemKeSampahDrive(String(item.driveFileId).trim());
+    return true;
+  } catch (err) {
+    if (err && err.isNotFound) return true;
+    console.warn("Gagal memindahkan berkas Drive ke Sampah Drive:", err);
+    return false;
+  }
+}
+
+/**
+ * Kosongkan Tempat Sampah: pindahkan berkas Drive, hapus semua item dari seluruh
+ * jenis aktif via batch, lalu kosongkan semua peta. Pemanggil (controller) sudah
+ * menjamin daftar tidak kosong.
+ *
+ * Bila ada item berberkas dan perangkat luring, operasi ditolak: memindahkan berkas
+ * Drive memerlukan jaringan, dan menghapus metadatanya saja akan meninggalkan berkas
+ * yatim di Google Drive.
  */
 export async function kosongkanSemuaItemSampah() {
-  const daftarRef = kumpulkanRefSampah(null);
-  if (daftarRef.length === 0) return;
+  const daftarItem = kumpulkanItemSampah(null);
+  if (daftarItem.length === 0) return;
 
-  const db = getFirestoreDb();
-  await hapusBatchMaks500(db, daftarRef);
-  JENIS_SAMPAH.forEach((jenis) => petaPerJenis.get(jenis.kunci).clear());
+  const adaBerkas = daftarItem.some(({ item }) => punyaBerkasDrive(item));
+  if (adaBerkas && !navigator.onLine) {
+    throw new Error(
+      "Tidak ada koneksi internet. Berkas dokumen dan foto harus dipindahkan ke Sampah Google Drive lebih dulu; sambungkan perangkat lalu coba lagi."
+    );
+  }
+
+  const daftarHapus = [];
+  for (const entri of daftarItem) {
+    const berkasBeres = await pindahkanBerkasDriveItem(entri.item);
+    if (berkasBeres) daftarHapus.push({ koleksi: entri.koleksi, id: entri.item.id });
+  }
+
+  if (daftarHapus.length > 0) {
+    const db = getFirestoreDb();
+    await hapusBatchMaks500(db, daftarHapus);
+  }
+
+  // Item yang berkasnya gagal dipindahkan sengaja dibiarkan di peta agar tetap
+  // tampil di Tempat Sampah dan dapat dicoba lagi, bukan menjadi berkas yatim.
+  daftarHapus.forEach((ref) => hapusItemSampah(ref.koleksi, ref.id));
 }
 
 /**
  * Pembersihan otomatis setelah login dan data tempat sampah dimuat.
  * Berjalan sekali per sesi dan hanya bila perangkat sedang terhubung online.
- * Menghapus permanen item dengan dihapusAt > 30 hari via writeBatch (maks 500 per batch).
+ * Menghapus permanen item dengan dihapusAt > 30 hari via writeBatch (maks 500 per batch),
+ * termasuk memindahkan berkas Drive dokumen dan foto agar tidak menjadi yatim.
  * Gagal diam-diam dengan console.warn.
  */
 export async function jalankanPembersihanSampahOtomatis() {
@@ -154,14 +239,22 @@ export async function jalankanPembersihanSampahOtomatis() {
 
   try {
     const sekarang = Date.now();
-    const daftarHapus = kumpulkanRefSampah((item) => {
+    const kadaluwarsa = kumpulkanItemSampah((item) => {
       const t = Date.parse(item.dihapusAt);
       return Boolean(t) && sekarang - t > TIGA_PULUH_HARI_MS;
     });
+    if (kadaluwarsa.length === 0) return;
+
+    const daftarHapus = [];
+    for (const entri of kadaluwarsa) {
+      const berkasBeres = await pindahkanBerkasDriveItem(entri.item);
+      if (berkasBeres) daftarHapus.push({ koleksi: entri.koleksi, id: entri.item.id });
+    }
 
     if (daftarHapus.length > 0) {
       const db = getFirestoreDb();
       await hapusBatchMaks500(db, daftarHapus);
+      daftarHapus.forEach((ref) => hapusItemSampah(ref.koleksi, ref.id));
     }
   } catch (err) {
     console.warn("Pembersihan otomatis sampah > 30 hari gagal:", err);
