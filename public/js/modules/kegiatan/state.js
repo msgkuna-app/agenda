@@ -32,6 +32,7 @@ export {
 export {
   // pembacaan sekali pakai: agregasi, paginasi, ambil-semua, rentang tanggal
   hitungKegiatanPemakaiServer,
+  hitungKegiatanPemakaiLokal,
   muatLebihBanyakKegiatan,
   ambilSemuaKegiatanSekaliPakai,
   ambilKegiatanRentangTanggal

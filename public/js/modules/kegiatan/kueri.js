@@ -37,11 +37,22 @@ export async function hitungKegiatanPemakaiServer(kategoriId) {
     ]);
   } catch (_e) {
     // Fallback luring ke memori yang sudah dimuat
-    if (!target) {
-      return getDaftarKegiatan().filter((item) => manajerKategoriKegiatan.cariInfoKategori(item.kategoriId).tetap).length;
-    }
-    return getDaftarKegiatan().filter((item) => String(item.kategoriId || "").trim() === target).length;
+    return hitungKegiatanPemakaiLokal(target);
   }
+}
+
+/**
+ * Penghitung cadangan berbasis memori (sinkron). Dipakai sebagai fallback saat
+ * agregasi server gagal, DAN dipakai dialog Kelola Kategori lewat `hitungPemakaiLokal`
+ * yang mensyaratkan fungsi sinkron pengembali angka (angka akurat dari server masuk
+ * lewat `cacheHitunganServer`, bukan lewat jalur ini).
+ */
+export function hitungKegiatanPemakaiLokal(kategoriId) {
+  const target = String(kategoriId || "").trim();
+  if (!target) {
+    return getDaftarKegiatan().filter((item) => manajerKategoriKegiatan.cariInfoKategori(item.kategoriId).tetap).length;
+  }
+  return getDaftarKegiatan().filter((item) => String(item.kategoriId || "").trim() === target).length;
 }
 
 /**

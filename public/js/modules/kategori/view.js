@@ -83,9 +83,13 @@ export function mulaiModeUbah(ctx, kat) {
 }
 
 export function ambilJumlahPemakai(ctx, kategoriId) {
-  const lokal = typeof ctx.hitungPemakaiLokal === "function" ? ctx.hitungPemakaiLokal(kategoriId) : 0;
-  if (kategoriId && ctx.cacheHitunganServer.has(kategoriId)) {
-    return Math.max(lokal, ctx.cacheHitunganServer.get(kategoriId));
+  // hitungPemakaiLokal HARUS sinkron pengembali angka. Bila terlanjur
+  // terpasang fungsi async, hasilnya Promise — diperlakukan 0, bukan NaN.
+  const hasilLokal = typeof ctx.hitungPemakaiLokal === "function" ? ctx.hitungPemakaiLokal(kategoriId) : 0;
+  const lokal = Number.isFinite(hasilLokal) ? hasilLokal : 0;
+  const dariCache = ctx.cacheHitunganServer.get(kategoriId);
+  if (kategoriId && Number.isFinite(dariCache)) {
+    return Math.max(lokal, dariCache);
   }
   return lokal;
 }
@@ -172,8 +176,7 @@ export function renderDaftarKategori(ctx) {
   const daftar = manajer.getDaftarKategori();
   const labelItem = manajer.labelItemPemakai;
   const sedangOffline = !navigator.onLine;
-  const jumlahTanpaKategori =
-    typeof ctx.hitungPemakaiLokal === "function" ? ctx.hitungPemakaiLokal("") : 0;
+  const jumlahTanpaKategori = ambilJumlahPemakai(ctx, "");
 
   const panelTawaran = manajer.pakaiFolderDrive ? renderPanelTawaranDriveAtas(ctx) : "";
 

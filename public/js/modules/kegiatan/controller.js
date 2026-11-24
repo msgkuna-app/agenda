@@ -34,7 +34,7 @@ import {
   ubahStatusKegiatanCepat,
   hapusLunakKegiatan,
   pulihkanKegiatan,
-  hitungKegiatanPemakaiServer,
+  hitungKegiatanPemakaiLokal,
   muatLebihBanyakKegiatan,
   tandaiKegiatanSudahDimuat,
   setelOpsiPeristiwaKegiatan,
@@ -444,7 +444,10 @@ export function initHalamanKegiatan() {
 
   dialogKelolaKategoriCtrl = inisialisasiDialogKelolaKategori({
     manajer: manajerKategoriKegiatan,
-    hitungPemakaiLokal: hitungKegiatanPemakaiServer,
+    // Wajib fungsi SINKRON pengembali angka: view.js memakainya sebagai nilai,
+    // bukan promise. Angka akurat dari server menyusul lewat cacheHitunganServer
+    // (segarkanHitunganServerSemua -> manajer.hitungPemakaiDariServer).
+    hitungPemakaiLokal: hitungKegiatanPemakaiLokal,
     onLihatItemKategori: (katId) => terapkanFilterKategoriKegiatan(katId),
     judulDialog: "Kelola Kategori Kegiatan"
   });

@@ -32,7 +32,7 @@ import {
   onPerubahanDokumen,
   hapusLunakDokumen,
   beritahuPerubahanDokumen,
-  hitungDokumenPemakaiServer,
+  hitungDokumenPemakaiLokal,
   muatLebihBanyakDokumen,
   langgananDokumen,
   lepasLanggananDokumen,
@@ -830,7 +830,10 @@ export function initHalamanDokumen() {
 
   dialogKelolaKategoriDokCtrl = inisialisasiDialogKelolaKategori({
     manajer: manajerKategoriDokumen,
-    hitungPemakaiLokal: hitungDokumenPemakaiServer,
+    // Wajib fungsi SINKRON pengembali angka: view.js memakainya sebagai nilai,
+    // bukan promise. Angka akurat dari server menyusul lewat cacheHitunganServer
+    // (segarkanHitunganServerSemua -> manajer.hitungPemakaiDariServer).
+    hitungPemakaiLokal: hitungDokumenPemakaiLokal,
     onLihatItemKategori: (katId) => terapkanFilterKategoriDokumen(katId),
     judulDialog: "Kelola Kategori Dokumen",
     opsiDrive: buatOpsiDriveKategoriDokumen()

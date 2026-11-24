@@ -221,7 +221,13 @@ export async function hitungDokumenPemakaiServer(kategoriId) {
   }
 }
 
-function hitungDokumenPemakaiLokal(kategoriId) {
+/**
+ * Penghitung cadangan berbasis memori (sinkron). Dipakai sebagai fallback saat
+ * agregasi server gagal, DAN dipakai dialog Kelola Kategori lewat `hitungPemakaiLokal`
+ * yang mensyaratkan fungsi sinkron pengembali angka (angka akurat dari server masuk
+ * lewat `cacheHitunganServer`, bukan lewat jalur ini).
+ */
+export function hitungDokumenPemakaiLokal(kategoriId) {
   const target = String(kategoriId || "").trim();
   if (!target) {
     return getDaftarDokumen().filter((item) => manajerKategoriDokumen.cariInfoKategori(item.kategoriId).tetap).length;
