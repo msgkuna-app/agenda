@@ -123,7 +123,7 @@ Catatan pelaksanaan:
   berubah, jadi deploy wajib menyertakan `firestore:rules,firestore:indexes` — bukan
   hanya `hosting`.
 
-### Tahap B — Generalisasi modul Tempat Sampah (v1.8.43, tanpa perubahan perilaku)
+### Tahap B — Generalisasi modul Tempat Sampah (v1.8.43, tanpa perubahan perilaku) — **SELESAI 2026-11-24**
 1. `sampah/state.js`: ganti dua peta menjadi peta berkunci jenis, dengan tabel jenis:
    `{ kegiatan, catatan, dokumen, foto, laporan }` — masing-masing menyebut koleksi,
    kunci judul, dan cara memulihkan.
@@ -131,6 +131,22 @@ Catatan pelaksanaan:
 3. `sampah/controller.js`: hapus percabangan `tipe === "kegiatan" ? … : catatan`.
 4. Belum ada koleksi baru yang benar-benar dilanggan — tabelnya masih berisi dua jenis.
 5. Uji: Tempat Sampah berjalan sama seperti sebelumnya.
+
+Catatan pelaksanaan:
+- Hanya dua jenis yang terdaftar (`kegiatan`, `catatan`), bukan lima. Tabel di state,
+  view, dan controller memang dirancang menerima lima entri, tetapi jenis yang belum
+  siap **tidak** didaftarkan agar tidak ada kueri `where("dihapusAt", "!=", null)` yang
+  berjalan atas koleksi yang dokumennya belum punya field itu. Pendaftaran terjadi di
+  Tahap E.
+- Fungsi normalisasi dokumen dipindah ke berkas baru `sampah/normalisasi.js` (didaftarkan
+  di `APP_SHELL`) supaya `state.js` tetap padat dan tiap jenis baru cukup menambah satu
+  fungsi murni di sana.
+- API publik modul sampah menjadi berbasis kunci koleksi. `getDaftarKegiatanDiSampah`
+  dan `getDaftarCatatanDiSampah` **dihapus** dari `sampah/index.js` karena tidak ada lagi
+  konsumen di luar modul; keduanya tetap tersedia dari `kegiatan/index.js` dan
+  `catatan/index.js`.
+- Kata dialog konfirmasi ("Item kegiatan …") dan label toast diambil dari
+  `KOLEKSI_HAPUS_LUNAK.satuan` / `.label` di `config/constants.js`, bukan ditulis ulang.
 
 ### Tahap C — Hapus lunak untuk dokumen & foto (v1.8.44)
 1. `dokumen/state.js` dan `foto/state.js`: tambahkan `hapusLunak(id)`, `pulihkan(id)`,
@@ -181,6 +197,7 @@ Catatan pelaksanaan:
 | `modules/pengaturan/controller.js` | A, D | migrasi diperluas; payload ekspor/impor |
 | `modules/pengaturan/view.js` | A | teks tombol dan status migrasi |
 | `modules/sampah/{state,view,controller}.js` | B, E | berbasis tabel jenis |
+| `modules/sampah/normalisasi.js` (baru) | B, E | bentuk baku item per jenis; didaftarkan di APP_SHELL |
 | `modules/dokumen/{state,controller}.js` | C, D | hapus lunak + penyaring |
 | `modules/foto/{state,controller}.js` | C, D | hapus lunak + penyaring |
 | `modules/laporan/{state}.js` | C, D | hapus lunak + penyaring |

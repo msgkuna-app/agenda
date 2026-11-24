@@ -1,9 +1,12 @@
 /**
- * State Modul Sampah (Tahap 3: dipisah dari sampah.js)
- * Cache memori item kegiatan/catatan di Tempat Sampah, langganan Firestore mandiri
+ * State Modul Sampah (Tahap 3: dipisah dari sampah.js; Tahap B: berbasis tabel jenis)
+ * Cache memori item di Tempat Sampah, langganan Firestore mandiri
  * (where("dihapusAt") != null), hapus batch maks 500, dan pembersihan otomatis >30 hari.
  * TANPA DOM: pembaruan tampilan dipicu controller lewat callback onData/onGalat
  * pada langgananSampah().
+ *
+ * Seluruh perilaku diatur tabel JENIS_SAMPAH. Menambah jenis baru (Tahap E) cukup
+ * dengan menambah satu baris di tabel itu beserta fungsi normalkan-nya.
  */
 import { TIGA_PULUH_HARI_MS, BATAS_OPERASI_BATCH, KOLEKSI } from "../../config/constants.js";
 import {
@@ -15,47 +18,78 @@ import {
   query,
   where
 } from "../../services/firestoreService.js";
+import { normalkanKegiatan, normalkanCatatan } from "./normalisasi.js";
 
-// Cache memori internal item di Tempat Sampah
-const petaKegiatanSampah = new Map();
-const petaCatatanSampah = new Map();
+/**
+ * Tabel jenis item Tempat Sampah. `kunci` adalah nama koleksi Firestore sekaligus
+ * nilai data-sampah-tipe di antarmuka. Tabel ini sengaja hanya memuat dua jenis
+ * sampai Tahap E mendaftarkan dokumen, foto, dan laporan — koleksi yang belum
+ * terdaftar tidak dilanggan sama sekali, sehingga tidak ada kueri baru yang berjalan.
+ */
+const JENIS_SAMPAH = [
+  { kunci: KOLEKSI.KEGIATAN, normalkan: normalkanKegiatan },
+  { kunci: KOLEKSI.CATATAN, normalkan: normalkanCatatan }
+];
 
-let unsubscribeSnapshotKegiatanSampah = null;
-let unsubscribeSnapshotCatatanSampah = null;
-let kegiatanSampahDimuat = false;
-let catatanSampahDimuat = false;
+const petaPerJenis = new Map();      // kunci -> Map(id -> item)
+const langgananPerJenis = new Map(); // kunci -> unsubscribe
+const statusMuatPerJenis = new Map(); // kunci -> boolean
+
+JENIS_SAMPAH.forEach((jenis) => {
+  petaPerJenis.set(jenis.kunci, new Map());
+  langgananPerJenis.set(jenis.kunci, null);
+  statusMuatPerJenis.set(jenis.kunci, false);
+});
+
 let sudahPernahBersihkanOtomatisSesiIni = false;
 
-export function getDaftarKegiatanDiSampah() {
-  return Array.from(petaKegiatanSampah.values()).map((k) => ({ ...k }));
+/** Daftar kunci jenis yang aktif di Tempat Sampah (dipakai view untuk opsi filter). */
+export function getJenisSampah() {
+  return JENIS_SAMPAH.map((jenis) => jenis.kunci);
 }
 
-export function getDaftarCatatanDiSampah() {
-  return Array.from(petaCatatanSampah.values()).map((c) => ({ ...c }));
+/** Salinan item satu jenis; daftar kosong bila kunci tidak dikenal. */
+export function getDaftarSampah(kunci) {
+  const peta = petaPerJenis.get(kunci);
+  if (!peta) return [];
+  return Array.from(peta.values()).map((item) => ({ ...item }));
+}
+
+/** Salinan seluruh item dari semua jenis aktif. */
+export function getSemuaItemSampah() {
+  const hasil = [];
+  JENIS_SAMPAH.forEach((jenis) => {
+    petaPerJenis.get(jenis.kunci).forEach((item) => hasil.push({ ...item }));
+  });
+  return hasil;
 }
 
 export function isSampahSudahDimuat() {
-  return kegiatanSampahDimuat && catatanSampahDimuat;
+  return JENIS_SAMPAH.every((jenis) => statusMuatPerJenis.get(jenis.kunci) === true);
 }
 
 /**
  * Ambil entri mentah dari peta (bukan salinan) — dipakai controller untuk dialog
  * hapus permanen dan argumen pulihkanCatatan (identitas objek sama seperti aslinya).
  */
-export function ambilItemSampahMentah(tipe, id) {
-  if (tipe === "kegiatan") return petaKegiatanSampah.get(id);
-  return petaCatatanSampah.get(id);
+export function ambilItemSampahMentah(kunci, id) {
+  const peta = petaPerJenis.get(kunci);
+  return peta ? peta.get(id) : undefined;
 }
 
 /** Hapus satu item dari peta (optimistis, sebelum snapshot berikutnya). */
-export function hapusItemSampah(tipe, id) {
-  if (tipe === "kegiatan") petaKegiatanSampah.delete(id);
-  else petaCatatanSampah.delete(id);
+export function hapusItemSampah(kunci, id) {
+  const peta = petaPerJenis.get(kunci);
+  if (peta) peta.delete(id);
 }
 
-/** Total jumlah item di kedua peta (dipakai dialog kosongkan). */
+/** Total jumlah item di seluruh jenis (dipakai dialog kosongkan). */
 export function hitungTotalItemSampah() {
-  return petaKegiatanSampah.size + petaCatatanSampah.size;
+  let total = 0;
+  JENIS_SAMPAH.forEach((jenis) => {
+    total += petaPerJenis.get(jenis.kunci).size;
+  });
+  return total;
 }
 
 /** Reset tanda pembersihan otomatis (sekali per sesi). */
@@ -79,24 +113,30 @@ async function hapusBatchMaks500(db, daftarRef) {
   }
 }
 
+/** Kumpulkan { koleksi, id } seluruh item yang lolos penyaring. */
+function kumpulkanRefSampah(penyaring) {
+  const daftarRef = [];
+  JENIS_SAMPAH.forEach((jenis) => {
+    petaPerJenis.get(jenis.kunci).forEach((item) => {
+      if (!penyaring || penyaring(item)) {
+        daftarRef.push({ koleksi: jenis.kunci, id: item.id });
+      }
+    });
+  });
+  return daftarRef;
+}
+
 /**
- * Kosongkan Tempat Sampah: hapus semua item kegiatan+catatan via batch, lalu
- * kosongkan kedua peta. Pemanggil (controller) sudah menjamin daftar tidak kosong.
+ * Kosongkan Tempat Sampah: hapus semua item dari seluruh jenis aktif via batch,
+ * lalu kosongkan semua peta. Pemanggil (controller) sudah menjamin daftar tidak kosong.
  */
 export async function kosongkanSemuaItemSampah() {
-  const kegSampah = getDaftarKegiatanDiSampah();
-  const catSampah = getDaftarCatatanDiSampah();
-  const daftarRef = [
-    ...kegSampah.map((k) => ({ koleksi: KOLEKSI.KEGIATAN, id: k.id })),
-    ...catSampah.map((c) => ({ koleksi: KOLEKSI.CATATAN, id: c.id }))
-  ];
-
+  const daftarRef = kumpulkanRefSampah(null);
   if (daftarRef.length === 0) return;
 
   const db = getFirestoreDb();
   await hapusBatchMaks500(db, daftarRef);
-  petaKegiatanSampah.clear();
-  petaCatatanSampah.clear();
+  JENIS_SAMPAH.forEach((jenis) => petaPerJenis.get(jenis.kunci).clear());
 }
 
 /**
@@ -114,20 +154,10 @@ export async function jalankanPembersihanSampahOtomatis() {
 
   try {
     const sekarang = Date.now();
-    const kadaluwarsaKegiatan = getDaftarKegiatanDiSampah().filter((k) => {
-      const t = Date.parse(k.dihapusAt);
-      return t && sekarang - t > TIGA_PULUH_HARI_MS;
+    const daftarHapus = kumpulkanRefSampah((item) => {
+      const t = Date.parse(item.dihapusAt);
+      return Boolean(t) && sekarang - t > TIGA_PULUH_HARI_MS;
     });
-
-    const kadaluwarsaCatatan = getDaftarCatatanDiSampah().filter((c) => {
-      const t = Date.parse(c.dihapusAt);
-      return t && sekarang - t > TIGA_PULUH_HARI_MS;
-    });
-
-    const daftarHapus = [
-      ...kadaluwarsaKegiatan.map((k) => ({ koleksi: KOLEKSI.KEGIATAN, id: k.id })),
-      ...kadaluwarsaCatatan.map((c) => ({ koleksi: KOLEKSI.CATATAN, id: c.id }))
-    ];
 
     if (daftarHapus.length > 0) {
       const db = getFirestoreDb();
@@ -139,9 +169,8 @@ export async function jalankanPembersihanSampahOtomatis() {
 }
 
 /**
- * Memulai langganan query mandiri Tempat Sampah:
- * - kegiatan where("dihapusAt", "!=", null)
- * - catatan where("dihapusAt", "!=", null)
+ * Memulai langganan query mandiri Tempat Sampah untuk setiap jenis aktif:
+ * where("dihapusAt", "!=", null).
  * Setiap snapshot: isi peta -> tanda dimuat -> onData() (render, di controller)
  * -> pembersihan otomatis. Galat: console.warn + onGalat(err) (controller yang
  * memformat pesan dan menampilkan banner halaman).
@@ -150,110 +179,54 @@ export async function jalankanPembersihanSampahOtomatis() {
 export function langgananSampah(opsi = {}) {
   const db = getFirestoreDb();
 
-  // Query kegiatan di tempat sampah
-  try {
-    const qKegiatanSampah = query(
-      collection(db, KOLEKSI.KEGIATAN),
-      where("dihapusAt", "!=", null)
-    );
+  JENIS_SAMPAH.forEach((jenis) => {
+    try {
+      const kueriJenis = query(
+        collection(db, jenis.kunci),
+        where("dihapusAt", "!=", null)
+      );
 
-    unsubscribeSnapshotKegiatanSampah = onSnapshot(
-      qKegiatanSampah,
-      (snapshot) => {
-        petaKegiatanSampah.clear();
-        snapshot.docs.forEach((docSnap) => {
-          const d = docSnap.data();
-          petaKegiatanSampah.set(docSnap.id, {
-            id: docSnap.id,
-            judul: String(d.judul || ""),
-            catatan: String(d.catatan || ""),
-            tanggal: String(d.tanggal || ""),
-            waktuMulai: String(d.waktuMulai || ""),
-            waktuSelesai: String(d.waktuSelesai || ""),
-            lokasi: String(d.lokasi || ""),
-            kategoriId: String(d.kategoriId || ""),
-            status: d.status || "Rencana",
-            createdAt: d.createdAt || "",
-            updatedAt: d.updatedAt || "",
-            dihapusAt: d.dihapusAt || null
+      const unsubscribe = onSnapshot(
+        kueriJenis,
+        (snapshot) => {
+          const peta = petaPerJenis.get(jenis.kunci);
+          peta.clear();
+          snapshot.docs.forEach((docSnap) => {
+            const item = jenis.normalkan(docSnap);
+            peta.set(item.id, item);
           });
-        });
-        kegiatanSampahDimuat = true;
-        if (typeof opsi.onData === "function") opsi.onData();
-        jalankanPembersihanSampahOtomatis();
-      },
-      (err) => {
-        console.warn("Gagal memuat langganan kegiatan sampah:", err);
-        if (typeof opsi.onGalat === "function") opsi.onGalat(err);
-      }
-    );
-  } catch (err) {
-    console.warn("Gagal membuat query kegiatan sampah:", err);
-  }
+          statusMuatPerJenis.set(jenis.kunci, true);
+          if (typeof opsi.onData === "function") opsi.onData();
+          jalankanPembersihanSampahOtomatis();
+        },
+        (err) => {
+          console.warn(`Gagal memuat langganan ${jenis.kunci} sampah:`, err);
+          if (typeof opsi.onGalat === "function") opsi.onGalat(err);
+        }
+      );
 
-  // Query catatan di tempat sampah
-  try {
-    const qCatatanSampah = query(
-      collection(db, KOLEKSI.CATATAN),
-      where("dihapusAt", "!=", null)
-    );
-
-    unsubscribeSnapshotCatatanSampah = onSnapshot(
-      qCatatanSampah,
-      (snapshot) => {
-        petaCatatanSampah.clear();
-        snapshot.docs.forEach((docSnap) => {
-          const d = docSnap.data();
-          petaCatatanSampah.set(docSnap.id, {
-            id: docSnap.id,
-            jenis: d.jenis || "singkat",
-            judul: String(d.judul || ""),
-            isi: String(d.isi || ""),
-            kategori: String(d.kategori || ""),
-            tag: Array.isArray(d.tag) ? d.tag : [],
-            kegiatanId: String(d.kegiatanId || ""),
-            templat: String(d.templat || ""),
-            docId: String(d.docId || ""),
-            tautan: String(d.tautan || ""),
-            driveDiSampah: Boolean(d.driveDiSampah),
-            disematkan: Boolean(d.disematkan),
-            tanggal: String(d.tanggal || ""),
-            createdAt: d.createdAt || "",
-            updatedAt: d.updatedAt || "",
-            dihapusAt: d.dihapusAt || null
-          });
-        });
-        catatanSampahDimuat = true;
-        if (typeof opsi.onData === "function") opsi.onData();
-        jalankanPembersihanSampahOtomatis();
-      },
-      (err) => {
-        console.warn("Gagal memuat langganan catatan sampah:", err);
-        if (typeof opsi.onGalat === "function") opsi.onGalat(err);
-      }
-    );
-  } catch (err) {
-    console.warn("Gagal membuat query catatan sampah:", err);
-  }
+      langgananPerJenis.set(jenis.kunci, unsubscribe);
+    } catch (err) {
+      console.warn(`Gagal membuat query ${jenis.kunci} sampah:`, err);
+    }
+  });
 }
 
 /**
- * Lepas kedua langganan snapshot, kosongkan peta, dan reset tanda dimuat.
+ * Lepas semua langganan snapshot, kosongkan semua peta, dan reset tanda dimuat.
  * Reset tanda pembersihan otomatis + UI tetap di controller (resetPembersihanSampah),
  * sama seperti urutan aslinya.
  */
 export function lepasLanggananSampah() {
-  if (typeof unsubscribeSnapshotKegiatanSampah === "function") {
-    try { unsubscribeSnapshotKegiatanSampah(); } catch (_e) {}
-    unsubscribeSnapshotKegiatanSampah = null;
-  }
-  if (typeof unsubscribeSnapshotCatatanSampah === "function") {
-    try { unsubscribeSnapshotCatatanSampah(); } catch (_e) {}
-    unsubscribeSnapshotCatatanSampah = null;
-  }
+  langgananPerJenis.forEach((unsubscribe, kunci) => {
+    if (typeof unsubscribe === "function") {
+      try { unsubscribe(); } catch (_e) {}
+    }
+    langgananPerJenis.set(kunci, null);
+  });
 
-  petaKegiatanSampah.clear();
-  petaCatatanSampah.clear();
-  kegiatanSampahDimuat = false;
-  catatanSampahDimuat = false;
+  JENIS_SAMPAH.forEach((jenis) => {
+    petaPerJenis.get(jenis.kunci).clear();
+    statusMuatPerJenis.set(jenis.kunci, false);
+  });
 }

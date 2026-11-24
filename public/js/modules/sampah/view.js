@@ -1,11 +1,16 @@
 /**
- * View Modul Sampah (Tahap 3: dipisah dari sampah.js)
+ * View Modul Sampah (Tahap 3: dipisah dari sampah.js; Tahap B: berbasis tabel jenis)
  * Membangun kerangka halaman Tempat Sampah (termasuk dua modal), banner galat,
  * dan merender daftar item. Semua penulisan DOM modul ini ada di sini.
+ *
+ * Opsi filter dan kartu item dibangun dari tabel tampilan TAMPILAN_JENIS yang
+ * kuncinya sama dengan kunci koleksi di state.js — bukan dari percabangan
+ * `tipe === "kegiatan"`, sehingga jenis baru cukup menambah satu entri.
  */
 import { JENIS_CATATAN_GDOC } from "../catatan/index.js";
 import { escapeHtml, svgIkon } from "../../util-html.js";
-import { getDaftarKegiatanDiSampah, getDaftarCatatanDiSampah } from "./state.js";
+import { KOLEKSI, KOLEKSI_HAPUS_LUNAK } from "../../config/constants.js";
+import { getJenisSampah, getDaftarSampah, getSemuaItemSampah } from "./state.js";
 import { formatTanggalTeks, hitungInformasiHariSampah } from "./format.js";
 
 const IKON_KEGIATAN = svgIkon('<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', 20);
@@ -15,7 +20,22 @@ const IKON_SAMPAH = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a
 const IKON_PULIHKAN = svgIkon('<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>', 16);
 const IKON_HAPUS_PERMANEN = svgIkon('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16);
 
-let filterSegmenAktif = "semua"; // "semua" | "kegiatan" | "catatan"
+/**
+ * Tabel tampilan per jenis: ikon kartu dan cara memberi label pada lencana.
+ * Kunci = nama koleksi Firestore (sama dengan kunci di state.js).
+ */
+const TAMPILAN_JENIS = {
+  [KOLEKSI.KEGIATAN]: {
+    ikon: () => IKON_KEGIATAN,
+    label: () => "Kegiatan"
+  },
+  [KOLEKSI.CATATAN]: {
+    ikon: (item) => (item.jenis === JENIS_CATATAN_GDOC ? IKON_CATATAN_GDOC : IKON_CATATAN_SINGKAT),
+    label: (item) => (item.jenis === JENIS_CATATAN_GDOC ? "Google Docs" : "Catatan")
+  }
+};
+
+let filterSegmenAktif = "semua"; // "semua" | kunci koleksi salah satu jenis aktif
 let kataKunciSampah = "";
 
 export function setFilterSegmenSampah(nilai) {
@@ -24,6 +44,17 @@ export function setFilterSegmenSampah(nilai) {
 
 export function setKataKunciSampah(nilai) {
   kataKunciSampah = String(nilai == null ? "" : nilai);
+}
+
+/** Opsi <select> filter jenis, dibangun dari daftar jenis yang benar-benar aktif. */
+function htmlOpsiJenisSampah() {
+  const labelPerKunci = new Map(KOLEKSI_HAPUS_LUNAK.map((info) => [info.key, info.label]));
+  return getJenisSampah()
+    .map((kunci) => {
+      const label = labelPerKunci.get(kunci) || kunci;
+      return `<option value="${escapeHtml(kunci)}">${escapeHtml(label)}</option>`;
+    })
+    .join("");
 }
 
 export function pastikanKerangkaHalamanSampah() {
@@ -79,8 +110,7 @@ export function pastikanKerangkaHalamanSampah() {
                   <label for="sampah-filter-jenis" class="filter-label">Jenis Item</label>
                   <select id="sampah-filter-jenis" class="form-select" data-default="semua">
                     <option value="semua">Semua Jenis</option>
-                    <option value="kegiatan">Kegiatan</option>
-                    <option value="catatan">Catatan</option>
+                    ${htmlOpsiJenisSampah()}
                   </select>
                 </div>
               </div>
@@ -149,6 +179,64 @@ export function tampilkanGalatHalamanSampah(pesan) {
   box.hidden = !pesan;
 }
 
+/** Kartu satu item. `item` sudah memuat field `kunci` (nama koleksi). */
+function htmlKartuSampah(item) {
+  const tampilan = TAMPILAN_JENIS[item.kunci];
+  const infoHari = hitungInformasiHariSampah(item.dihapusAt);
+  const ikonItem = tampilan ? tampilan.ikon(item) : IKON_CATATAN_SINGKAT;
+  const labelTipe = tampilan ? tampilan.label(item) : String(item.kunci || "");
+  const tglInfo = item.tanggal ? formatTanggalTeks(item.tanggal) : "-";
+  const badgeKelas = infoHari.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
+  const kunciAman = escapeHtml(item.kunci);
+  const idAman = escapeHtml(item.id);
+
+  return `
+    <div class="kegiatan-card sampah-card" data-sampah-tipe="${kunciAman}" data-sampah-id="${idAman}">
+      <div class="sampah-card-header">
+        <div class="sampah-item-meta">
+          <span class="sampah-type-badge">${escapeHtml(labelTipe)}</span>
+          <span class="sampah-date-label">${escapeHtml(tglInfo)}</span>
+        </div>
+        <span class="sampah-countdown-pill ${badgeKelas}">
+          ${escapeHtml(infoHari.ringkasan)}
+        </span>
+      </div>
+
+      <div class="sampah-card-body">
+        <div class="sampah-icon-wrap" aria-hidden="true">${ikonItem}</div>
+        <div class="sampah-text-wrap">
+          <h3 class="kegiatan-card-title sampah-title">${escapeHtml(item.judul || "Tanpa Judul")}</h3>
+          ${item.catatan ? `<p class="sampah-excerpt">${escapeHtml(item.catatan)}</p>` : ""}
+          ${item.isi ? `<p class="sampah-excerpt">${escapeHtml(item.isi)}</p>` : ""}
+        </div>
+      </div>
+
+      <div class="sampah-card-actions">
+        <button
+          type="button"
+          class="btn-secondary sampah-action-btn"
+          data-sampah-action="pulihkan"
+          data-sampah-tipe="${kunciAman}"
+          data-sampah-id="${idAman}"
+        >
+          ${IKON_PULIHKAN}
+          <span>Pulihkan</span>
+        </button>
+        <button
+          type="button"
+          class="btn-danger sampah-action-btn"
+          data-sampah-action="hapus-permanen"
+          data-sampah-tipe="${kunciAman}"
+          data-sampah-id="${idAman}"
+        >
+          ${IKON_HAPUS_PERMANEN}
+          <span>Hapus Permanen</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 export function renderHalamanSampah() {
   pastikanKerangkaHalamanSampah();
 
@@ -159,33 +247,14 @@ export function renderHalamanSampah() {
 
   if (!region) return;
 
-  const kegiatanSampah = getDaftarKegiatanDiSampah().map((k) => ({
-    ...k,
-    _tipe: "kegiatan",
-    _labelTipe: "Kegiatan"
-  }));
-
-  const catatanSampah = getDaftarCatatanDiSampah().map((c) => ({
-    ...c,
-    _tipe: "catatan",
-    _labelTipe: c.jenis === JENIS_CATATAN_GDOC ? "Google Docs" : "Catatan"
-  }));
-
-  const totalKegiatan = kegiatanSampah.length;
-  const totalCatatan = catatanSampah.length;
-  const totalSemua = totalKegiatan + totalCatatan;
+  const semuaItem = getSemuaItemSampah();
+  const totalSemua = semuaItem.length;
+  let daftarTampil = filterSegmenAktif === "semua"
+    ? semuaItem
+    : getDaftarSampah(filterSegmenAktif);
 
   if (btnKosongkan instanceof HTMLButtonElement) {
     btnKosongkan.disabled = totalSemua === 0;
-  }
-
-  let daftarTampil = [];
-  if (filterSegmenAktif === "kegiatan") {
-    daftarTampil = kegiatanSampah;
-  } else if (filterSegmenAktif === "catatan") {
-    daftarTampil = catatanSampah;
-  } else {
-    daftarTampil = [...kegiatanSampah, ...catatanSampah];
   }
 
   // Saring berdasarkan kata kunci pencarian (judul, catatan, isi)
@@ -221,7 +290,7 @@ export function renderHalamanSampah() {
       <div class="empty-stage-card">
         <div class="empty-stage-icon" aria-hidden="true">${IKON_SAMPAH}</div>
         <h3 class="empty-stage-title">Tempat Sampah Kosong</h3>
-        <p class="empty-stage-desc">Tidak ada kegiatan atau catatan yang dihapus sementara. Item yang Anda hapus akan disimpan di sini selama 30 hari sebelum dihapus permanen.</p>
+        <p class="empty-stage-desc">Tidak ada item yang dihapus sementara. Item yang Anda hapus akan disimpan di sini selama 30 hari sebelum dihapus permanen.</p>
       </div>
     `;
     return;
@@ -237,64 +306,5 @@ export function renderHalamanSampah() {
     return;
   }
 
-  const htmlKartu = daftarTampil.map((item) => {
-    const infoHari = hitungInformasiHariSampah(item.dihapusAt);
-    const ikonItem =
-      item._tipe === "kegiatan"
-        ? IKON_KEGIATAN
-        : item.jenis === JENIS_CATATAN_GDOC
-          ? IKON_CATATAN_GDOC
-          : IKON_CATATAN_SINGKAT;
-
-    const tglInfo = item.tanggal ? formatTanggalTeks(item.tanggal) : "-";
-    const badgeKelas = infoHari.hariTersisa <= 3 ? "sampah-countdown-urgent" : "sampah-countdown-normal";
-
-    return `
-      <div class="kegiatan-card sampah-card" data-sampah-tipe="${escapeHtml(item._tipe)}" data-sampah-id="${escapeHtml(item.id)}">
-        <div class="sampah-card-header">
-          <div class="sampah-item-meta">
-            <span class="sampah-type-badge">${escapeHtml(item._labelTipe)}</span>
-            <span class="sampah-date-label">${escapeHtml(tglInfo)}</span>
-          </div>
-          <span class="sampah-countdown-pill ${badgeKelas}">
-            ${escapeHtml(infoHari.ringkasan)}
-          </span>
-        </div>
-
-        <div class="sampah-card-body">
-          <div class="sampah-icon-wrap" aria-hidden="true">${ikonItem}</div>
-          <div class="sampah-text-wrap">
-            <h3 class="kegiatan-card-title sampah-title">${escapeHtml(item.judul || "Tanpa Judul")}</h3>
-            ${item.catatan ? `<p class="sampah-excerpt">${escapeHtml(item.catatan)}</p>` : ""}
-            ${item.isi ? `<p class="sampah-excerpt">${escapeHtml(item.isi)}</p>` : ""}
-          </div>
-        </div>
-
-        <div class="sampah-card-actions">
-          <button
-            type="button"
-            class="btn-secondary sampah-action-btn"
-            data-sampah-action="pulihkan"
-            data-sampah-tipe="${escapeHtml(item._tipe)}"
-            data-sampah-id="${escapeHtml(item.id)}"
-          >
-            ${IKON_PULIHKAN}
-            <span>Pulihkan</span>
-          </button>
-          <button
-            type="button"
-            class="btn-danger sampah-action-btn"
-            data-sampah-action="hapus-permanen"
-            data-sampah-tipe="${escapeHtml(item._tipe)}"
-            data-sampah-id="${escapeHtml(item.id)}"
-          >
-            ${IKON_HAPUS_PERMANEN}
-            <span>Hapus Permanen</span>
-          </button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>`;
+  region.innerHTML = `<div class="kegiatan-list-grid">${daftarTampil.map(htmlKartuSampah).join("")}</div>`;
 }

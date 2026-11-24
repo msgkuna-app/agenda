@@ -1,10 +1,15 @@
 /**
- * Controller Modul Sampah (Tahap 3: dipisah dari sampah.js)
+ * Controller Modul Sampah (Tahap 3: dipisah dari sampah.js; Tahap B: berbasis tabel jenis)
  * Mengikat antarmuka halaman Tempat Sampah (delegasi klik, dua modal konfirmasi,
  * tombol Escape), mengorkestrasi langganan Firestore lewat state, dan menampilkan
  * toast. Semua operasi Firestore ada di state.js; semua render di view.js.
+ *
+ * Perilaku tiap jenis diatur tabel PENANGAN_JENIS, sehingga controller tidak lagi
+ * bercabang `tipe === "kegiatan" ? … : catatan`. Tahap E cukup menambah entri baru
+ * di tabel itu (dan langganan di state.js).
  */
 import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
+import { KOLEKSI, KOLEKSI_HAPUS_LUNAK } from "../../config/constants.js";
 import { pulihkanKegiatan, hapusPermanenKegiatan } from "../kegiatan/index.js";
 import { pulihkanCatatan, hapusPermanenCatatan } from "../catatan/index.js";
 import { tampilkanToast } from "../../shared/toast.js";
@@ -26,11 +31,40 @@ import {
   setKataKunciSampah
 } from "./view.js";
 
+/**
+ * Perilaku per jenis item Tempat Sampah.
+ * - `pulihkan(id, item)`: mengembalikan item; boleh mengembalikan
+ *   `{ pesanDrive }` untuk pesan tambahan (catatan Google Docs).
+ * - `hapusPermanen(id, item)`: menghapus dari Firestore.
+ * Kata untuk kalimat dialog ("Item kegiatan …") diambil dari tabel bersama
+ * KOLEKSI_HAPUS_LUNAK di config/constants.js agar tidak ditulis dua kali.
+ */
+const PENANGAN_JENIS = {
+  [KOLEKSI.KEGIATAN]: {
+    pulihkan: async (id) => {
+      await pulihkanKegiatan(id);
+      return { pesanDrive: "" };
+    },
+    hapusPermanen: (id) => hapusPermanenKegiatan(id)
+  },
+  [KOLEKSI.CATATAN]: {
+    pulihkan: (id, item) => pulihkanCatatan(id, item),
+    hapusPermanen: (id) => hapusPermanenCatatan(id)
+  }
+};
+
+/** Label & satuan tampilan per kunci koleksi, dari tabel bersama di constants. */
+const infoPerKunci = new Map(KOLEKSI_HAPUS_LUNAK.map((info) => [info.key, info]));
+
 let antarmukaSampahDiikat = false;
 let pengendaliFilterSampah = null;
 
-let itemAkanDihapusPermanen = null; // { tipe: "kegiatan" | "catatan", item: any }
+let itemAkanDihapusPermanen = null; // { tipe: kunci koleksi, item: any }
 let fokusSebelumModalSampah = null;
+
+function ambilPenangan(tipe) {
+  return PENANGAN_JENIS[tipe] || null;
+}
 
 function bukaDialogHapusPermanen(tipe, id) {
   const modal = document.getElementById("sampah-hapus-permanen-modal");
@@ -38,15 +72,17 @@ function bukaDialogHapusPermanen(tipe, id) {
   const cancelBtn = document.getElementById("sampah-hapus-permanen-cancel-btn");
   if (!modal) return;
 
+  const penangan = ambilPenangan(tipe);
   const item = ambilItemSampahMentah(tipe, id);
-  if (!item) return;
+  if (!penangan || !item) return;
 
   fokusSebelumModalSampah = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   itemAkanDihapusPermanen = { tipe, item };
 
   if (desc) {
-    const jenisTeks = tipe === "kegiatan" ? "kegiatan" : "catatan";
-    desc.textContent = `Item ${jenisTeks} "${item.judul || "Tanpa Judul"}" akan dihapus permanen dari Firestore dan tidak dapat dipulihkan kembali.`;
+    const info = infoPerKunci.get(tipe);
+    const satuan = info ? info.satuan : tipe;
+    desc.textContent = `Item ${satuan} "${item.judul || "Tanpa Judul"}" akan dihapus permanen dari Firestore dan tidak dapat dipulihkan kembali.`;
   }
 
   modal.hidden = false;
@@ -101,6 +137,31 @@ function tutupDialogKosongkanSampah(kembalikanFokus = true) {
   fokusSebelumModalSampah = null;
 }
 
+/** Tindakan tombol "Pulihkan" untuk satu item; galat diteruskan ke pemanggil. */
+async function pulihkanItemSampah(tipe, id) {
+  const penangan = ambilPenangan(tipe);
+  if (!penangan) return;
+
+  const hasil = await penangan.pulihkan(id, ambilItemSampahMentah(tipe, id));
+  hapusItemSampah(tipe, id);
+
+  const info = infoPerKunci.get(tipe);
+  const label = info ? info.label : tipe;
+  if (hasil && hasil.pesanDrive) {
+    tampilkanToast(`${label} dipulihkan. ${hasil.pesanDrive}`, "warning");
+  } else {
+    tampilkanToast(`${label} berhasil dipulihkan`, "success");
+  }
+}
+
+/** Tindakan tombol "Hapus Permanen" untuk satu item; galat diteruskan ke pemanggil. */
+async function hapusItemSampahPermanen(tipe, item) {
+  const penangan = ambilPenangan(tipe);
+  if (!penangan) return;
+  await penangan.hapusPermanen(item.id, item);
+  hapusItemSampah(tipe, item.id);
+}
+
 export function initHalamanSampah() {
   pastikanKerangkaHalamanSampah();
   pengendaliFilterSampah = initFilterPanel(document.getElementById("sampah-toolbar"));
@@ -138,29 +199,17 @@ export function initHalamanSampah() {
       return;
     }
 
-    // 3. Tombol aksi item: Pulihkan
+    // 2. Tombol aksi item: Pulihkan
     const btnPulihkan = target.closest("button[data-sampah-action='pulihkan']");
     if (btnPulihkan) {
       const tipe = btnPulihkan.getAttribute("data-sampah-tipe");
       const id = btnPulihkan.getAttribute("data-sampah-id");
-      if (!id) return;
+      if (!tipe || !id) return;
 
       btnPulihkan.setAttribute("disabled", "true");
       tampilkanGalatHalamanSampah("");
       try {
-        if (tipe === "kegiatan") {
-          await pulihkanKegiatan(id);
-          hapusItemSampah("kegiatan", id);
-          tampilkanToast("Kegiatan berhasil dipulihkan", "success");
-        } else {
-          const hasil = await pulihkanCatatan(id, ambilItemSampahMentah("catatan", id));
-          hapusItemSampah("catatan", id);
-          if (hasil && hasil.pesanDrive) {
-            tampilkanToast(`Catatan dipulihkan. ${hasil.pesanDrive}`, "warning");
-          } else {
-            tampilkanToast("Catatan berhasil dipulihkan", "success");
-          }
-        }
+        await pulihkanItemSampah(tipe, id);
         renderHalamanSampah();
       } catch (err) {
         tampilkanGalatHalamanSampah(formatPesanGalatFirestore(err));
@@ -171,7 +220,7 @@ export function initHalamanSampah() {
       return;
     }
 
-    // 4. Tombol aksi item: Hapus Permanen
+    // 3. Tombol aksi item: Hapus Permanen
     const btnHapus = target.closest("button[data-sampah-action='hapus-permanen']");
     if (btnHapus) {
       const tipe = btnHapus.getAttribute("data-sampah-tipe");
@@ -200,13 +249,7 @@ export function initHalamanSampah() {
       confirmHapusBtn.setAttribute("disabled", "true");
       tampilkanGalatHalamanSampah("");
       try {
-        if (tipe === "kegiatan") {
-          await hapusPermanenKegiatan(item.id);
-          hapusItemSampah("kegiatan", item.id);
-        } else {
-          await hapusPermanenCatatan(item.id);
-          hapusItemSampah("catatan", item.id);
-        }
+        await hapusItemSampahPermanen(tipe, item);
         tutupDialogHapusPermanen(false);
         renderHalamanSampah();
         tampilkanToast("Item berhasil dihapus permanen", "success");
@@ -273,9 +316,8 @@ export function initHalamanSampah() {
 }
 
 /**
- * Memulai langganan query mandiri Tempat Sampah:
- * - kegiatan where("dihapusAt", "!=", null)
- * - catatan where("dihapusAt", "!=", null)
+ * Memulai langganan query mandiri Tempat Sampah untuk setiap jenis aktif
+ * (kegiatan dan catatan pada tahap ini): where("dihapusAt", "!=", null).
  */
 export function subscribeSampah() {
   unsubscribeSampah();
