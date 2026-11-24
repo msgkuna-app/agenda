@@ -413,6 +413,7 @@ export async function eksporSeluruhDataJson() {
         judul: item.judul,
         catatan: item.catatan,
         tanggal: item.tanggal,
+        tanggalSelesai: item.tanggalSelesai || "",
         waktuMulai: item.waktuMulai,
         waktuSelesai: item.waktuSelesai,
         lokasi: item.lokasi,
@@ -664,6 +665,13 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
     if (!judul) return null;
     const tglMentah = String(mentah.tanggal || "").trim();
     const tanggal = parseTanggal(tglMentah) ? tglMentah : hariIni();
+    const tglSelesaiMentah = String(mentah.tanggalSelesai || "").trim();
+    // Rentang hanya disimpan bila sah dan tidak lebih awal dari tanggal mulai;
+    // selain itu dikosongkan sehingga kegiatan kembali menjadi kegiatan satu hari.
+    const tanggalSelesai =
+      parseTanggal(tglSelesaiMentah) && tglSelesaiMentah >= tanggal && tglSelesaiMentah !== tanggal
+        ? tglSelesaiMentah
+        : "";
     const status = DAFTAR_STATUS_KEGIATAN.includes(mentah.status) ? mentah.status : "Rencana";
     return {
       id: idBersih,
@@ -671,6 +679,7 @@ function sanitasiItemKoleksi(namaKoleksi, mentah, indeks) {
         judul,
         catatan: String(mentah.catatan || ""),
         tanggal,
+        tanggalSelesai,
         waktuMulai: String(mentah.waktuMulai || "").trim(),
         waktuSelesai: String(mentah.waktuSelesai || "").trim(),
         lokasi: String(mentah.lokasi || "").trim().slice(0, 140),

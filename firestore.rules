@@ -48,12 +48,13 @@ service cloud.firestore {
 
     function validKegiatan(d) {
       return d.keys().hasOnly([
-        'judul', 'catatan', 'tanggal', 'waktuMulai', 'waktuSelesai',
+        'judul', 'catatan', 'tanggal', 'tanggalSelesai', 'waktuMulai', 'waktuSelesai',
         'lokasi', 'kategoriId', 'status', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160
       && d.tanggal is string && d.tanggal.size() == 10
       && d.status is string && (d.status in ['Rencana', 'Berjalan', 'Selesai'])
+      && strOps(d, 'tanggalSelesai', 10)
       && strOps(d, 'catatan', 5000)
       && strOps(d, 'waktuMulai', 10)
       && strOps(d, 'waktuSelesai', 10)
@@ -67,12 +68,13 @@ service cloud.firestore {
     function validKegiatanUbah(d) {
       let u = d.diff(resource.data).affectedKeys();
       return u.hasOnly([
-        'judul', 'catatan', 'tanggal', 'waktuMulai', 'waktuSelesai',
+        'judul', 'catatan', 'tanggal', 'tanggalSelesai', 'waktuMulai', 'waktuSelesai',
         'lokasi', 'kategoriId', 'status', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && (!u.hasAny(['judul']) || (d.judul is string && d.judul.size() >= 1 && d.judul.size() <= 160))
       && (!u.hasAny(['tanggal']) || (d.tanggal is string && d.tanggal.size() == 10))
       && (!u.hasAny(['status']) || (d.status is string && (d.status in ['Rencana', 'Berjalan', 'Selesai'])))
+      && strUbah(d, u, 'tanggalSelesai', 10)
       && strUbah(d, u, 'catatan', 5000)
       && strUbah(d, u, 'waktuMulai', 10)
       && strUbah(d, u, 'waktuSelesai', 10)
