@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.8.45";
+const VERSION = "agenda-arsip-v1.8.46";
 
 const APP_SHELL = [
   "/",
@@ -10,6 +10,7 @@ const APP_SHELL = [
   "/js/util-html.js",
   "/js/main.js",
   "/js/services/firestoreService.js",
+  "/js/services/firestoreRepository.js",
   "/js/config/constants.js",
   "/js/config/firebase.js",
   "/js/pencarian-global.js",
