@@ -25,6 +25,7 @@ export {
 export {
   daftarkanPembukaDetailKegiatan,
   bukaModalFormKegiatan,
+  bukaModalDuplikatKegiatan,
   bukaDialogHapusKegiatan,
   buatNotulensiUntukKegiatan,
   terapkanFilterKategoriKegiatan,

@@ -18,6 +18,7 @@ import {
   isKegiatanSudahDimuat,
   onPerubahanKegiatan,
   bukaModalFormKegiatan,
+  bukaModalDuplikatKegiatan,
   bukaDialogHapusKegiatan,
   ubahStatusKegiatanCepat,
   kelasBadgeStatus,
@@ -287,6 +288,7 @@ function renderKartuItemJadwal(item) {
       <button type="button" class="btn-secondary btn-sm-touch" data-action="buka-detail-kegiatan" data-id="${escapeHtml(item.id)}">Rincian${catatanTerkait.length > 0 ? ` (${catatanTerkait.length})` : ""}</button>
       <button type="button" class="btn-secondary btn-sm-touch" data-action="buat-notulensi-jadwal" data-id="${escapeHtml(item.id)}" data-tanggal="${escapeHtml(tampilkanPerHari ? tanggalHari : "")}"${!sedangOnline ? ' disabled title="Tidak ada koneksi internet. Pembuatan notulensi Google Docs memerlukan internet."' : ""}>Buat notulensi</button>
       <button type="button" class="btn-secondary btn-sm-touch" data-action="edit-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Ubah</button>
+      <button type="button" class="btn-secondary btn-sm-touch" data-action="duplikat-kegiatan-jadwal" data-id="${escapeHtml(item.id)}" title="Buat kegiatan baru dengan isian yang sama, bertanggal hari ini">Duplikat</button>
       <button type="button" class="btn-danger-outline btn-sm-touch" data-action="hapus-kegiatan-jadwal" data-id="${escapeHtml(item.id)}">Hapus</button>
     </div>
   </article>`;
@@ -866,6 +868,11 @@ export function initHalamanJadwal() {
         if (aksi === "edit-kegiatan-jadwal" && id) {
           const item = getDaftarKegiatan().find((k) => k.id === id);
           if (item) bukaModalFormKegiatan(item);
+          return;
+        }
+        if (aksi === "duplikat-kegiatan-jadwal" && id) {
+          // Salinan adalah kegiatan BARU: tanggal hari ini, judul sama (Tahap 8c).
+          bukaModalDuplikatKegiatan(id);
           return;
         }
         if (aksi === "buat-notulensi-jadwal" && id) {

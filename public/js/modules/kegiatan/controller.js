@@ -10,7 +10,13 @@ import { tambahItem, perbaruiItem } from "../../services/firestoreRepository.js"
 import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { escapeHtml } from "../../util-html.js";
 import { inisialisasiDialogKelolaKategori } from "../kategori/index.js";
-import { hariIni, parseTanggal, tanggalDalamRentang } from "../../util-tanggal.js";
+import {
+  hariIni,
+  parseTanggal,
+  tanggalDalamRentang,
+  geserTanggal,
+  jumlahHariRentang
+} from "../../util-tanggal.js";
 import { pindahKeBagian } from "../../sidebar.js";
 import { tampilkanToast } from "../../shared/toast.js";
 import {
@@ -291,6 +297,75 @@ export function bukaModalFormKegiatan(kegiatanEdit = null, tanggalAwal = null) {
   requestAnimationFrame(() => {
     if (judulInput instanceof HTMLElement) judulInput.focus();
   });
+}
+
+/**
+ * Membuka form Tambah Kegiatan yang sudah terisi salinan sebuah kegiatan
+ * (Tahap 8c). Salinan adalah kegiatan BARU: `#kegiatan-edit-id` dibiarkan
+ * kosong sehingga penyimpanan memakai `tambahItem`, bukan `perbaruiItem`.
+ *
+ * Ketetapan pemilik: tanggal salinan = HARI INI (bukan tanggal asal), dengan
+ * durasi yang sama seperti asal; judul disalin apa adanya tanpa akhiran
+ * penanda. Status direset ke "Rencana" karena salinan belum pernah berjalan.
+ *
+ * @param {string} kegiatanId id kegiatan yang hendak diduplikasi
+ * @returns {boolean} false bila id kosong atau kegiatan tidak ditemukan
+ */
+export function bukaModalDuplikatKegiatan(kegiatanId) {
+  const id = String(kegiatanId || "").trim();
+  if (!id) return false;
+  const asal = getDaftarKegiatan().find((k) => k.id === id);
+  if (!asal) return false;
+
+  const tanggalSalinan = hariIni();
+  bukaModalFormKegiatan(null, tanggalSalinan);
+
+  const modal = document.getElementById("kegiatan-form-modal");
+  if (!modal || modal.hidden) return false;
+
+  const isiNilai = (elemenId, nilai) => {
+    const el = document.getElementById(elemenId);
+    if (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLTextAreaElement ||
+      el instanceof HTMLSelectElement
+    ) {
+      el.value = nilai;
+    }
+  };
+
+  // Id dikosongkan sekali lagi agar tidak ada jalur yang membuatnya jadi "ubah".
+  isiNilai("kegiatan-edit-id", "");
+  isiNilai("kegiatan-judul-input", asal.judul || "");
+  isiNilai("kegiatan-mulai-input", asal.waktuMulai || "");
+  isiNilai("kegiatan-selesai-input", asal.waktuSelesai || "");
+  isiNilai("kegiatan-lokasi-input", asal.lokasi || "");
+  isiNilai("kegiatan-catatan-input", asal.catatan || "");
+
+  const infoKat = manajerKategoriKegiatan.cariInfoKategori(asal.kategoriId);
+  isiNilai("kegiatan-kategori-select", infoKat.tetap ? "" : infoKat.id);
+  isiNilai("kegiatan-status-select", "Rencana");
+
+  // Durasi asal dipertahankan: kegiatan 5 hari tetap 5 hari, mulai hari ini.
+  const totalHari = jumlahHariRentang(asal);
+  const tanggalSelesaiSalinan =
+    totalHari > 1 ? geserTanggal(tanggalSalinan, totalHari - 1) : "";
+  isiNilai("kegiatan-tanggal-selesai-input", tanggalSelesaiSalinan);
+
+  // Judul modal dibedakan agar jelas ini bukan penyuntingan kegiatan asal.
+  const titleEl = document.getElementById("kegiatan-form-title");
+  if (titleEl) titleEl.textContent = "Duplikat Kegiatan";
+
+  const judulInput = document.getElementById("kegiatan-judul-input");
+  if (judulInput instanceof HTMLElement) {
+    // Didaftarkan SETELAH fokus milik bukaModalFormKegiatan agar giliran fokus
+    // terakhir jatuh ke sini, dan seluruh judul tersorot siap ditimpa.
+    requestAnimationFrame(() => {
+      judulInput.focus();
+      if (judulInput instanceof HTMLInputElement) judulInput.select();
+    });
+  }
+  return true;
 }
 
 function tutupModalFormKegiatan(kembalikanFokus = true) {
@@ -606,6 +681,9 @@ export function initHalamanKegiatan() {
         picuBuatNotulensiUntukKegiatan(item, tgl);
       } else if (aksi === "edit-kegiatan") {
         bukaModalFormKegiatan(item);
+      } else if (aksi === "duplikat-kegiatan") {
+        // Salinan adalah kegiatan BARU: tanggal hari ini, judul sama (Tahap 8c).
+        bukaModalDuplikatKegiatan(item.id);
       } else if (aksi === "delete-kegiatan") {
         bukaDialogHapusKegiatan(item);
       }
