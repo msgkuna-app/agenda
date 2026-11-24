@@ -11,6 +11,7 @@ import {
   KOLEKSI,
   DOK_PENGATURAN,
   BATAS_OPERASI_BATCH,
+  KOLEKSI_HAPUS_LUNAK,
 } from "../../config/constants.js";
 import {
   getFirestoreDb,
@@ -572,37 +573,37 @@ export async function jalankanMigrasiDihapusAt() {
 
   try {
     const db = getFirestoreDb();
-    const [snapKegiatan, snapCatatan] = await Promise.all([
-      getDocs(collection(db, KOLEKSI.KEGIATAN)),
-      getDocs(collection(db, KOLEKSI.CATATAN))
-    ]);
+    const snapshots = await Promise.all(
+      KOLEKSI_HAPUS_LUNAK.map((info) => getDocs(collection(db, info.key)))
+    );
 
-    const butuhMigrasiKegiatan = [];
-    snapKegiatan.docs.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (typeof data.dihapusAt === "undefined") {
-        butuhMigrasiKegiatan.push(docSnap.ref);
-      }
+    const hasilPerKoleksi = [];
+    KOLEKSI_HAPUS_LUNAK.forEach((info, indeks) => {
+      const refs = [];
+      snapshots[indeks].docs.forEach((docSnap) => {
+        if (typeof docSnap.data().dihapusAt === "undefined") {
+          refs.push(docSnap.ref);
+        }
+      });
+      hasilPerKoleksi.push({ info, refs });
     });
 
-    const butuhMigrasiCatatan = [];
-    snapCatatan.docs.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (typeof data.dihapusAt === "undefined") {
-        butuhMigrasiCatatan.push(docSnap.ref);
-      }
-    });
+    const semuaRef = hasilPerKoleksi.flatMap((bagian) => bagian.refs);
+    const totalPerlu = semuaRef.length;
+    // Rincian per koleksi memakai bentuk jamak sederhana, mis. "12 kegiatan, 3 foto".
+    const rincian = hasilPerKoleksi
+      .filter((bagian) => bagian.refs.length > 0)
+      .map((bagian) => `${bagian.refs.length} ${bagian.info.satuan}`)
+      .join(", ");
 
-    const totalPerlu = butuhMigrasiKegiatan.length + butuhMigrasiCatatan.length;
     if (totalPerlu === 0) {
-      setStatusMigrasi(`<span style="color:var(--color-success); font-weight:600;">✓ Seluruh dokumen sudah memiliki field dihapusAt (0 dokumen perlu migrasi).</span>`);
+      setStatusMigrasi(`<span style="color:var(--color-success); font-weight:600;">✓ Seluruh dokumen kegiatan, catatan, dokumen arsip, foto, dan laporan sudah memiliki field dihapusAt (0 dokumen perlu migrasi).</span>`);
       tampilkanToast("Semua dokumen sudah termigrasi", "success");
       return;
     }
 
-    setStatusMigrasi(`<span>Ditemukan ${totalPerlu} dokumen (${butuhMigrasiKegiatan.length} kegiatan, ${butuhMigrasiCatatan.length} catatan) tanpa dihapusAt. Memperbarui...</span>`);
+    setStatusMigrasi(`<span>Ditemukan ${totalPerlu} dokumen (${rincian}) tanpa dihapusAt. Memperbarui...</span>`);
 
-    const semuaRef = [...butuhMigrasiKegiatan, ...butuhMigrasiCatatan];
     for (let i = 0; i < semuaRef.length; i += BATAS_OPERASI_BATCH) {
       const chunk = semuaRef.slice(i, i + BATAS_OPERASI_BATCH);
       const batch = writeBatch(db);
@@ -612,7 +613,7 @@ export async function jalankanMigrasiDihapusAt() {
       await batch.commit();
     }
 
-    setStatusMigrasi(`<span style="color:var(--color-success); font-weight:600;">✓ Berhasil memigrasi ${totalPerlu} dokumen dengan dihapusAt: null.</span>`);
+    setStatusMigrasi(`<span style="color:var(--color-success); font-weight:600;">✓ Berhasil memigrasi ${totalPerlu} dokumen (${rincian}) dengan dihapusAt: null.</span>`);
     tampilkanToast(`Migrasi berhasil: ${totalPerlu} dokumen diperbarui`, "success");
   } catch (err) {
     console.error("Gagal menjalankan migrasi dihapusAt:", err);

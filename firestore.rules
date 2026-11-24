@@ -141,7 +141,7 @@ service cloud.firestore {
       return d.keys().hasOnly([
         'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
         'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
-        'createdAt', 'updatedAt'
+        'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160
       && d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255
@@ -154,7 +154,8 @@ service cloud.firestore {
       && strOps(d, 'catatan', 5000)
       && strOps(d, 'tanggalUnggah', 50)
       && strOps(d, 'createdAt', 50)
-      && strOps(d, 'updatedAt', 50);
+      && strOps(d, 'updatedAt', 50)
+      && (!('dihapusAt' in d) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50));
     }
 
     function validDokumenUbah(d) {
@@ -162,7 +163,7 @@ service cloud.firestore {
       return u.hasOnly([
         'namaTampilan', 'namaFile', 'driveFileId', 'tautan', 'mimeType',
         'ukuran', 'kategoriId', 'kegiatanId', 'catatan', 'tanggalUnggah',
-        'createdAt', 'updatedAt'
+        'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && (!u.hasAny(['namaTampilan']) || (d.namaTampilan is string && d.namaTampilan.size() >= 1 && d.namaTampilan.size() <= 160))
       && (!u.hasAny(['namaFile']) || (d.namaFile is string && d.namaFile.size() >= 1 && d.namaFile.size() <= 255))
@@ -175,7 +176,8 @@ service cloud.firestore {
       && strUbah(d, u, 'catatan', 5000)
       && strUbah(d, u, 'tanggalUnggah', 50)
       && strUbah(d, u, 'createdAt', 50)
-      && strUbah(d, u, 'updatedAt', 50);
+      && strUbah(d, u, 'updatedAt', 50)
+      && dihapusAtUbah(d, u);
     }
 
     // =========================================================================
@@ -185,7 +187,7 @@ service cloud.firestore {
     function validFoto(d) {
       return d.keys().hasOnly([
         'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
-        'ukuran', 'catatan', 'createdAt', 'updatedAt'
+        'ukuran', 'catatan', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.kegiatanId is string && d.kegiatanId.size() >= 1 && d.kegiatanId.size() <= 100
       && d.driveFileId is string && d.driveFileId.size() >= 1 && d.driveFileId.size() <= 100
@@ -196,14 +198,15 @@ service cloud.firestore {
       && (!('ukuran' in d) || (d.ukuran is number && d.ukuran >= 0))
       && strOps(d, 'catatan', 5000)
       && strOps(d, 'createdAt', 50)
-      && strOps(d, 'updatedAt', 50);
+      && strOps(d, 'updatedAt', 50)
+      && (!('dihapusAt' in d) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50));
     }
 
     function validFotoUbah(d) {
       let u = d.diff(resource.data).affectedKeys();
       return u.hasOnly([
         'kegiatanId', 'driveFileId', 'namaFile', 'tautan', 'thumbnailLink', 'mimeType',
-        'ukuran', 'catatan', 'createdAt', 'updatedAt'
+        'ukuran', 'catatan', 'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && strUbah(d, u, 'kegiatanId', 100)
       && strUbah(d, u, 'driveFileId', 100)
@@ -214,7 +217,8 @@ service cloud.firestore {
       && angkaUbah(d, u, 'ukuran')
       && strUbah(d, u, 'catatan', 5000)
       && strUbah(d, u, 'createdAt', 50)
-      && strUbah(d, u, 'updatedAt', 50);
+      && strUbah(d, u, 'updatedAt', 50)
+      && dihapusAtUbah(d, u);
     }
 
     // =========================================================================
@@ -276,7 +280,7 @@ service cloud.firestore {
       return d.keys().hasOnly([
         'nama', 'jenis', 'jenisLabel', 'tautan', 'sheetId',
         'rentangTanggal', 'tanggalDari', 'tanggalSampai', 'jumlahBaris',
-        'createdAt', 'updatedAt'
+        'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && d.nama is string && d.nama.size() >= 1 && d.nama.size() <= 200
       && d.jenis is string && d.jenis.size() >= 1 && d.jenis.size() <= 50
@@ -288,7 +292,8 @@ service cloud.firestore {
       && strOps(d, 'tanggalSampai', 15)
       && (!('jumlahBaris' in d) || (d.jumlahBaris is number && d.jumlahBaris >= 0))
       && strOps(d, 'createdAt', 50)
-      && strOps(d, 'updatedAt', 50);
+      && strOps(d, 'updatedAt', 50)
+      && (!('dihapusAt' in d) || d.dihapusAt == null || (d.dihapusAt is string && d.dihapusAt.size() <= 50));
     }
 
     function validLaporanUbah(d) {
@@ -296,7 +301,7 @@ service cloud.firestore {
       return u.hasOnly([
         'nama', 'jenis', 'jenisLabel', 'tautan', 'sheetId',
         'rentangTanggal', 'tanggalDari', 'tanggalSampai', 'jumlahBaris',
-        'createdAt', 'updatedAt'
+        'createdAt', 'updatedAt', 'dihapusAt'
       ])
       && strUbah(d, u, 'nama', 200)
       && strUbah(d, u, 'jenis', 50)
@@ -308,7 +313,8 @@ service cloud.firestore {
       && strUbah(d, u, 'tanggalSampai', 15)
       && angkaUbah(d, u, 'jumlahBaris')
       && strUbah(d, u, 'createdAt', 50)
-      && strUbah(d, u, 'updatedAt', 50);
+      && strUbah(d, u, 'updatedAt', 50)
+      && dihapusAtUbah(d, u);
     }
 
     // =========================================================================
