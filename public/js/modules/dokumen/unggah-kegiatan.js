@@ -5,11 +5,7 @@
  * dan dicatat ke koleksi "dokumen" dengan kegiatanId.
  */
 import { KOLEKSI } from "../../config/constants.js";
-import {
-  getFirestoreDb,
-  collection,
-  addDoc,
-} from "../../services/firestoreService.js";
+import { tambahItem } from "../../services/firestoreRepository.js";
 import { unggahBerkasKeDrive, formatPesanGalatDrive } from "../../services/driveService.js";
 import { beritahuPerubahanDokumen } from "./state.js";
 import { pastikanFolderTujuanKategoriSiap } from "./folder.js";
@@ -59,8 +55,7 @@ export async function unggahBerkasSebagaiDokumenKegiatan({
   }
 
   const sekarangIso = new Date().toISOString();
-  const db = getFirestoreDb();
-  await addDoc(collection(db, KOLEKSI.DOKUMEN), {
+  await tambahItem(KOLEKSI.DOKUMEN, {
     namaTampilan: hasilDrive.name || file.name,
     namaFile: hasilDrive.name || file.name,
     driveFileId: hasilDrive.id || "",

@@ -15,16 +15,11 @@
  * pembersihan otomatis dilewati saat luring dan kedua tombol hapus permanen menolak
  * item berberkas saat luring.
  */
-import { TIGA_PULUH_HARI_MS, BATAS_OPERASI_BATCH, KOLEKSI } from "../../config/constants.js";
+import { TIGA_PULUH_HARI_MS, KOLEKSI } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  writeBatch,
-  onSnapshot,
-  query,
-  where
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  jalankanBatch
+} from "../../services/firestoreRepository.js";
 import { pindahkanItemKeSampahDrive } from "../../services/driveService.js";
 import {
   normalkanKegiatan,
@@ -126,19 +121,15 @@ export function resetFlagPembersihanSampah() {
 }
 
 /**
- * Menghapus sekumpulan dokumen di Firestore memakai writeBatch dengan batas maksimal 500 operasi.
- * @param {import("https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js").Firestore} db
+ * Menghapus sekumpulan dokumen di Firestore lewat jalankanBatch, yang memotong
+ * sendiri operasi per BATAS_OPERASI_BATCH (500).
  * @param {Array<{ koleksi: string, id: string }>} daftarRef
  */
-async function hapusBatchMaks500(db, daftarRef) {
-  for (let i = 0; i < daftarRef.length; i += BATAS_OPERASI_BATCH) {
-    const chunk = daftarRef.slice(i, i + BATAS_OPERASI_BATCH);
-    const batch = writeBatch(db);
-    chunk.forEach((ref) => {
-      batch.delete(doc(db, ref.koleksi, ref.id));
-    });
-    await batch.commit();
-  }
+async function hapusBatchMaks500(daftarRef) {
+  if (daftarRef.length === 0) return;
+  await jalankanBatch(
+    daftarRef.map((ref) => ({ jenis: "hapus", koleksi: ref.koleksi, id: ref.id }))
+  );
 }
 
 /**
@@ -214,8 +205,7 @@ export async function kosongkanSemuaItemSampah() {
   }
 
   if (daftarHapus.length > 0) {
-    const db = getFirestoreDb();
-    await hapusBatchMaks500(db, daftarHapus);
+    await hapusBatchMaks500(daftarHapus);
   }
 
   // Item yang berkasnya gagal dipindahkan sengaja dibiarkan di peta agar tetap
@@ -226,7 +216,7 @@ export async function kosongkanSemuaItemSampah() {
 /**
  * Pembersihan otomatis setelah login dan data tempat sampah dimuat.
  * Berjalan sekali per sesi dan hanya bila perangkat sedang terhubung online.
- * Menghapus permanen item dengan dihapusAt > 30 hari via writeBatch (maks 500 per batch),
+ * Menghapus permanen item dengan dihapusAt > 30 hari via jalankanBatch (maks 500 per batch),
  * termasuk memindahkan berkas Drive dokumen dan foto agar tidak menjadi yatim.
  * Gagal diam-diam dengan console.warn.
  */
@@ -252,8 +242,7 @@ export async function jalankanPembersihanSampahOtomatis() {
     }
 
     if (daftarHapus.length > 0) {
-      const db = getFirestoreDb();
-      await hapusBatchMaks500(db, daftarHapus);
+      await hapusBatchMaks500(daftarHapus);
       daftarHapus.forEach((ref) => hapusItemSampah(ref.koleksi, ref.id));
     }
   } catch (err) {
@@ -270,31 +259,27 @@ export async function jalankanPembersihanSampahOtomatis() {
  * @param {{ onData?: () => void, onGalat?: (err: unknown) => void }} opsi
  */
 export function langgananSampah(opsi = {}) {
-  const db = getFirestoreDb();
-
   JENIS_SAMPAH.forEach((jenis) => {
     try {
-      const kueriJenis = query(
-        collection(db, jenis.kunci),
-        where("dihapusAt", "!=", null)
-      );
-
-      const unsubscribe = onSnapshot(
-        kueriJenis,
-        (snapshot) => {
-          const peta = petaPerJenis.get(jenis.kunci);
-          peta.clear();
-          snapshot.docs.forEach((docSnap) => {
-            const item = jenis.normalkan(docSnap);
-            peta.set(item.id, item);
-          });
-          statusMuatPerJenis.set(jenis.kunci, true);
-          if (typeof opsi.onData === "function") opsi.onData();
-          jalankanPembersihanSampahOtomatis();
-        },
-        (err) => {
-          console.warn(`Gagal memuat langganan ${jenis.kunci} sampah:`, err);
-          if (typeof opsi.onGalat === "function") opsi.onGalat(err);
+      const unsubscribe = langgananKoleksi(
+        jenis.kunci,
+        { filter: [["dihapusAt", "!=", null]] },
+        {
+          onData: (items) => {
+            const peta = petaPerJenis.get(jenis.kunci);
+            peta.clear();
+            items.forEach((item) => {
+              const dinormalkan = jenis.normalkan(item);
+              peta.set(dinormalkan.id, dinormalkan);
+            });
+            statusMuatPerJenis.set(jenis.kunci, true);
+            if (typeof opsi.onData === "function") opsi.onData();
+            jalankanPembersihanSampahOtomatis();
+          },
+          onGalat: (err) => {
+            console.warn(`Gagal memuat langganan ${jenis.kunci} sampah:`, err);
+            if (typeof opsi.onGalat === "function") opsi.onGalat(err);
+          }
         }
       );
 

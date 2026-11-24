@@ -1,32 +1,16 @@
 /**
  * Layanan Firestore & Firebase App/Auth (Tahap 2a: dipindah dari firebase-config.js)
- * - Satu-satunya modul yang memuat Firebase Web SDK modular v11 dari CDN gstatic.
+ * - Memuat Firebase Web SDK modular v11 dari CDN gstatic untuk App/Auth/Firestore
+ *   (plambing SDK Firestore sendiri ada di services/firestoreRepository.js).
  * - Menyimpan instance App/Auth/Firestore (lazy singleton) dan menyediakan pembuat pesan galat.
- * - SDK Firestore (collection, query, onSnapshot, dst.) di-re-export agar pemanggil tetap memakai
- *   satu pintu; Tahap 3 akan mengganti pemanggilan langsung dengan fungsi CRUD bermakna.
+ * - SDK Firestore TIDAK lagi di-re-export (Tahap 2-6): seluruh operasi data memakai
+ *   services/firestoreRepository.js, sehingga aturan "hanya services/ yang memanggil
+ *   Firebase" berlaku nyata dan modul fitur tidak pernah menyentuh SDK.
  * Catatan: berkas ini TIDAK boleh mengimpor modul halaman (aturan arah dependensi services -> config).
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  doc,
-  addDoc,
-  setDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  writeBatch,
-  getCountFromServer,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
 import { firebaseConfig, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID, isFirebaseConfigured } from "../config/firebase.js";
 export { firebaseConfig, GOOGLE_CLIENT_ID, PLACEHOLDER_GOOGLE_CLIENT_ID, isFirebaseConfigured };
@@ -75,22 +59,3 @@ export function formatPesanGalatFirestore(err) {
   }
   return "Terjadi kendala pada basis data Firestore.";
 }
-
-export {
-  collection,
-  doc,
-  addDoc,
-  setDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  writeBatch,
-  getCountFromServer,
-};

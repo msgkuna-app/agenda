@@ -12,21 +12,13 @@ import {
   KOLEKSI
 } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-  formatPesanGalatFirestore
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  ambilDaftar,
+  ambilSatu,
+  perbaruiItem,
+  hapusItem,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import {
   pulihkanItemDariSampahDrive,
   formatPesanGalatDrive
@@ -107,29 +99,29 @@ function laporkanGalat(err) {
   }
 }
 
-/** Memetakan dokumen Firestore menjadi entri memori catatan. */
-function petakanCatatan(docSnap) {
-  const d = docSnap.data() || {};
-  const jenis = d.jenis === JENIS_CATATAN_GDOC ? JENIS_CATATAN_GDOC : JENIS_CATATAN_SINGKAT;
+/** Memetakan dokumen Firestore (objek biasa { id, ...data }) menjadi entri memori catatan. */
+function petakanCatatan(d) {
+  const data = d || {};
+  const jenis = data.jenis === JENIS_CATATAN_GDOC ? JENIS_CATATAN_GDOC : JENIS_CATATAN_SINGKAT;
   const entri = {
-    id: docSnap.id,
+    id: data.id,
     jenis,
-    judul: String(d.judul || ""),
-    isi: jenis === JENIS_CATATAN_SINGKAT ? String(d.isi || "") : "",
-    kategori: String(d.kategori || ""),
-    tag: Array.isArray(d.tag) ? d.tag.map((t) => String(t || "").trim()).filter(Boolean) : [],
-    kegiatanId: String(d.kegiatanId || ""),
-    disematkan: Boolean(d.disematkan),
-    tanggal: String(d.tanggal || ""),
-    createdAt: String(d.createdAt || ""),
-    updatedAt: String(d.updatedAt || ""),
-    dihapusAt: d.dihapusAt || null,
-    driveDiSampah: Boolean(d.driveDiSampah)
+    judul: String(data.judul || ""),
+    isi: jenis === JENIS_CATATAN_SINGKAT ? String(data.isi || "") : "",
+    kategori: String(data.kategori || ""),
+    tag: Array.isArray(data.tag) ? data.tag.map((t) => String(t || "").trim()).filter(Boolean) : [],
+    kegiatanId: String(data.kegiatanId || ""),
+    disematkan: Boolean(data.disematkan),
+    tanggal: String(data.tanggal || ""),
+    createdAt: String(data.createdAt || ""),
+    updatedAt: String(data.updatedAt || ""),
+    dihapusAt: data.dihapusAt || null,
+    driveDiSampah: Boolean(data.driveDiSampah)
   };
   if (jenis === JENIS_CATATAN_GDOC) {
-    entri.templat = String(d.templat || "kosong");
-    entri.docId = String(d.docId || "");
-    entri.tautan = String(d.tautan || "");
+    entri.templat = String(data.templat || "kosong");
+    entri.docId = String(data.docId || "");
+    entri.tautan = String(data.tautan || "");
   }
   return entri;
 }
@@ -161,8 +153,7 @@ export function getDaftarCatatanDiSampah() {
 export async function hapusLunakCatatan(id, driveDiSampah = false) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID catatan tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.CATATAN, targetId), {
+  await perbaruiItem(KOLEKSI.CATATAN, targetId, {
     dihapusAt: new Date().toISOString(),
     driveDiSampah: Boolean(driveDiSampah),
     updatedAt: new Date().toISOString()
@@ -175,7 +166,6 @@ export async function hapusLunakCatatan(id, driveDiSampah = false) {
 export async function pulihkanCatatan(id, itemOpsional = null) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID catatan tidak valid.");
-  const db = getFirestoreDb();
 
   // Catatan di Tempat Sampah tidak ada di peta memori (listener menyaring dihapusAt),
   // sehingga datanya dibaca dari Firestore bila pemanggil tidak menyertakannya.
@@ -183,8 +173,7 @@ export async function pulihkanCatatan(id, itemOpsional = null) {
   let pesanDrive = "";
   if (!item) {
     try {
-      const snap = await getDoc(doc(db, KOLEKSI.CATATAN, targetId));
-      item = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+      item = await ambilSatu(KOLEKSI.CATATAN, targetId);
     } catch (_e) {
       pesanDrive =
         "Status dokumen Google Docs di Sampah Drive tidak dapat diperiksa (koneksi bermasalah). Jika perlu, pulihkan manual dari Sampah Google Drive.";
@@ -202,7 +191,7 @@ export async function pulihkanCatatan(id, itemOpsional = null) {
     }
   }
 
-  await updateDoc(doc(db, KOLEKSI.CATATAN, targetId), {
+  await perbaruiItem(KOLEKSI.CATATAN, targetId, {
     dihapusAt: null,
     driveDiSampah: false,
     updatedAt: new Date().toISOString()
@@ -213,8 +202,7 @@ export async function pulihkanCatatan(id, itemOpsional = null) {
 export async function hapusPermanenCatatan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID catatan tidak valid.");
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.CATATAN, targetId));
+  await hapusItem(KOLEKSI.CATATAN, targetId);
   petaCatatanHalaman.delete(targetId);
   petaCatatanTambahan.delete(targetId);
   beritahuPerubahanCatatan();
@@ -262,9 +250,9 @@ export function getCatatanTerkaitKegiatan(kegiatanId) {
   ).map((c) => ({ ...c, tag: Array.isArray(c.tag) ? [...c.tag] : [] }));
 }
 
-function simpanKePetaTambahan(snap) {
-  snap.forEach((docSnap) => {
-    petaCatatanTambahan.set(docSnap.id, petakanCatatan(docSnap));
+function simpanKePetaTambahan(items) {
+  items.forEach((item) => {
+    petaCatatanTambahan.set(item.id, petakanCatatan(item));
   });
 }
 
@@ -278,21 +266,18 @@ export async function muatLebihBanyakCatatan() {
   beritahuPerubahanCatatan();
 
   try {
-    const db = getFirestoreDb();
-    const q = query(
-      collection(db, KOLEKSI.CATATAN),
-      where("dihapusAt", "==", null),
-      orderBy("updatedAt", "desc"),
-      startAfter(kursorAwal),
-      limit(UKURAN_HALAMAN_CATATAN)
-    );
-    const snap = await getDocs(q);
-    simpanKePetaTambahan(snap);
+    const { items, meta } = await ambilDaftar(KOLEKSI.CATATAN, {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["updatedAt", "desc"],
+      mulaiSetelah: kursorAwal,
+      batas: UKURAN_HALAMAN_CATATAN,
+    });
+    simpanKePetaTambahan(items);
 
-    if (!snap.empty) {
-      kursorCatatanTambahan = snap.docs[snap.docs.length - 1];
+    if (meta.dokumenTerakhir) {
+      kursorCatatanTambahan = meta.dokumenTerakhir;
     }
-    adaLebihBanyakCatatan = snap.docs.length >= UKURAN_HALAMAN_CATATAN;
+    adaLebihBanyakCatatan = meta.jumlah >= UKURAN_HALAMAN_CATATAN;
     beritahuPerubahanCatatan();
   } catch (err) {
     laporkanGalat(err);
@@ -311,14 +296,11 @@ export async function ambilSemuaCatatanSekaliPakai() {
   beritahuPerubahanCatatan();
 
   try {
-    const db = getFirestoreDb();
-    const q = query(
-      collection(db, KOLEKSI.CATATAN),
-      where("dihapusAt", "==", null),
-      orderBy("updatedAt", "desc")
-    );
-    const snap = await getDocs(q);
-    simpanKePetaTambahan(snap);
+    const { items } = await ambilDaftar(KOLEKSI.CATATAN, {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["updatedAt", "desc"],
+    });
+    simpanKePetaTambahan(items);
     seluruhCatatanSudahDimuat = true;
     beritahuPerubahanCatatan();
     return getDaftarCatatan();
@@ -333,35 +315,34 @@ export async function ambilSemuaCatatanSekaliPakai() {
  * Memperbarui peta halaman, kursor, dan flag, lalu memberitahu pendengar.
  */
 export function langgananCatatan() {
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.CATATAN),
-    where("dihapusAt", "==", null),
-    orderBy("updatedAt", "desc"),
-    limit(UKURAN_HALAMAN_CATATAN)
-  );
-
-  unsubscribeSnapshotCatatan = onSnapshot(
-    q,
-    (snapshot) => {
-      petaCatatanHalaman.clear();
-      snapshot.forEach((docSnap) => {
-        petaCatatanHalaman.set(docSnap.id, petakanCatatan(docSnap));
-      });
-
-      if (!snapshot.empty) {
-        lastDocCatatanHalaman = snapshot.docs[snapshot.docs.length - 1];
-      }
-      if (!kursorCatatanTambahan) {
-        adaLebihBanyakCatatan = snapshot.docs.length >= UKURAN_HALAMAN_CATATAN;
-      }
-      sudahDimuatPertamaKali = true;
-      beritahuPerubahanCatatan();
+  unsubscribeSnapshotCatatan = langgananKoleksi(
+    KOLEKSI.CATATAN,
+    {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["updatedAt", "desc"],
+      batas: UKURAN_HALAMAN_CATATAN,
     },
-    (err) => {
-      sudahDimuatPertamaKali = true;
-      laporkanGalat(err);
-      beritahuPerubahanCatatan();
+    {
+      onData: (items, meta) => {
+        petaCatatanHalaman.clear();
+        items.forEach((item) => {
+          petaCatatanHalaman.set(item.id, petakanCatatan(item));
+        });
+
+        if (meta.dokumenTerakhir) {
+          lastDocCatatanHalaman = meta.dokumenTerakhir;
+        }
+        if (!kursorCatatanTambahan) {
+          adaLebihBanyakCatatan = meta.jumlah >= UKURAN_HALAMAN_CATATAN;
+        }
+        sudahDimuatPertamaKali = true;
+        beritahuPerubahanCatatan();
+      },
+      onGalat: (err) => {
+        sudahDimuatPertamaKali = true;
+        laporkanGalat(err);
+        beritahuPerubahanCatatan();
+      }
     }
   );
 }

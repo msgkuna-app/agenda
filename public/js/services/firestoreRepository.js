@@ -1,10 +1,11 @@
 /**
- * Repositori Firestore (Tahap 2-1: infrastruktur API bermakna)
+ * Repositori Firestore (Tahap 2-1; Tahap 2-6: satu-satunya pemuat SDK Firestore)
  *
  * Tujuan: modul fitur tidak lagi menyusun plambing Firestore sendiri
  * (`query(collection(db, …), where(…), orderBy(…))` dan sejenisnya), melainkan
- * memanggil fungsi bermakna di berkas ini. SDK mentah tetap hanya dimuat oleh
- * services/firestoreService.js — berkas ini adalah satu-satunya konsumennya.
+ * memanggil fungsi bermakna di berkas ini. Sejak Tahap 2-6 firestoreService.js
+ * tidak lagi me-re-export SDK, sehingga berkas inilah satu-satunya tempat
+ * pengambilan SDK Firestore (selain getFirestore di firestoreService.js).
  *
  * Bentuk data: setiap dokumen dikembalikan sebagai objek biasa `{ id, ...data }`,
  * bukan DocumentSnapshot. Pengecualian yang disengaja: `meta.dokumenTerakhir`
@@ -14,8 +15,8 @@
  * Arah dependensi tetap services -> config; berkas ini tidak boleh mengimpor modul.
  */
 import { BATAS_OPERASI_BATCH } from "../config/constants.js";
+import { getFirestoreDb } from "./firestoreService.js";
 import {
-  getFirestoreDb,
   collection,
   doc,
   addDoc,
@@ -32,7 +33,7 @@ import {
   startAfter,
   writeBatch,
   getCountFromServer,
-} from "./firestoreService.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
 /** Ubah DocumentSnapshot menjadi objek biasa; bentuk inilah yang dipakai fitur. */
 function jadikanItem(docSnap) {

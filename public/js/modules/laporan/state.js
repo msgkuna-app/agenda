@@ -8,16 +8,11 @@
  */
 import { KOLEKSI } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  tambahItem,
+  perbaruiItem,
+  hapusItem,
+} from "../../services/firestoreRepository.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { urutkanDaftarKategori } from "../kategori/index.js";
 import {
@@ -664,8 +659,7 @@ export async function simpanRiwayatLaporan({
   tanggalSampai: sampai,
   jumlahBaris
 }) {
-  const db = getFirestoreDb();
-  await addDoc(collection(db, KOLEKSI.LAPORAN), {
+  await tambahItem(KOLEKSI.LAPORAN, {
     nama,
     jenis,
     jenisLabel,
@@ -687,16 +681,15 @@ export async function simpanRiwayatLaporan({
  * Laporan tidak memiliki berkas Drive, sehingga pulihkan dan hapus permanen
  * cukup menyentuh Firestore.
  *
- * Jalur hapus permanen langsung (deleteDoc tanpa lewat Tempat Sampah) sengaja
+ * Jalur hapus permanen tidak punya pintu langsung (tanpa lewat Tempat Sampah) dan
  * tidak lagi disediakan: seluruh penghapusan harus melewati hapus lunak agar
  * item dapat dipulihkan dalam 30 hari.
  */
 export async function hapusLunakRiwayatLaporan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
-  const db = getFirestoreDb();
   const sekarang = new Date().toISOString();
-  await updateDoc(doc(db, KOLEKSI.LAPORAN, targetId), {
+  await perbaruiItem(KOLEKSI.LAPORAN, targetId, {
     dihapusAt: sekarang,
     updatedAt: sekarang,
   });
@@ -707,8 +700,7 @@ export async function hapusLunakRiwayatLaporan(id) {
 export async function pulihkanRiwayatLaporan(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.LAPORAN, targetId), {
+  await perbaruiItem(KOLEKSI.LAPORAN, targetId, {
     dihapusAt: null,
     updatedAt: new Date().toISOString(),
   });
@@ -719,8 +711,7 @@ export async function pulihkanRiwayatLaporan(id) {
 export async function hapusPermanenRiwayatLaporan(item) {
   const targetId = String(item && item.id ? item.id : item || "").trim();
   if (!targetId) throw new Error("ID riwayat laporan tidak valid.");
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.LAPORAN, targetId));
+  await hapusItem(KOLEKSI.LAPORAN, targetId);
   daftarRiwayatLaporan = daftarRiwayatLaporan.filter((laporan) => laporan.id !== targetId);
 }
 
@@ -731,14 +722,13 @@ export async function hapusPermanenRiwayatLaporan(item) {
  * @param {{ onData?: () => void, onGalat?: (err: unknown) => void }} opsi
  */
 export function langgananRiwayatLaporan(opsi = {}) {
-  const db = getFirestoreDb();
-  unsubscribeSnapshotLaporan = onSnapshot(
-    query(collection(db, KOLEKSI.LAPORAN), where("dihapusAt", "==", null)),
-    (snapshot) => {
-      daftarRiwayatLaporan = snapshot.docs.map((dok) => {
-        const d = dok.data() || {};
-        return {
-          id: dok.id,
+  unsubscribeSnapshotLaporan = langgananKoleksi(
+    KOLEKSI.LAPORAN,
+    { filter: [["dihapusAt", "==", null]] },
+    {
+      onData: (items) => {
+        daftarRiwayatLaporan = items.map((d) => ({
+          id: d.id,
           nama: String(d.nama || ""),
           jenis: String(d.jenis || "kegiatan"),
           jenisLabel: String(d.jenisLabel || ""),
@@ -750,15 +740,15 @@ export function langgananRiwayatLaporan(opsi = {}) {
           jumlahBaris: Number.isFinite(Number(d.jumlahBaris)) ? Number(d.jumlahBaris) : 0,
           createdAt: String(d.createdAt || ""),
           dihapusAt: d.dihapusAt || null
-        };
-      });
-      riwayatSudahDimuat = true;
-      if (typeof opsi.onData === "function") opsi.onData();
-    },
-    (err) => {
-      riwayatSudahDimuat = true;
-      if (typeof opsi.onGalat === "function") opsi.onGalat(err);
-      if (typeof opsi.onData === "function") opsi.onData();
+        }));
+        riwayatSudahDimuat = true;
+        if (typeof opsi.onData === "function") opsi.onData();
+      },
+      onGalat: (err) => {
+        riwayatSudahDimuat = true;
+        if (typeof opsi.onGalat === "function") opsi.onGalat(err);
+        if (typeof opsi.onData === "function") opsi.onData();
+      }
     }
   );
 }

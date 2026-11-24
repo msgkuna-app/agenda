@@ -5,19 +5,12 @@
  */
 import { UKURAN_HALAMAN_FOTO, KOLEKSI } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  formatPesanGalatFirestore,
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  tambahItem,
+  perbaruiItem,
+  hapusItem,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { pindahkanItemKeSampahDrive } from "../../services/driveService.js";
 
 const petaFoto = new Map();
@@ -25,22 +18,22 @@ let unsubscribeSnapshotFoto = null;
 let sudahDimuatPertamaKali = false;
 const listenersPerubahanFoto = new Set();
 
-/** Normalisasi satu dokumen foto Firestore menjadi bentuk yang dipakai UI. */
-function petakanFoto(docSnap) {
-  const d = docSnap.data() || {};
+/** Normalisasi satu dokumen foto (objek biasa { id, ...data }) menjadi bentuk yang dipakai UI. */
+function petakanFoto(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
-    kegiatanId: String(d.kegiatanId || ""),
-    driveFileId: String(d.driveFileId || ""),
-    namaFile: String(d.namaFile || ""),
-    tautan: String(d.tautan || ""),
-    thumbnailLink: String(d.thumbnailLink || ""),
-    mimeType: String(d.mimeType || ""),
-    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
-    catatan: String(d.catatan || ""),
-    createdAt: String(d.createdAt || ""),
-    updatedAt: String(d.updatedAt || ""),
-    dihapusAt: d.dihapusAt || null,
+    id: data.id,
+    kegiatanId: String(data.kegiatanId || ""),
+    driveFileId: String(data.driveFileId || ""),
+    namaFile: String(data.namaFile || ""),
+    tautan: String(data.tautan || ""),
+    thumbnailLink: String(data.thumbnailLink || ""),
+    mimeType: String(data.mimeType || ""),
+    ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
+    catatan: String(data.catatan || ""),
+    createdAt: String(data.createdAt || ""),
+    updatedAt: String(data.updatedAt || ""),
+    dihapusAt: data.dihapusAt || null,
   };
 }
 
@@ -84,9 +77,8 @@ export async function simpanMetadataFoto(data) {
   if (!kegiatanId) throw new Error("Foto harus dikaitkan dengan kegiatan.");
   if (!driveFileId) throw new Error("ID berkas Drive tidak valid.");
 
-  const db = getFirestoreDb();
   const sekarang = new Date().toISOString();
-  const ref = await addDoc(collection(db, KOLEKSI.FOTO), {
+  const idBaru = await tambahItem(KOLEKSI.FOTO, {
     kegiatanId,
     driveFileId,
     namaFile: String(data.namaFile || ""),
@@ -101,7 +93,7 @@ export async function simpanMetadataFoto(data) {
     // where("dihapusAt", "==", null), yang TIDAK cocok untuk dokumen tanpa field ini.
     dihapusAt: null,
   });
-  return ref.id;
+  return idBaru;
 }
 
 /**
@@ -112,8 +104,7 @@ export async function simpanMetadataFoto(data) {
 export async function hapusDokumenFoto(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID foto tidak valid.");
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.FOTO, targetId));
+  await hapusItem(KOLEKSI.FOTO, targetId);
   petaFoto.delete(targetId);
   beritahuPerubahanFoto();
 }
@@ -126,9 +117,8 @@ export async function hapusDokumenFoto(id) {
 export async function hapusLunakFoto(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID foto tidak valid.");
-  const db = getFirestoreDb();
   const sekarang = new Date().toISOString();
-  await updateDoc(doc(db, KOLEKSI.FOTO, targetId), {
+  await perbaruiItem(KOLEKSI.FOTO, targetId, {
     dihapusAt: sekarang,
     updatedAt: sekarang,
   });
@@ -140,8 +130,7 @@ export async function hapusLunakFoto(id) {
 export async function pulihkanFoto(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID foto tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.FOTO, targetId), {
+  await perbaruiItem(KOLEKSI.FOTO, targetId, {
     dihapusAt: null,
     updatedAt: new Date().toISOString(),
   });
@@ -176,8 +165,7 @@ export async function hapusPermanenFoto(item) {
     }
   }
 
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.FOTO, targetId));
+  await hapusItem(KOLEKSI.FOTO, targetId);
   petaFoto.delete(targetId);
   beritahuPerubahanFoto();
 }
@@ -190,30 +178,29 @@ export function langgananFoto(opsi = {}) {
   sudahDimuatPertamaKali = false;
   beritahuPerubahanFoto();
 
-  const db = getFirestoreDb();
   // Sejak Tahap D kueri menyaring foto di Tempat Sampah, sehingga batas UKURAN_HALAMAN_FOTO
   // terpakai seluruhnya oleh foto aktif.
-  const q = query(
-    collection(db, KOLEKSI.FOTO),
-    where("dihapusAt", "==", null),
-    orderBy("createdAt", "desc"),
-    limit(UKURAN_HALAMAN_FOTO)
-  );
-
-  unsubscribeSnapshotFoto = onSnapshot(
-    q,
-    (snapshot) => {
-      petaFoto.clear();
-      snapshot.forEach((docSnap) => {
-        petaFoto.set(docSnap.id, petakanFoto(docSnap));
-      });
-      sudahDimuatPertamaKali = true;
-      beritahuPerubahanFoto();
+  unsubscribeSnapshotFoto = langgananKoleksi(
+    KOLEKSI.FOTO,
+    {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["createdAt", "desc"],
+      batas: UKURAN_HALAMAN_FOTO,
     },
-    (err) => {
-      sudahDimuatPertamaKali = true;
-      if (typeof opsi.onGalat === "function") opsi.onGalat(formatPesanGalatFirestore(err));
-      beritahuPerubahanFoto();
+    {
+      onData: (items) => {
+        petaFoto.clear();
+        items.forEach((item) => {
+          petaFoto.set(item.id, petakanFoto(item));
+        });
+        sudahDimuatPertamaKali = true;
+        beritahuPerubahanFoto();
+      },
+      onGalat: (err) => {
+        sudahDimuatPertamaKali = true;
+        if (typeof opsi.onGalat === "function") opsi.onGalat(formatPesanGalatFirestore(err));
+        beritahuPerubahanFoto();
+      }
     }
   );
   return () => lepasLanggananFoto();

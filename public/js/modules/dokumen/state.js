@@ -6,21 +6,13 @@
  */
 import { UKURAN_HALAMAN_DOKUMEN, KOLEKSI } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  getDocs,
-  getCountFromServer,
-  formatPesanGalatFirestore,
-} from "../../services/firestoreService.js";
+  langgananKoleksi,
+  ambilDaftar,
+  perbaruiItem,
+  hapusItem,
+  hitungItem,
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { buatManajerKategori, KATEGORI_DOKUMEN_BAWAAN } from "../kategori/index.js";
 import { resetCacheDrive, pindahkanItemKeSampahDrive } from "../../services/driveService.js";
 
@@ -45,26 +37,27 @@ let sudahDimuatPertamaKali = false;
 const listenersPerubahanDokumen = new Set();
 
 /**
- * Normalisasi satu dokumen Firestore menjadi bentuk yang dipakai seluruh UI.
+ * Normalisasi satu dokumen Firestore (objek biasa { id, ...data } dari
+ * services/firestoreRepository.js) menjadi bentuk yang dipakai seluruh UI.
  * Dipakai oleh listener halaman, paginasi, dan ambil-semua agar bentuknya seragam.
  */
-function petakanDokumen(docSnap) {
-  const d = docSnap.data() || {};
+function petakanDokumen(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
-    namaTampilan: String(d.namaTampilan || d.namaFile || ""),
-    namaFile: String(d.namaFile || ""),
-    driveFileId: String(d.driveFileId || ""),
-    tautan: String(d.tautan || ""),
-    mimeType: String(d.mimeType || "application/octet-stream"),
-    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
-    kategoriId: String(d.kategoriId || ""),
-    kegiatanId: String(d.kegiatanId || ""),
-    catatan: String(d.catatan || ""),
-    tanggalUnggah: String(d.tanggalUnggah || d.createdAt || ""),
-    createdAt: String(d.createdAt || ""),
-    updatedAt: String(d.updatedAt || ""),
-    dihapusAt: d.dihapusAt || null,
+    id: data.id,
+    namaTampilan: String(data.namaTampilan || data.namaFile || ""),
+    namaFile: String(data.namaFile || ""),
+    driveFileId: String(data.driveFileId || ""),
+    tautan: String(data.tautan || ""),
+    mimeType: String(data.mimeType || "application/octet-stream"),
+    ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
+    kategoriId: String(data.kategoriId || ""),
+    kegiatanId: String(data.kegiatanId || ""),
+    catatan: String(data.catatan || ""),
+    tanggalUnggah: String(data.tanggalUnggah || data.createdAt || ""),
+    createdAt: String(data.createdAt || ""),
+    updatedAt: String(data.updatedAt || ""),
+    dihapusAt: data.dihapusAt || null,
   };
 }
 
@@ -138,9 +131,8 @@ export function hapusDokumenDariPeta(id) {
 export async function hapusLunakDokumen(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID dokumen tidak valid.");
-  const db = getFirestoreDb();
   const sekarang = new Date().toISOString();
-  await updateDoc(doc(db, KOLEKSI.DOKUMEN, targetId), {
+  await perbaruiItem(KOLEKSI.DOKUMEN, targetId, {
     dihapusAt: sekarang,
     updatedAt: sekarang,
   });
@@ -152,8 +144,7 @@ export async function hapusLunakDokumen(id) {
 export async function pulihkanDokumen(id) {
   const targetId = String(id || "").trim();
   if (!targetId) throw new Error("ID dokumen tidak valid.");
-  const db = getFirestoreDb();
-  await updateDoc(doc(db, KOLEKSI.DOKUMEN, targetId), {
+  await perbaruiItem(KOLEKSI.DOKUMEN, targetId, {
     dihapusAt: null,
     updatedAt: new Date().toISOString(),
   });
@@ -188,8 +179,7 @@ export async function hapusPermanenDokumen(item) {
     }
   }
 
-  const db = getFirestoreDb();
-  await deleteDoc(doc(db, KOLEKSI.DOKUMEN, targetId));
+  await hapusItem(KOLEKSI.DOKUMEN, targetId);
   hapusDokumenDariPeta(targetId);
   beritahuPerubahanDokumen();
 }
@@ -215,27 +205,17 @@ export function beritahuPerubahanDokumen() {
 // --- Pemanggilan Firestore ---------------------------------------------------
 
 /**
- * Fase 5: Menghitung dokumen pemakai kategori secara akurat dari server via getCountFromServer.
+ * Fase 5: Menghitung dokumen pemakai kategori secara akurat dari server via agregasi.
  */
 export async function hitungDokumenPemakaiServer(kategoriId) {
   const target = String(kategoriId || "").trim();
   try {
-    const db = getFirestoreDb();
     // Hanya dokumen aktif yang dihitung: dokumen di Tempat Sampah tidak lagi "memakai"
     // kategori, sejalan dengan dialog Kelola Kategori yang memperingatkan sebelum hapus.
-    const q = target
-      ? query(
-          collection(db, KOLEKSI.DOKUMEN),
-          where("kategoriId", "==", target),
-          where("dihapusAt", "==", null)
-        )
-      : query(
-          collection(db, KOLEKSI.DOKUMEN),
-          where("kategoriId", "==", ""),
-          where("dihapusAt", "==", null)
-        );
-    const snap = await getCountFromServer(q);
-    return snap.data().count;
+    return await hitungItem(KOLEKSI.DOKUMEN, [
+      ["kategoriId", "==", target],
+      ["dihapusAt", "==", null]
+    ]);
   } catch (_e) {
     return hitungDokumenPemakaiLokal(target);
   }
@@ -260,25 +240,24 @@ export async function muatLebihBanyakDokumen() {
   beritahuPerubahanDokumen();
 
   try {
-    const db = getFirestoreDb();
-    const q = query(
-      collection(db, KOLEKSI.DOKUMEN),
-      where("dihapusAt", "==", null),
-      orderBy("tanggalUnggah", "desc"),
-      startAfter(kursorAwal),
-      limit(UKURAN_HALAMAN_DOKUMEN)
-    );
-    const snap = await getDocs(q);
-    snap.forEach((docSnap) => {
-      petaDokumenTambahan.set(docSnap.id, petakanDokumen(docSnap));
+    const { items, meta } = await ambilDaftar(KOLEKSI.DOKUMEN, {
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["tanggalUnggah", "desc"],
+      mulaiSetelah: kursorAwal,
+      batas: UKURAN_HALAMAN_DOKUMEN,
+    });
+    items.forEach((item) => {
+      petaDokumenTambahan.set(item.id, petakanDokumen(item));
     });
 
-    if (!snap.empty) {
-      kursorDokumenTambahan = snap.docs[snap.docs.length - 1];
+    // meta.dokumenTerakhir adalah DocumentSnapshot mentah — satu-satunya bentuk
+    // yang diterima startAfter oleh Firestore.
+    if (meta.dokumenTerakhir) {
+      kursorDokumenTambahan = meta.dokumenTerakhir;
     }
     // Sejak Tahap D kueri sudah menyaring dokumen di Tempat Sampah, sehingga jumlah
     // dokumen yang terbaca sama dengan jumlah dokumen aktif yang akan tampil.
-    adaLebihBanyakDokumenHalaman = snap.docs.length >= UKURAN_HALAMAN_DOKUMEN;
+    adaLebihBanyakDokumenHalaman = meta.jumlah >= UKURAN_HALAMAN_DOKUMEN;
     return null;
   } catch (err) {
     return formatPesanGalatFirestore(err);
@@ -296,15 +275,12 @@ export async function muatLebihBanyakDokumen() {
  * memuat item aktif" tanpa penyaringan tambahan di pemanggil.
  */
 export async function ambilSemuaDokumenSekaliPakai() {
-  const db = getFirestoreDb();
-  const q = query(
-    collection(db, KOLEKSI.DOKUMEN),
-    where("dihapusAt", "==", null),
-    orderBy("tanggalUnggah", "desc")
-  );
-  const snap = await getDocs(q);
-  snap.forEach((docSnap) => {
-    petaDokumenTambahan.set(docSnap.id, petakanDokumen(docSnap));
+  const { items } = await ambilDaftar(KOLEKSI.DOKUMEN, {
+    filter: [["dihapusAt", "==", null]],
+    urutkan: ["tanggalUnggah", "desc"],
+  });
+  items.forEach((item) => {
+    petaDokumenTambahan.set(item.id, petakanDokumen(item));
   });
   beritahuPerubahanDokumen();
   return getDaftarDokumen();
@@ -327,38 +303,37 @@ export function langgananDokumen(opsi = {}) {
     }
   );
 
-  const db = getFirestoreDb();
-  // Fase 5: Listener dibatasi 100 dokumen terbaru. Sejak Tahap D kueri menyaring
-  // dokumen di Tempat Sampah, sehingga 100 baris yang terbaca semuanya tampil.
-  const q = query(
-    collection(db, KOLEKSI.DOKUMEN),
-    where("dihapusAt", "==", null),
-    orderBy("tanggalUnggah", "desc"),
-    limit(UKURAN_HALAMAN_DOKUMEN)
-  );
-
-  unsubscribeSnapshotDokumen = onSnapshot(
-    q,
-    (snapshot) => {
-      petaDokumenHalaman.clear();
-      snapshot.forEach((docSnap) => {
-        petaDokumenHalaman.set(docSnap.id, petakanDokumen(docSnap));
-      });
-
-      if (!snapshot.empty) {
-        lastDocDokumenHalaman = snapshot.docs[snapshot.docs.length - 1];
-      }
-      if (!kursorDokumenTambahan) {
-        adaLebihBanyakDokumenHalaman = snapshot.docs.length >= UKURAN_HALAMAN_DOKUMEN;
-      }
-      sudahDimuatPertamaKali = true;
-      if (typeof opsi.onSukses === "function") opsi.onSukses();
-      beritahuPerubahanDokumen();
+  unsubscribeSnapshotDokumen = langgananKoleksi(
+    KOLEKSI.DOKUMEN,
+    {
+      // Fase 5: Listener dibatasi 100 dokumen terbaru. Sejak Tahap D kueri menyaring
+      // dokumen di Tempat Sampah, sehingga 100 baris yang terbaca semuanya tampil.
+      filter: [["dihapusAt", "==", null]],
+      urutkan: ["tanggalUnggah", "desc"],
+      batas: UKURAN_HALAMAN_DOKUMEN,
     },
-    (err) => {
-      sudahDimuatPertamaKali = true;
-      if (typeof opsi.onGalat === "function") opsi.onGalat(formatPesanGalatFirestore(err));
-      beritahuPerubahanDokumen();
+    {
+      onData: (items, meta) => {
+        petaDokumenHalaman.clear();
+        items.forEach((item) => {
+          petaDokumenHalaman.set(item.id, petakanDokumen(item));
+        });
+
+        if (meta.dokumenTerakhir) {
+          lastDocDokumenHalaman = meta.dokumenTerakhir;
+        }
+        if (!kursorDokumenTambahan) {
+          adaLebihBanyakDokumenHalaman = meta.jumlah >= UKURAN_HALAMAN_DOKUMEN;
+        }
+        sudahDimuatPertamaKali = true;
+        if (typeof opsi.onSukses === "function") opsi.onSukses();
+        beritahuPerubahanDokumen();
+      },
+      onGalat: (err) => {
+        sudahDimuatPertamaKali = true;
+        if (typeof opsi.onGalat === "function") opsi.onGalat(formatPesanGalatFirestore(err));
+        beritahuPerubahanDokumen();
+      }
     }
   );
 }

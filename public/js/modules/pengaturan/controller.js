@@ -614,7 +614,7 @@ export async function jalankanMigrasiDihapusAt() {
 }
 
 // ============================================================================
-// C2. Impor JSON (pratinjau, pilihan lewati/timpa, writeBatch maks 500 operasi)
+// C2. Impor JSON (pratinjau, pilihan lewati/timpa, jalankanBatch maks 500 operasi)
 // ============================================================================
 
 function buatIdDokumenCadangan(indeks) {

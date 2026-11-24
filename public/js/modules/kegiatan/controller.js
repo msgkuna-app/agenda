@@ -6,7 +6,8 @@
  * onPerubahanKegiatan() dari state (pola yang sama dengan modul pengaturan).
  */
 import { DAFTAR_STATUS_KEGIATAN, KOLEKSI, MAKS_UKURAN_BERKAS_MB } from "../../config/constants.js";
-import { getFirestoreDb, collection, doc, addDoc, updateDoc, formatPesanGalatFirestore } from "../../services/firestoreService.js";
+import { tambahItem, perbaruiItem } from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { formatPesanGalatDrive } from "../../services/driveService.js";
 import { svgIkon, escapeHtml } from "../../util-html.js";
 import { formatUkuranBerkas } from "../dokumen/format.js";
@@ -719,20 +720,18 @@ export function initHalamanKegiatan() {
       let berkasGagal = 0;
       let pesanGagalTerakhir = "";
       try {
-        const db = getFirestoreDb();
         if (idEdit) {
-          await updateDoc(doc(db, KOLEKSI.KEGIATAN, idEdit), { ...payload, updatedAt: sekarang });
+          await perbaruiItem(KOLEKSI.KEGIATAN, idEdit, { ...payload, updatedAt: sekarang });
           terapkanPerubahanLokalKegiatan(idEdit, { ...payload, updatedAt: sekarang });
           beritahuPerubahanKegiatan();
         } else {
           // Fase 5: Selalu setel dihapusAt: null pada dokumen baru
-          const refBaru = await addDoc(collection(db, KOLEKSI.KEGIATAN), {
+          idKegiatanTersimpan = await tambahItem(KOLEKSI.KEGIATAN, {
             ...payload,
             dihapusAt: null,
             createdAt: sekarang,
             updatedAt: sekarang
           });
-          idKegiatanTersimpan = refBaru.id;
         }
 
         if (berkasAkanDiunggah.length > 0) {

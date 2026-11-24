@@ -7,13 +7,8 @@
  */
 import { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, NAMA_FOLDER_FOTO, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES, MAKS_PERCOBAAN_RETRY, JEDA_RETRY_DASAR_MS, DRIVE_FILES_API, DRIVE_UPLOAD_API, DRIVE_ABOUT_API, KOLEKSI, DOK_PENGATURAN } from "../config/constants.js";
 export { NAMA_FOLDER_INDUK, NAMA_FOLDER_TANPA_KATEGORI, MIME_TYPE_FOLDER_DRIVE, MIME_TYPE_GOOGLE_DOCS, AMBANG_UNGGAH_RESUMABLE_BYTES, UKURAN_POTONGAN_RESUMABLE_BYTES };
-import {
-  getFirestoreDb,
-  doc,
-  getDoc,
-  setDoc,
-  formatPesanGalatFirestore,
-} from "./firestoreService.js";
+import { ambilSatu, simpanItem } from "./firestoreRepository.js";
+import { formatPesanGalatFirestore } from "./firestoreService.js";
 import { getDriveAccessToken, isDriveTokenExpired, mintaTokenDrive } from "./authService.js";
 
 let cacheRootFolderId = null;
@@ -256,13 +251,8 @@ export async function ambilKapasitasDrive() {
  * Membaca dokumen pengaturan/drive dari Firestore.
  */
 export async function ambilPengaturanDriveFirestore() {
-  const db = getFirestoreDb();
-  const ref = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    return null;
-  }
-  const d = snap.data() || {};
+  const d = await ambilSatu(KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE);
+  if (!d) return null;
   return {
     rootFolderId: String(d.rootFolderId || "").trim(),
     uncategorizedFolderId: String(d.uncategorizedFolderId || "").trim(),
@@ -276,16 +266,10 @@ export async function ambilPengaturanDriveFirestore() {
  * @param {Record<string, unknown>} dataParsial
  */
 async function simpanPengaturanDriveFirestore(dataParsial) {
-  const db = getFirestoreDb();
-  const ref = doc(db, KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE);
-  await setDoc(
-    ref,
-    {
-      ...dataParsial,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  );
+  await simpanItem(KOLEKSI.PENGATURAN, DOK_PENGATURAN.DRIVE, {
+    ...dataParsial,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**

@@ -10,13 +10,10 @@ import {
   KOLEKSI,
 } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  formatPesanGalatFirestore,
-} from "../../services/firestoreService.js";
+  tambahItem,
+  perbaruiItem
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import {
   buatSubfolderKategoriDrive,
   gantiNamaFolderDrive,
@@ -392,8 +389,7 @@ async function jalankanSimpanUlangMetadata() {
 
   try {
     const sekarangIso = new Date().toISOString();
-    const db = getFirestoreDb();
-    await addDoc(collection(db, KOLEKSI.DOKUMEN), {
+    await tambahItem(KOLEKSI.DOKUMEN, {
       ...dataFormUploadPending,
       tanggalUnggah: sekarangIso,
       createdAt: sekarangIso,
@@ -1232,8 +1228,7 @@ function pasangEventModalEdit() {
         await pindahkanBerkasKeFolderDrive(dokLama.driveFileId, folderTujuanId);
       }
 
-      const db = getFirestoreDb();
-      await updateDoc(doc(db, KOLEKSI.DOKUMEN, dokLama.id), {
+      await perbaruiItem(KOLEKSI.DOKUMEN, dokLama.id, {
         namaTampilan: namaTampilanBaru,
         kategoriId: idEfektifBaru,
         catatan: catatanBaru,

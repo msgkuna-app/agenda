@@ -10,13 +10,10 @@ import {
   KOLEKSI
 } from "../../config/constants.js";
 import {
-  getFirestoreDb,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  formatPesanGalatFirestore
-} from "../../services/firestoreService.js";
+  tambahItem,
+  perbaruiItem
+} from "../../services/firestoreRepository.js";
+import { formatPesanGalatFirestore } from "../../services/firestoreService.js";
 import { loginWithGoogle, isDriveTokenExpired, formatPesanGalatAuth } from "../../services/authService.js";
 import { hariIni, parseTanggal } from "../../util-tanggal.js";
 import { tampilkanToast } from "../../shared/toast.js";
@@ -199,14 +196,13 @@ async function simpanFormCatatanSingkat(e) {
   const sekarang = new Date().toISOString();
   if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true;
   try {
-    const db = getFirestoreDb();
     if (idEdit) {
       const perubahan = { judul, tanggal, kategori, tag, kegiatanId, disematkan, updatedAt: sekarang };
       if (jenisEdit === JENIS_CATATAN_SINGKAT) perubahan.isi = isi;
-      await updateDoc(doc(db, KOLEKSI.CATATAN, idEdit), perubahan);
+      await perbaruiItem(KOLEKSI.CATATAN, idEdit, perubahan);
     } else {
       // Fase 5: Setel dihapusAt: null pada dokumen baru
-      await addDoc(collection(db, KOLEKSI.CATATAN), {
+      await tambahItem(KOLEKSI.CATATAN, {
         jenis: JENIS_CATATAN_SINGKAT,
         judul,
         isi,
@@ -371,7 +367,7 @@ async function kirimFormGdoc(e) {
   try {
     const hasilDrive = await buatDokumenGoogleDocsDrive({ judul, htmlKonten });
     const sekarang = new Date().toISOString();
-    await addDoc(collection(getFirestoreDb(), KOLEKSI.CATATAN), {
+    await tambahItem(KOLEKSI.CATATAN, {
       jenis: JENIS_CATATAN_GDOC,
       judul,
       isi: "",
@@ -628,7 +624,7 @@ function ikatDaftarCatatan() {
     if (aksi === "toggle-pin") {
       btn.disabled = true;
       try {
-        await updateDoc(doc(getFirestoreDb(), KOLEKSI.CATATAN, item.id), {
+        await perbaruiItem(KOLEKSI.CATATAN, item.id, {
           disematkan: !item.disematkan,
           updatedAt: new Date().toISOString()
         });

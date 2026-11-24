@@ -1,6 +1,7 @@
 /**
- * Normalisasi Modul Sampah (Tahap B)
- * Mengubah satu Firestore DocumentSnapshot menjadi bentuk baku item Tempat Sampah.
+ * Normalisasi Modul Sampah (Tahap B; Tahap 2-6: menerima objek biasa)
+ * Mengubah satu dokumen Firestore (objek biasa `{ id, ...data }` dari
+ * services/firestoreRepository.js) menjadi bentuk baku item Tempat Sampah.
  * Bentuk baku ini yang dipakai view (judul, tanggal, isi) dan controller (id, kunci).
  * Tanpa DOM dan tanpa akses jaringan.
  *
@@ -10,110 +11,110 @@
 import { KOLEKSI } from "../../config/constants.js";
 
 /** Bentuk baku satu dokumen kegiatan di Tempat Sampah. */
-export function normalkanKegiatan(docSnap) {
-  const d = docSnap.data();
+export function normalkanKegiatan(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
+    id: data.id,
     kunci: KOLEKSI.KEGIATAN,
-    judul: String(d.judul || ""),
-    catatan: String(d.catatan || ""),
-    tanggal: String(d.tanggal || ""),
-    waktuMulai: String(d.waktuMulai || ""),
-    waktuSelesai: String(d.waktuSelesai || ""),
-    lokasi: String(d.lokasi || ""),
-    kategoriId: String(d.kategoriId || ""),
-    status: d.status || "Rencana",
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    judul: String(data.judul || ""),
+    catatan: String(data.catatan || ""),
+    tanggal: String(data.tanggal || ""),
+    waktuMulai: String(data.waktuMulai || ""),
+    waktuSelesai: String(data.waktuSelesai || ""),
+    lokasi: String(data.lokasi || ""),
+    kategoriId: String(data.kategoriId || ""),
+    status: data.status || "Rencana",
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }
 
 /** Bentuk baku satu dokumen catatan di Tempat Sampah. */
-export function normalkanCatatan(docSnap) {
-  const d = docSnap.data();
+export function normalkanCatatan(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
+    id: data.id,
     kunci: KOLEKSI.CATATAN,
-    jenis: d.jenis || "singkat",
-    judul: String(d.judul || ""),
-    isi: String(d.isi || ""),
-    kategori: String(d.kategori || ""),
-    tag: Array.isArray(d.tag) ? d.tag : [],
-    kegiatanId: String(d.kegiatanId || ""),
-    templat: String(d.templat || ""),
-    docId: String(d.docId || ""),
-    tautan: String(d.tautan || ""),
-    driveDiSampah: Boolean(d.driveDiSampah),
-    disematkan: Boolean(d.disematkan),
-    tanggal: String(d.tanggal || ""),
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    jenis: data.jenis || "singkat",
+    judul: String(data.judul || ""),
+    isi: String(data.isi || ""),
+    kategori: String(data.kategori || ""),
+    tag: Array.isArray(data.tag) ? data.tag : [],
+    kegiatanId: String(data.kegiatanId || ""),
+    templat: String(data.templat || ""),
+    docId: String(data.docId || ""),
+    tautan: String(data.tautan || ""),
+    driveDiSampah: Boolean(data.driveDiSampah),
+    disematkan: Boolean(data.disematkan),
+    tanggal: String(data.tanggal || ""),
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }
 
 /** Bentuk baku satu dokumen arsip di Tempat Sampah. */
-export function normalkanDokumen(docSnap) {
-  const d = docSnap.data();
+export function normalkanDokumen(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
+    id: data.id,
     kunci: KOLEKSI.DOKUMEN,
-    judul: String(d.namaTampilan || d.namaFile || ""),
-    namaFile: String(d.namaFile || ""),
-    driveFileId: String(d.driveFileId || ""),
-    mimeType: String(d.mimeType || ""),
-    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
-    kategoriId: String(d.kategoriId || ""),
-    kegiatanId: String(d.kegiatanId || ""),
-    catatan: String(d.catatan || ""),
-    tanggal: String(d.tanggalUnggah || d.createdAt || ""),
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    judul: String(data.namaTampilan || data.namaFile || ""),
+    namaFile: String(data.namaFile || ""),
+    driveFileId: String(data.driveFileId || ""),
+    mimeType: String(data.mimeType || ""),
+    ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
+    kategoriId: String(data.kategoriId || ""),
+    kegiatanId: String(data.kegiatanId || ""),
+    catatan: String(data.catatan || ""),
+    tanggal: String(data.tanggalUnggah || data.createdAt || ""),
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }
 
 /** Bentuk baku satu foto kegiatan di Tempat Sampah. */
-export function normalkanFoto(docSnap) {
-  const d = docSnap.data();
+export function normalkanFoto(d) {
+  const data = d || {};
   return {
-    id: docSnap.id,
+    id: data.id,
     kunci: KOLEKSI.FOTO,
-    judul: String(d.namaFile || ""),
-    namaFile: String(d.namaFile || ""),
-    driveFileId: String(d.driveFileId || ""),
-    kegiatanId: String(d.kegiatanId || ""),
-    mimeType: String(d.mimeType || ""),
-    ukuran: Number.isFinite(Number(d.ukuran)) ? Number(d.ukuran) : 0,
-    catatan: String(d.catatan || ""),
-    tanggal: String(d.createdAt || ""),
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    judul: String(data.namaFile || ""),
+    namaFile: String(data.namaFile || ""),
+    driveFileId: String(data.driveFileId || ""),
+    kegiatanId: String(data.kegiatanId || ""),
+    mimeType: String(data.mimeType || ""),
+    ukuran: Number.isFinite(Number(data.ukuran)) ? Number(data.ukuran) : 0,
+    catatan: String(data.catatan || ""),
+    tanggal: String(data.createdAt || ""),
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }
 
 /** Bentuk baku satu riwayat laporan di Tempat Sampah. */
-export function normalkanLaporan(docSnap) {
-  const d = docSnap.data();
-  const rentang = String(d.rentangTanggal || "");
-  const jumlahBaris = Number.isFinite(Number(d.jumlahBaris)) ? Number(d.jumlahBaris) : 0;
+export function normalkanLaporan(d) {
+  const data = d || {};
+  const rentang = String(data.rentangTanggal || "");
+  const jumlahBaris = Number.isFinite(Number(data.jumlahBaris)) ? Number(data.jumlahBaris) : 0;
   return {
-    id: docSnap.id,
+    id: data.id,
     kunci: KOLEKSI.LAPORAN,
-    judul: String(d.nama || ""),
-    jenis: String(d.jenis || ""),
-    jenisLabel: String(d.jenisLabel || ""),
-    tautan: String(d.tautan || ""),
+    judul: String(data.nama || ""),
+    jenis: String(data.jenis || ""),
+    jenisLabel: String(data.jenisLabel || ""),
+    tautan: String(data.tautan || ""),
     rentangTanggal: rentang,
     jumlahBaris,
     // Baris keterangan siap tampil: kartu Tempat Sampah tidak perlu tahu cara
     // menyusunnya, cukup menampilkan field ini bila tidak kosong.
     keterangan: [rentang, jumlahBaris > 0 ? `${jumlahBaris} baris` : ""].filter(Boolean).join(" • "),
-    tanggal: String(d.tanggalDari || d.createdAt || ""),
-    createdAt: d.createdAt || "",
-    updatedAt: d.updatedAt || "",
-    dihapusAt: d.dihapusAt || null
+    tanggal: String(data.tanggalDari || data.createdAt || ""),
+    createdAt: data.createdAt || "",
+    updatedAt: data.updatedAt || "",
+    dihapusAt: data.dihapusAt || null
   };
 }

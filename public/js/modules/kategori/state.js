@@ -3,7 +3,7 @@
  * Pabrik `buatManajerKategori` — pengelola kategori generik untuk koleksi
  * "kategoriKegiatan" maupun "kategoriDokumen": langganan real-time, pembuatan
  * kategori bawaan anti-duplikat, tambah, ubah, pengurutan naik/turun,
- * penghapusan aman dengan hitungItem (getCountFromServer), serta metadata folder Drive.
+ * penghapusan aman dengan hitungItem (agregasi server), serta metadata folder Drive.
  * TANPA DOM. Instansi manajer dibuat oleh modules/kegiatan/state.js dan
  * modules/dokumen/state.js (Aturan #5, #7, #8, #9, #10, #12).
  */
