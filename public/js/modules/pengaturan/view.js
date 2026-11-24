@@ -43,6 +43,8 @@ const IKON_UNDUH = svgIkon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/
 const IKON_UNGGAH = svgIkon('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>', 18);
 const IKON_SEGAR = svgIkon('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>', 17);
 const IKON_PERINGATAN = svgIkon('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', 18);
+// Penanda buka/tutup untuk kartu pengaturan yang dapat dilipat (<details>).
+const IKON_CHEVRON = svgIkon('<polyline points="6 9 12 15 18 9"/>', 18);
 
 const NAMA_HARI_TABEL = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const NAMA_BULAN_TABEL = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -271,14 +273,15 @@ export function pastikanKerangkaHalamanPengaturan() {
         </div>
       </section>
 
-      <!-- B4b. Teknologi yang Digunakan -->
-      <section class="dash-card" aria-labelledby="settings-tech-heading" style="grid-column: 1 / -1;">
-        <div class="dash-card-header">
+      <!-- B4b. Teknologi yang Digunakan (kartu terlipat) -->
+      <details class="dash-card dash-card-lipat" aria-labelledby="settings-tech-heading" style="grid-column: 1 / -1;">
+        <summary class="dash-card-header dash-card-summary">
           <div class="dash-card-heading-group">
             <h3 id="settings-tech-heading" class="dash-card-title">Teknologi yang Digunakan</h3>
             <span class="dash-card-caption">Fondasi aplikasi: tanpa bundler, langsung di peramban</span>
           </div>
-        </div>
+          <span class="dash-card-chevron" aria-hidden="true">${IKON_CHEVRON}</span>
+        </summary>
         <div class="dash-card-body">
           <dl class="detail-meta-grid">
             <div class="detail-meta-row">
@@ -311,20 +314,23 @@ export function pastikanKerangkaHalamanPengaturan() {
             </div>
           </dl>
         </div>
-      </section>
+      </details>
 
-      <!-- B4c. Kapasitas Layanan -->
-      <section class="dash-card" aria-labelledby="settings-capacity-heading" style="grid-column: 1 / -1;">
-        <div class="dash-card-header">
+      <!-- B4c. Kapasitas Layanan (kartu terlipat, terbuka bawaan) -->
+      <details class="dash-card dash-card-lipat" aria-labelledby="settings-capacity-heading" style="grid-column: 1 / -1;" open>
+        <summary class="dash-card-header dash-card-summary">
           <div class="dash-card-heading-group">
             <h3 id="settings-capacity-heading" class="dash-card-title">Kapasitas Layanan</h3>
             <span class="dash-card-caption">Kapasitas Google Drive &amp; batas paket Firestore</span>
           </div>
-          <button type="button" id="btn-settings-refresh-capacity" class="btn-secondary btn-sm-touch">
-            ${IKON_SEGAR}
-            <span>Perbarui</span>
-          </button>
-        </div>
+          <div class="dash-card-summary-actions">
+            <button type="button" id="btn-settings-refresh-capacity" class="btn-secondary btn-sm-touch">
+              ${IKON_SEGAR}
+              <span>Perbarui</span>
+            </button>
+            <span class="dash-card-chevron" aria-hidden="true">${IKON_CHEVRON}</span>
+          </div>
+        </summary>
         <div class="dash-card-body">
           <h4 class="sub-card-title">Google Drive</h4>
           <dl class="detail-meta-grid">
@@ -424,16 +430,17 @@ export function pastikanKerangkaHalamanPengaturan() {
             </ol>
           </details>
         </div>
-      </section>
+      </details>
 
-      <!-- B5. Pengaturan Hari Libur & Hari Besar -->
-      <section class="dash-card dash-area-libur" aria-labelledby="settings-libur-heading" style="grid-column: 1 / -1;">
-        <div class="dash-card-header">
+      <!-- B5. Pengaturan Hari Libur & Hari Besar (kartu terlipat, terbuka bawaan) -->
+      <details class="dash-card dash-card-lipat dash-area-libur" aria-labelledby="settings-libur-heading" style="grid-column: 1 / -1;" open>
+        <summary class="dash-card-header dash-card-summary">
           <div class="dash-card-heading-group">
             <h3 id="settings-libur-heading" class="dash-card-title">Hari Libur &amp; Hari Besar</h3>
             <span class="dash-card-caption">Tanggal merah kalender, cuti bersama SKB 3 Menteri, dan hari besar</span>
           </div>
-        </div>
+          <span class="dash-card-chevron" aria-hidden="true">${IKON_CHEVRON}</span>
+        </summary>
         <div class="dash-card-body">
           <div class="libur-manage-container">
             <div class="libur-manage-toggles">
@@ -518,17 +525,18 @@ export function pastikanKerangkaHalamanPengaturan() {
             </p>
           </div>
         </div>
-      </section>
+      </details>
     </div>
 
-    <!-- C. Ekspor dan Impor Cadangan JSON -->
-    <section class="dash-card" aria-labelledby="settings-backup-heading">
-      <div class="dash-card-header">
+    <!-- C. Ekspor dan Impor Cadangan JSON (kartu terlipat) -->
+    <details class="dash-card dash-card-lipat" aria-labelledby="settings-backup-heading">
+      <summary class="dash-card-header dash-card-summary">
         <div class="dash-card-heading-group">
           <h3 id="settings-backup-heading" class="dash-card-title">Cadangan Data (Ekspor &amp; Impor JSON)</h3>
           <span class="dash-card-caption">Mencakup kegiatan, kategori kegiatan, dokumen, kategori dokumen, catatan, dan riwayat laporan</span>
         </div>
-      </div>
+        <span class="dash-card-chevron" aria-hidden="true">${IKON_CHEVRON}</span>
+      </summary>
 
       <div class="dash-card-body settings-backup-stack">
         <!-- C3. Peringatan Jelas -->
@@ -646,7 +654,7 @@ export function pastikanKerangkaHalamanPengaturan() {
           <div id="settings-migration-status" style="margin-top: 12px; font-size: 13px;" hidden></div>
         </div>
       </div>
-    </section>
+    </details>
   </div>`;
 
   terapkanTema(prefAwal);

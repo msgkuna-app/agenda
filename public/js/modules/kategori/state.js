@@ -52,6 +52,10 @@ export function buatManajerKategori(konfigurasi) {
   let sedangSeeding = false;
   let sudahCekSeedSesiIni = false;
   const listenersPerubahan = new Set();
+  // Penerima yang didaftarkan oleh panggilan subscribe() terakhir. Hanya penerima ini
+  // yang dilepas oleh unsubscribe(); pendaftar lewat onChange() tetap hidup (dulu ikut
+  // terhapus sehingga dropdown filter kategori tidak pernah tersegarkan lagi).
+  let penerimaSubscribeAktif = null;
 
   function beritahuPerubahan() {
     const salinan = getDaftarKategori();
@@ -120,6 +124,7 @@ export function buatManajerKategori(konfigurasi) {
 
     if (typeof onUpdate === "function") {
       listenersPerubahan.add(onUpdate);
+      penerimaSubscribeAktif = onUpdate;
     }
 
     const db = getFirestoreDb();
@@ -165,6 +170,9 @@ export function buatManajerKategori(konfigurasi) {
 
   /**
    * Menghentikan langganan koleksi kategori dan membersihkan state memori.
+   * Pendaftar onChange() milik modul pemakai (mis. dropdown filter kategori dokumen)
+   * TIDAK dilepas di sini: langganan dipasang ulang setiap login, dan melepasnya
+   * membuat dropdown tidak pernah tersegarkan lagi setelah kategori termuat.
    */
   function unsubscribe() {
     if (typeof unsubscribeSnapshot === "function") {
@@ -175,7 +183,10 @@ export function buatManajerKategori(konfigurasi) {
       }
       unsubscribeSnapshot = null;
     }
-    listenersPerubahan.clear();
+    if (penerimaSubscribeAktif) {
+      listenersPerubahan.delete(penerimaSubscribeAktif);
+      penerimaSubscribeAktif = null;
+    }
     kategoriList = [];
     sudahCekSeedSesiIni = false;
     sedangSeeding = false;

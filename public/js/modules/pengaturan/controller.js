@@ -62,6 +62,7 @@ import {
   onPerubahanCadangan,
   onPerubahanHariLibur,
   simpanPengaturanHariLibur,
+  simpanIntervalCadangan,
   ambilKonfigurasiHariLiburUntukCadangan,
   KOLEKSI_CADANGAN,
 } from "./state.js";
@@ -961,6 +962,15 @@ export function initHalamanPengaturan() {
 
   const panel = document.getElementById("section-pengaturan");
   if (panel) {
+    // Kartu yang dapat dilipat (<details>): klik pada tombol di dalam <summary>
+    // tidak boleh ikut membuka/menutup kartu. Hanya tombol yang dicegah —
+    // preventDefault pada tautan/select/input akan membatalkan aksi aslinya.
+    panel.addEventListener("click", (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target) return;
+      if (target.closest("summary button")) e.preventDefault();
+    }, true);
+
     panel.addEventListener("click", (e) => {
       const target = e.target instanceof Element ? e.target : null;
       if (!target) return;
@@ -984,6 +994,22 @@ export function initHalamanPengaturan() {
       } else if (target.closest("#btn-settings-confirm-import")) {
         jalankanImporDataBatch();
       }
+    });
+  }
+
+  // Pilihan interval pengingat cadangan (sebelumnya tidak pernah tersimpan).
+  const intervalSelect = document.getElementById("settings-backup-interval-select");
+  if (intervalSelect instanceof HTMLSelectElement) {
+    intervalSelect.addEventListener("change", async () => {
+      const nilai = Number(intervalSelect.value);
+      if (!Number.isFinite(nilai) || nilai < 0) return;
+      await simpanIntervalCadangan(nilai);
+      tampilkanToast(
+        nilai === 0
+          ? "Pengingat cadangan dinonaktifkan."
+          : `Pengingat cadangan diatur setiap ${nilai} hari.`,
+        "success"
+      );
     });
   }
 

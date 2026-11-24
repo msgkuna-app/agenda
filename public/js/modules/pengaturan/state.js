@@ -187,15 +187,21 @@ export function hitungSelisihHariCadangan(isoString) {
 export async function muatPengaturanCadangan() {
   let terakhir = null;
   let interval = 14;
+  let terakhirLokal = null;
+  let intervalLokal = null;
 
   try {
     const t = localStorage.getItem(KUNCI_STORAGE_CADANGAN_TERAKHIR);
     if (t) terakhir = t;
+    terakhirLokal = terakhir;
     const inv = localStorage.getItem(KUNCI_STORAGE_CADANGAN_INTERVAL);
     if (inv !== null && !Number.isNaN(Number(inv))) {
       interval = Number(inv);
+      intervalLokal = interval;
     }
   } catch (_e) {}
+
+  let perluTulisUlangServer = false;
 
   try {
     const db = getFirestoreDb();
@@ -203,17 +209,38 @@ export async function muatPengaturanCadangan() {
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const data = snap.data();
-      if (data.terakhirEksporAt) {
+      // Pilih waktu ekspor yang PALING BARU. Dulu nilai server selalu menimpa salinan
+      // lokal sehingga ekspor yang berhasil offline (atau yang tulis servernya gagal)
+      // terasa hilang — pengingat pun muncul lagi setiap hari.
+      if (data.terakhirEksporAt && (!terakhir || String(data.terakhirEksporAt) > terakhir)) {
         terakhir = String(data.terakhirEksporAt);
         try {
           localStorage.setItem(KUNCI_STORAGE_CADANGAN_TERAKHIR, terakhir);
         } catch (_e2) {}
+      } else if (terakhirLokal && String(data.terakhirEksporAt || "") < terakhirLokal) {
+        perluTulisUlangServer = true;
       }
-      if (data.intervalHari !== undefined && Number.isFinite(Number(data.intervalHari))) {
+      // Salinan lokal diutamakan karena perubahan interval bisa saja belum tersimpan
+      // ke server (mis. saat luring).
+      if (intervalLokal === null && data.intervalHari !== undefined && Number.isFinite(Number(data.intervalHari))) {
         interval = Number(data.intervalHari);
         try {
           localStorage.setItem(KUNCI_STORAGE_CADANGAN_INTERVAL, String(interval));
         } catch (_e3) {}
+      }
+    } else if (terakhirLokal) {
+      perluTulisUlangServer = true;
+    }
+
+    // Pulihkan catatan server bila salinan lokal lebih baru (mis. tulis sebelumnya gagal
+    // saat jaringan putus), supaya pengingat tidak muncul lagi pada sesi berikutnya.
+    if (perluTulisUlangServer) {
+      const pemulihan = { terakhirEksporAt: terakhirLokal, updatedAt: new Date().toISOString() };
+      if (intervalLokal !== null) pemulihan.intervalHari = intervalLokal;
+      try {
+        await setDoc(docRef, pemulihan, { merge: true });
+      } catch (_e4) {
+        // Biarkan; salinan lokal tetap dipakai
       }
     }
   } catch (_err) {

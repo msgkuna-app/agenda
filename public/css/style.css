@@ -1983,6 +1983,57 @@ html[data-drawer="open"] .app-sidebar {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* Kartu Pengaturan yang dapat dilipat (memakai <details>/<summary> tanpa JS) */
+/* display:block dipakai khusus di sini: display:flex pada <details> dapat
+   mengganggu penyembunyian isi saat tertutup pada sebagian peramban. */
+.dash-card-lipat {
+  display: block;
+  height: auto;
+}
+.dash-card-lipat[open] > .dash-card-body {
+  margin-top: var(--space-4);
+}
+.dash-card-lipat > .dash-card-summary {
+  cursor: pointer;
+  list-style: none;
+  align-items: flex-start;
+  border-radius: var(--radius-md);
+}
+.dash-card-lipat > .dash-card-summary::-webkit-details-marker {
+  display: none;
+}
+.dash-card-lipat > .dash-card-summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+/* Tombol aksi di dalam header lipat (mis. "Perbarui") tetap dapat diklik
+   tanpa ikut membuka/menutup kartu — lihat preventDefault di controller. */
+.dash-card-summary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.dash-card-chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.dash-card-lipat[open] > .dash-card-summary .dash-card-chevron {
+  transform: rotate(180deg);
+}
+.dash-card-lipat > .dash-card-summary:hover .dash-card-caption,
+.dash-card-lipat > .dash-card-summary:hover .dash-card-title {
+  color: var(--color-accent-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-card-chevron {
+    transition: none;
+  }
+}
 .dash-loading-state {
   min-height: 6rem;
   display: flex;

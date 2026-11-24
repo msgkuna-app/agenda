@@ -830,6 +830,9 @@ export function terapkanFilterKategoriDokumen(targetKategoriId) {
 export function initHalamanDokumen() {
   pastikanKerangkaHalamanDokumen();
   pasangFilterDokumen(document.getElementById("dokumen-toolbar"));
+  // Isi dropdown kategori lebih dulu agar filter tidak tertinggal pada "Semua Kategori"
+  // bila data kategori sudah termuat sebelum halaman ini diinisialisasi.
+  perbaruiDropdownKategoriDokumen();
   perbaruiStatusJaringanDokumen();
   if (sudahDiikat) return;
   sudahDiikat = true;
