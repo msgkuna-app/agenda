@@ -3,8 +3,8 @@
 > Berkas acuan untuk Project Claude. Perbarui setiap selesai satu tahap refactoring,
 > lalu hapus versi lama di Project dan unggah versi baru.
 
-Terakhir diperbarui: 2026-11-24
-Tahap saat ini: **Tahap 2 tuntas — repositori Firestore bermakna, v1.8.51**. `services/firestoreRepository.js` kini satu-satunya pemuat SDK Firestore dan seluruh 13 berkas modul di luar `services/` memakai API bermakna (`langgananKoleksi`, `ambilDaftar`, `ambilSatu`, `tambahItem`, `simpanItem`, `perbaruiItem`, `hapusItem`, `hitungItem`, `jalankanBatch`). Re-export SDK di `firestoreService.js` sudah dicabut (berkas itu tinggal inisialisasi App/Auth/Firestore + `formatPesanGalatFirestore`). Dokumen dikembalikan sebagai objek biasa `{ id, ...data }`; satu-satunya kebocoran bentuk SDK yang disengaja adalah `meta.dokumenTerakhir` (kursor `startAfter`). Bentuk bidang data tidak berubah sehingga `firestore.rules` dan indeks tidak disentuh; deploy cukup `--only hosting`. Tidak ada berkas JS baru, jadi `APP_SHELL` tidak berubah sejak 2-1 (repositori sudah terdaftar). Sebelumnya (v1.8.45): **Hapus lunak tuntas — Tahap D (kueri Firestore)**. Seluruh kueri daftar kini menyaring `where("dihapusAt", "==", null)` di server untuk dokumen (`langgananDokumen`, `muatLebihBanyakDokumen`, `ambilSemuaDokumenSekaliPakai`, `hitungDokumenPemakaiServer`), foto (`langgananFoto`), dan riwayat laporan (`langgananRiwayatLaporan`). Penyaring lokal `!d.dihapusAt` di `getDaftarDokumen()`/`getDaftarFoto()`/`getDaftarLaporan()` **dipertahankan** sebagai jaring pengaman untuk sisa peta dari sesi sebelum pembaruan, bukan lagi mekanisme utama. Konsekuensi paginasi: jumlah dokumen yang terbaca kini sama dengan jumlah dokumen aktif, sehingga `adaLebihBanyakDokumenHalaman` akurat dan satu halaman tidak lagi bisa tampak kosong. Payload impor `dokumen` dan `laporan` di `pengaturan/controller.js` kini menulis `dihapusAt: null` sehingga berkas cadangan lama tanpa field itu tetap dapat diimpor. **Tidak ada indeks Firestore baru**: tiga indeks `(dihapusAt ASC + tanggalUnggah/createdAt DESC)` sudah dibuat pada Tahap A. Sebelumnya (v1.8.44): Tahap C+E — hapus lunak dokumen/foto/laporan, Tempat Sampah lima jenis, pemindahan berkas Drive pada hapus permanen. Sebelumnya (v1.8.43, commit f52d2ed): Tahap B — modul Tempat Sampah berbasis tabel jenis. Sebelumnya (v1.8.42, commit eab2262): Tahap A — rules, indeks, migrasi tabel. Seluruh `RENCANA-HAPUS-LUNAK.md` (A, B, C+E, D) dan `RENCANA-TAHAP2.md` (2-1..2-6) tuntas
+Terakhir diperbarui: 2026-11-25
+Tahap saat ini: **Tahap 2 tuntas — repositori Firestore bermakna, v1.8.51**. `services/firestoreRepository.js` kini satu-satunya pemuat SDK Firestore dan seluruh 13 berkas modul di luar `services/` memakai API bermakna (`langgananKoleksi`, `ambilDaftar`, `ambilSatu`, `tambahItem`, `simpanItem`, `perbaruiItem`, `hapusItem`, `hitungItem`, `jalankanBatch`). Re-export SDK di `firestoreService.js` sudah dicabut (berkas itu tinggal inisialisasi App/Auth/Firestore + `formatPesanGalatFirestore`). Dokumen dikembalikan sebagai objek biasa `{ id, ...data }`; satu-satunya kebocoran bentuk SDK yang disengaja adalah `meta.dokumenTerakhir` (kursor `startAfter`). Bentuk bidang data tidak berubah sehingga `firestore.rules` dan indeks tidak disentuh; deploy cukup `--only hosting`. Tidak ada berkas JS baru, jadi `APP_SHELL` tidak berubah sejak 2-1 (repositori sudah terdaftar). Sebelumnya (v1.8.45): **Hapus lunak tuntas — Tahap D (kueri Firestore)**. Seluruh kueri daftar kini menyaring `where("dihapusAt", "==", null)` di server untuk dokumen (`langgananDokumen`, `muatLebihBanyakDokumen`, `ambilSemuaDokumenSekaliPakai`, `hitungDokumenPemakaiServer`), foto (`langgananFoto`), dan riwayat laporan (`langgananRiwayatLaporan`). Penyaring lokal `!d.dihapusAt` di `getDaftarDokumen()`/`getDaftarFoto()`/`getDaftarLaporan()` **dipertahankan** sebagai jaring pengaman untuk sisa peta dari sesi sebelum pembaruan, bukan lagi mekanisme utama. Konsekuensi paginasi: jumlah dokumen yang terbaca kini sama dengan jumlah dokumen aktif, sehingga `adaLebihBanyakDokumenHalaman` akurat dan satu halaman tidak lagi bisa tampak kosong. Payload impor `dokumen` dan `laporan` di `pengaturan/controller.js` kini menulis `dihapusAt: null` sehingga berkas cadangan lama tanpa field itu tetap dapat diimpor. **Tidak ada indeks Firestore baru**: tiga indeks `(dihapusAt ASC + tanggalUnggah/createdAt DESC)` sudah dibuat pada Tahap A. Sebelumnya (v1.8.44): Tahap C+E — hapus lunak dokumen/foto/laporan, Tempat Sampah lima jenis, pemindahan berkas Drive pada hapus permanen. Sebelumnya (v1.8.43, commit f52d2ed): Tahap B — modul Tempat Sampah berbasis tabel jenis. Sebelumnya (v1.8.42, commit eab2262): Tahap A — rules, indeks, migrasi tabel. Seluruh `RENCANA-HAPUS-LUNAK.md` (A, B, C+E, D) tuntas. Berkas rencana Tahap 2 (`RENCANA-TAHAP2.md`, penomoran lama 2e–2k) sudah dihapus pada 2026-11-25 karena seluruh isinya terlaksana sebagai 2-1..2-6 dan sudah tercatat di dokumen ini.
 
 ## 1. Ringkasan aplikasi
 - Nama: Agenda & Arsip
@@ -74,44 +74,45 @@ PANDUAN-PEMILIK.md   (struktur aplikasi, skema database, pengaturan Firebase/Fir
 Sudah tercapai (Tahap 0–5, 2026-11-21): `js/main.js`, `config/`, `services/`, `shared/`, `modules/<fitur>/{view,controller,state,format}`.
 Catatan: entry point telah diganti nama `app.js` → `main.js` (index.html + APP_SHELL ikut diperbarui).
 
-## 4. Daftar berkas (hasil audit 2026-11-21)
+## 4. Daftar berkas (audit 2026-11-21, diperbarui 2026-11-25)
 
-Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=state/cache, U=util.
+Baris "DIHAPUS" dipertahankan sebagai jejak lokasi baru. Kolom "Kondisi": S=service, V=view/DOM, T=state/cache, U=util. Angka baris hanya berlaku pada berkas yang masih ada dan belum dicatat ulang sejak audit.
 
 | Berkas | Baris | Kondisi | Diimpor oleh | Catatan |
 |---|---|---|---|---|
 | js/dokumen.js | - | DIHAPUS (3d-2) | - | isi kini di modules/dokumen/; 7 konsumen impor dari modules/dokumen/index.js |
-| js/pengaturan.js | 2126 | S+V+T | app | god object #2: cadangan semua koleksi + hari libur + migrasi |
+| js/pengaturan.js | - | DIHAPUS (3b-2) | - | isi kini di modules/pengaturan/; main.js & modules/dashboard impor dari modules/pengaturan/index.js |
 | js/laporan.js | - | DIHAPUS (3-2) | - | isi kini di modules/laporan/; 3 konsumen (app.js, pengaturan controller+view) impor dari modules/laporan/index.js |
 | js/kegiatan.js | - | DIHAPUS (3e-2) | - | isi kini di modules/kegiatan/; 11 konsumen impor dari modules/kegiatan/index.js |
 | js/catatan.js | - | DIHAPUS (3-2) | - | isi kini di modules/catatan/; 10 konsumen impor dari modules/catatan/index.js |
 | js/main.js | - | V (orchestrator) | index.html | Tahap 5: rename dari app.js; dashboard sudah jadi modul |
-| js/drive.js | 1291 | S | app, catatan, dokumen, laporan, pengaturan | sudah service-like, tinggal pindah nama/lokasi |
+| js/drive.js | - | DIHAPUS (Tahap 2c) | - | isi kini di services/driveService.js; 5 modul impor langsung dari sana |
 | js/kategori.js | - | DIHAPUS (3-2) | - | isi kini di modules/kategori/; 9 berkas konsumen impor dari modules/kategori/index.js |
 | js/pencarian-global.js | 955 | V | app | tarik data via `ambilSemuaXSekaliPakai` (OK) |
 | js/sampah.js | - | DIHAPUS (3-2) | - | isi kini di modules/sampah/; 2 konsumen (app.js, dashboard/controller.js) impor dari modules/sampah/index.js |
 | js/jadwal.js | 791 | V | app, pengaturan | |
-| js/sidebar.js | 591 | V+U | 10 modul | tampilkanToast/escapeHtml/pindahKeBagian sebaiknya pindah ke shared |
+| js/sidebar.js | 591 | V+U | 10 modul | **[SELESAI Tahap 4b/4c]** `tampilkanToast` → `shared/toast.js`, `escapeHtml` → `util-html.js`; sidebar.js kini hanya fungsi sidebar asli |
 | js/timeline-harian.js | 546 | U+V | app | sudah bersih |
-| js/auth.js | 403 | S | app, catatan, dokumen, drive, laporan, pengaturan | GIS token + Firestore auth |
+| js/auth.js | - | DIHAPUS (Tahap 2c) | - | isi kini di services/authService.js (GIS token + Firebase Auth) |
 | js/filter-panel.js | 314 | V+U | catatan, dokumen, kegiatan | sudah bersih |
 | js/templat-dokumen.js | 309 | U+D | catatan | D=data templat |
 | js/hari-libur.js | 297 | U+D | app, jadwal, kegiatan, pengaturan | |
 | js/pwa.js | 236 | S | app, pengaturan | sudah terpisah dari app.js |
 | js/boot-tema.js | 178 | V (boot) | index.html (sinkron) | hardcode "agenda_arsip_tema" — duplikasi kunci dgn constants |
-| js/firebase-config.js | 93 | config+S | 11 modul | jembatan SDK; target: pecah jadi services/firestoreService |
+| js/firebase-config.js | - | DIHAPUS (Tahap 2a) | - | isi kini di services/firestoreService.js (inisialisasi) + services/firestoreRepository.js (SDK & CRUD) |
 | js/util-html.js | 101 | U | 6 modul | sumber kebenaran escapeHtml/svgIkon/nama hari-bulan |
 | js/tema.js | 86 | U+V | app, pengaturan | |
 | js/config/constants.js | 82 | config | 13 modul | terpusat, bagus |
 | js/util-tanggal.js | 81 | U | 10 modul | sudah bersih |
-| js/config/firebase.js | 33 | config | firebase-config.js | terpusat, bagus |
+| js/config/firebase.js | 33 | config | firestoreService.js | terpusat, bagus |
+| js/services/firestoreRepository.js | ±215 | S | seluruh modul fitur | Tahap 2-1..2-6: satu-satunya pemuat SDK Firestore + API CRUD bermakna; mengembalikan objek `{ id, ...data }` |
 
 ## 5. Temuan audit (2026-11-21)
 
 ### God object
-- `app.js` (1.324): modul Dashboard tersembunyi di entry point (renderDashboard, initHalamanDashboard, render kartu kegiatan/dokumen/catatan, banner cadangan) + pemantau token Drive.
-- `pengaturan.js` (2.126): cadangan JSON seluruh koleksi + pengaturan hari libur + migrasi `dihapusAt` + UI.
-- `dokumen.js` (2.140): CRUD Firestore + unggah Drive + kategori + filter + render + pagination dalam satu berkas.
+- **[SELESAI 2026-11-21, Tahap 3a]** `app.js` (1.324 baris) dipecah: blok Dashboard pindah ke `modules/dashboard/`, entry point berganti nama menjadi `main.js` (±660 baris) pada Tahap 5.
+- **[SELESAI 2026-11-21, Tahap 3b+3b-2]** `pengaturan.js` (2.126 baris) → `modules/pengaturan/`; jembatan dihapus.
+- **[SELESAI 2026-11-21, Tahap 3d+3d-2]** `dokumen.js` (2.140 baris) → `modules/dokumen/`; jembatan dihapus.
 
 ### Config yang tersebar / duplikasi kunci
 - `boot-tema.js:14` hardcode `"agenda_arsip_tema"` (keterbatasan skrip klasik; harus dijaga sinkron dgn `config/constants.js`).
@@ -120,7 +121,7 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 ### Pemanggilan API langsung di views (melanggar aturan #3)
 - **[SELESAI 2026-11-24, Tahap 2-1..2-6]** Seluruh modul halaman kini memakai `services/firestoreRepository.js`. Pemanggilan `collection`/`doc`/`addDoc`/`setDoc`/`getDoc`/`getDocs`/`updateDoc`/`deleteDoc`/`onSnapshot`/`query`/`where`/`orderBy`/`limit`/`startAfter`/`writeBatch`/`getCountFromServer` dan `getFirestoreDb()` di luar `services/` sudah nol (diaudit dengan pencarian teks). `services/driveService.js` juga memakai repositori untuk dokumen `pengaturan/drive`.
 - [SELESAI 2026-11-21, Tahap 2d] `laporan.js` memanggil Sheets API (SHEETS_API_BASE) langsung di modul view. Panggilan kini terisolasi di services/sheetsService.js (panggilSheetsApi + buatErrorSheets); modules/laporan/sheets.js DIHAPUS; URL tetap disusun controller dari konstanta SHEETS_API_BASE (config).
-- `drive.js` de-facto driveService tapi diimpor langsung oleh 5 modul (belum lewat lapisan service resmi).
+- **[SELESAI 2026-11-21, Tahap 2c]** `drive.js` de-facto driveService dan diimpor 5 modul; kini menjadi `services/driveService.js` di lapisan service resmi, dan sejak Tahap 2-6 akses dokumen `pengaturan/drive` di dalamnya memakai `ambilSatu`/`simpanItem` dari repositori.
 
 ### Kode duplikat
 - [SELESAI 2026-11-21, Tahap 4a+4d] `svgIkon` duplikat 6x -> kini semua modul (termasuk jadwal.js) mengimpor dari util-html.js.
@@ -129,14 +130,14 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 
 ### Dependensi melingkar
 - [SELESAI 2026-11-21, Tahap 3e] Siklus `kegiatan⇄catatan` diputus: modules/catatan tidak lagi mengimpor modul kegiatan; state.js menerima sumber data kegiatan lewat `daftarkanSumberKegiatan({ getDaftar, onPerubahan })` yang dipanggil app.js sebelum `subscribeKegiatan()`/`subscribeCatatan()`. Bila registrasi terlewat, halaman catatan tetap berjalan — hanya pilihan "kegiatan terkait" yang kosong (bawaan aman).
-- Fan-in berisiko: `sidebar.js` (10) menyimpan utility non-sidebar; `kegiatan.js` (8).
+- Fan-in berisiko (audit 2026-11-21): `sidebar.js` (10) dahulu menyimpan utility non-sidebar; `kegiatan.js` (8). Keduanya sudah dibereskan pada Tahap 3/4 — lihat butir di bawah.
 - [SELESAI 2026-11-21, Tahap 4b] `tampilkanToast` (±130 baris) dipindah dari sidebar.js ke shared/toast.js; sidebar.js kini re-export demi kompatibilitas; 5 konsumen (app, catatan, kegiatan, pengaturan, sampah) kini impor langsung dari shared/toast.js.
 - [SELESAI 2026-11-21, Tahap 4c] `escapeHtml` tidak lagi diimpor lewat sidebar.js di modul mana pun; 7 modul kini impor langsung dari util-html.js. sidebar.js hanya diimpor untuk fungsi sidebar asli (initSidebar, pindahKeBagian, perbaruiInfoAkunSidebar, perbaruiStatusKoneksiSidebar, tutupDrawerMobile, getActiveSectionId, bukaDrawerMobile). Re-export di sidebar.js (escapeHtml, escapeAtribut, tampilkanToast) SUDAH DIHAPUS pada pembersihan jembatan 2026-11-21 setelah dipastikan tak ada konsumen; sidebar.js hanya diekspor untuk fungsi sidebar asli (initSidebar, pindahKeBagian, perbaruiInfoAkunSidebar, perbaruiStatusKoneksiSidebar, tutupDrawerMobile, getActiveSectionId, bukaDrawerMobile).
 
 ### Poin positif (jangan dirusak saat refactor)
 - Config sudah terpusat di `js/config/` (Tahap 1 prakteknya sudah tercapai; tinggal formalisasi).
-- Entry point tunggal `app.js`; `boot-tema.js` sinkron anti-FOUC di head.
-- `pwa.js` sudah terpisah; `buatManajerKategori` (kini modules/kategori/state.js) adalah pola factory yang tepat untuk ditiru di service generik.
+- Entry point tunggal `main.js` (nama lama `app.js`); `boot-tema.js` sinkron anti-FOUC di head.
+- `pwa.js` sudah terpisah; `buatManajerKategori` (kini modules/kategori/state.js) adalah pola factory yang tepat — dan menjadi cikal bakal API deklaratif `services/firestoreRepository.js` (Tahap 2-1..2-6).
 - util kecil (`util-tanggal` 81, `util-html` 101) sudah bersih dan jadi sumber kebenaran.
 
 ## 6. Progres tahap
@@ -188,5 +189,6 @@ Total JS: 18.581 baris / 25 berkas. Kolom "Kondisi": S=service, V=view/DOM, T=st
 - PENTING pengujian: sw.js VERSION (kini v1.8.51) meng-precache semua berkas JS di APP_SHELL. Setelah mengubah JS, naikkan VERSION di sw.js DAN VERSI_CADANGAN_SW di js/config/constants.js bersamaan, plus daftarkan berkas JS baru di APP_SHELL.
 - Kendala yang sudah dipastikan (2026-11-24): Cloud Monitoring API menolak proyek ini dengan 403 "requires billing to be enabled" selama belum ada akun penagihan tertaut. Pemakaian Firestore otomatis TIDAK akan berfungsi pada paket Spark — baik lewat pemanggilan klien maupun Cloud Function (deploy Cloud Function pun mensyaratkan Blaze). Jangan mengulang percobaan ini tanpa memastikan penagihan proyek sudah aktif.
 - Bug/perilaku yang harus dijaga: siklus `kegiatan<->catatan` saat ini berfungsi (ES module hoisting); saat memutus siklus, pastikan modal "catatan terkait kegiatan" tetap jalan.
-- Urutan kerja yang disarankan hasil audit: (1) pindahkan toast/escapeHtml keluar dari sidebar.js, (2) bentuk services/firestoreService + driveService dari pola yang sudah ada, (3) pecah app.js -> dashboard module, (4) pecah pengaturan.js, dokumen.js.
+- ~~Urutan kerja yang disarankan hasil audit: (1) pindahkan toast/escapeHtml keluar dari sidebar.js, (2) bentuk services/firestoreService + driveService dari pola yang sudah ada, (3) pecah app.js -> dashboard module, (4) pecah pengaturan.js, dokumen.js.~~ **[SELESAI]** Keempatnya tuntas pada 2026-11-21 (Tahap 2a–2d, 3, 4), disusul Tahap 2-1..2-6 (repositori Firestore) pada 2026-11-24/25.
+- Prioritas berikutnya yang masih terbuka (belum ada rencana tertulis): (a) `boot-tema.js` masih menduplikasi kunci tema — keterbatasan skrip klasik, hanya bisa dibereskan dengan mengubah cara boot; (b) beberapa `modules/*/state.js` (kegiatan, sampah, pengaturan, dokumen) mendekati atau melewati panduan 250 baris per berkas; (c) `sidebar.js` masih menjadi rumah beberapa util selain fungsi sidebar; (d) pemakaian Firestore otomatis tetap mustahil pada paket Spark (lihat butir kendala di atas).
 - Keputusan yang sudah diambil: struktur target tidak berubah; entry point baru diberi nama `main.js` — SUDAH DIJALANKAN pada Tahap 5.

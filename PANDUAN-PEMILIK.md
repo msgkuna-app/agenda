@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-22 — versi aplikasi **v1.8.38**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.51**
 
 ---
 
@@ -54,10 +54,12 @@ C:\agenda-arsip\
         constants.js       semua konstanta (email pemilik, scope, endpoint, kunci storage, kuota)
         firebase.js        firebaseConfig + OAuth Client ID  ← titik utama "ganti proyek"
       services\
-        firestoreService.js  satu-satunya jalur SDK Firebase (app/auth/firestore + re-export)
+        firestoreService.js  inisialisasi App/Auth/Firestore + pesan galat (tidak lagi me-re-export SDK)
+        firestoreRepository.js  satu-satunya pemuat SDK Firestore + CRUD bermakna untuk semua modul
         authService.js       Firebase Auth + token GIS Drive (scope drive.file)
         driveService.js      seluruh Google Drive API v3 (folder, unggah, thumbnail, sampah)
         sheetsService.js     Google Sheets API v4 (pembuatan laporan)
+        monitoringService.js Cloud Monitoring API v3 (pemakaian Firestore; dorman di paket Spark)
       shared\toast.js       notifikasi toast
       modules\
         dashboard\          state | view | controller | index
@@ -67,7 +69,7 @@ C:\agenda-arsip\
         foto\               state | view | controller | index (menempel pada kartu kegiatan)
         laporan\            state | format | view | controller | index
         kategori\           format | state | view | controller | index
-        sampah\             format | state | view | controller | index
+        sampah\             format | normalisasi | state | view | controller | index
         pengaturan\         state | view | controller | index
       jadwal.js             kalender bulanan + agenda (memakai view modul kegiatan/dokumen)
       pencarian-global.js   pencarian lintas koleksi (Ctrl+K, "/")
@@ -111,7 +113,7 @@ Aturan yang wajib dipatuhi saat mengubah kode:
 | `dokumen` | Dokumen | arsip dokumen Google Drive + kategori/folder |
 | `catatan` | Catatan | catatan singkat + catatan Google Docs |
 | `laporan` | Laporan | rekapitulasi + ekspor ke Google Sheets / CSV |
-| `sampah` | Tempat Sampah | item terhapus, pulihkan sebelum 30 hari |
+| `sampah` | Tempat Sampah | kegiatan/catatan/dokumen/foto/laporan terhapus, pulihkan sebelum 30 hari |
 | `pengaturan` | Pengaturan | tema, status akun & Drive, sinkron folder, cadangan JSON, info aplikasi |
 
 Menu didefinisikan di `public/js/sidebar.js` (`MENU_SECTIONS`). Urutan array menentukan
@@ -123,7 +125,7 @@ Setiap modul mengikuti pola yang sama:
 
 | Berkas | Peran |
 |---|---|
-| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. |
+| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). |
 | `format.js` | format tampilan (tanggal, ukuran, ikon jenis berkas) |
 | `view.js` | perakitan HTML & pembacaan DOM. Tanpa API. |
 | `controller.js` | event listener, delegasi klik, orkestrasi state ↔ view |
@@ -238,25 +240,36 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 
 | Koleksi | Urutan field | Dipakai untuk |
 |---|---|---|
-| `kegiatan` | `dihapusAt` ASC, `tanggal` ASC | daftar kegiatan aktif urut tanggal naik |
-| `kegiatan` | `dihapusAt` ASC, `tanggal` DESC | daftar kegiatan terbaru |
-| `catatan` | `dihapusAt` ASC, `updatedAt` DESC | catatan terbaru |
+| `kegiatan` | `dihapusAt` ASC, `tanggal` ASC | daftar kegiatan aktif urut tanggal naik (jendela kalender) |
+| `kegiatan` | `dihapusAt` ASC, `tanggal` DESC | daftar kegiatan terbaru (halaman + paginasi) |
+| `catatan` | `dihapusAt` ASC, `updatedAt` DESC | catatan terbaru (halaman + paginasi) |
 | `catatan` | `dihapusAt` ASC, `tanggal` ASC | catatan per tanggal |
+| `dokumen` | `dihapusAt` ASC, `tanggalUnggah` DESC | arsip dokumen terbaru + paginasi |
+| `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
+| `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
+
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.51 —
+Tahap D dan Tahap 2 tidak menambah kueri gabungan baru, sehingga deploy cukup `--only hosting`.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
 salin indeks itu ke berkas ini agar ikut ter-deploy.
 
 ### 3.5 Hapus lunak & Tempat Sampah
 
-- `kegiatan` dan `catatan` memakai `dihapusAt` (ISO string). Item terhapus **tidak** ikut
-  kueri halaman biasa (`where("dihapusAt", "==", null)`).
+- **Kelima koleksi** — `kegiatan`, `catatan`, `dokumen`, `foto`, `laporan` — memakai `dihapusAt`
+  (ISO string). Item terhapus **tidak** ikut kueri halaman biasa karena setiap kueri daftar
+  menyaring `where("dihapusAt", "==", null)` di server; Tempat Sampah memakai
+  `where("dihapusAt", "!=", null)`.
 - Dokumen lama yang dibuat sebelum fitur ini **tidak punya** field `dihapusAt`, sehingga tidak
-  cocok dengan `== null`. Pengaturan menyediakan tombol **Migrasi `dihapusAt`** untuk
-  menambahkan field itu secara idempoten (batch maks 500).
-- Pemulihan & penghapusan permanen ditangani modul `sampah`; pembersihan otomatis untuk item
-  lebih dari 30 hari.
-- Untuk catatan bertipe `gdoc`, penghapusan juga memindahkan berkas Google Docs ke sampah Drive
-  (`driveDiSampah`).
+  cocok dengan `== null` (dan tidak muncul di Tempat Sampah). Pengaturan menyediakan tombol
+  **Migrasi `dihapusAt`** untuk menambahkan field itu secara idempoten (batch maks 500) pada
+  kelima koleksi. Setiap jalur pembuatan dokumen baru juga wajib menulis `dihapusAt: null`.
+- Hapus lunak **tidak menyentuh Google Drive**, sehingga berhasil juga saat luring. Berkas Drive
+  baru dipindahkan ke Sampah Google Drive pada **hapus permanen** (tombol per item, tombol
+  Kosongkan, dan pembersihan otomatis >30 hari). Karena itu hapus permanen item berberkas
+  **ditolak saat luring** agar berkas tidak menjadi yatim.
+- Untuk catatan bertipe `gdoc`, penghapusan menandai `driveDiSampah` dan pemulihannya mencoba
+  mengembalikan dokumen dari Sampah Drive.
 
 ### 3.6 Kuota paket Spark
 
@@ -338,7 +351,10 @@ Nilai ini diambil dari **Firebase Console → Project settings → General → Y
 `apiKey` Firebase boleh tampil di sisi klien (bukan rahasia); keamanan sebenarnya ada pada
 `firestore.rules` dan pembatasan HTTP referrer pada API key.
 
-SDK dimuat dari CDN gstatic v11.4.0 (dinamis, tanpa bundler) melalui `services/firestoreService.js`.
+SDK dimuat dari CDN gstatic v11.4.0 (dinamis, tanpa bundler): App/Auth lewat
+`services/firestoreService.js`, dan plambing Firestore (collection/query/onSnapshot dan
+sejenisnya) hanya lewat `services/firestoreRepository.js` — modul fitur tidak pernah
+menyentuh SDK secara langsung.
 
 ### 5.3 Authentication
 
@@ -597,7 +613,11 @@ Setelah itu **pemilik lama sebaiknya mencabut perannya sendiri** agar benar-bena
 - [ ] Unggah satu foto kegiatan → muncul di `Agenda-Arsip/Foto Kegiatan`.
 - [ ] Buat satu laporan → Google Sheets berhasil dibuat.
 - [ ] Ekspor JSON berhasil; impor JSON ke data uji berhasil.
-- [ ] Hapus satu item → muncul di Tempat Sampah dan dapat dipulihkan.
+- [ ] Hapus satu item dari tiap jenis (kegiatan, catatan, dokumen, foto, laporan) → semuanya
+      muncul di Tempat Sampah, dapat dipulihkan, dan hapus permanen satu dokumen berberkas
+      memindahkan berkasnya ke Sampah Google Drive.
+- [ ] Kelola Kategori (kegiatan & dokumen): tambah, ubah warna, geser urutan, dan penghitung
+      pemakai menolak penghapusan kategori yang masih dipakai.
 - [ ] Kapasitas Drive menampilkan angka akun baru.
 - [ ] Service worker memperbarui aplikasi (versi di Pengaturan = `VERSION` terbaru).
 
