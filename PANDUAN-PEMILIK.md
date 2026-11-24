@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.69**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.70**
 
 ---
 
@@ -112,7 +112,7 @@ Aturan yang wajib dipatuhi saat mengubah kode:
 | ID section | Label | Isi |
 |---|---|---|
 | `dashboard` | Dashboard | ringkasan hari ini, jadwal mendatang, pintasan |
-| `kegiatan` | Kegiatan | daftar kegiatan, foto & dokumen terkait, filter status/kategori; sejak v1.8.69 kegiatan berturutan tampil sebagai satu kartu per hari, dengan lampiran dan notulensi mengikuti hari kartu itu |
+| `kegiatan` | Kegiatan | daftar kegiatan, foto & dokumen terkait, filter status/kategori; sejak v1.8.69 kegiatan berturutan tampil sebagai satu kartu per hari, dengan lampiran dan notulensi mengikuti hari kartu itu; sejak v1.8.70 kartunya dikelompokkan per tanggal seperti Daftar Agenda di halaman Jadwal |
 | `jadwal` | Jadwal | kalender bulanan + agenda; sejak v1.8.65 juga menampilkan foto kegiatan dan menyaring lampiran sesuai hari yang dibuka; sejak v1.8.66 kartunya memuat informasi & tombol yang sama dengan halaman Kegiatan (catatan terkait, Rincian, Buat notulensi, Ubah, Hapus); sejak v1.8.67 notulensi yang dibuat dari kartu bertanggal hari kartu itu; sejak v1.8.68 Daftar Agenda 30 hari menampilkan kegiatan berturutan pada **setiap** harinya, bukan hanya hari pertama |
 | `dokumen` | Dokumen | arsip dokumen Google Drive + kategori/folder |
 | `catatan` | Catatan | catatan singkat + catatan Google Docs |
@@ -257,7 +257,7 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 | `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
 | `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
 
-Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.69 —
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.70 —
 Tahap 6, Tahap 7a, Tahap 7b, Tahap 8a, dan Tahap 8b tidak menambah kueri gabungan baru: kolom
 baru `tanggalSelesai` (kegiatan berturutan), `dokumen.tanggal`, dan `foto.tanggal` hanya dibaca
 di sisi aplikasi dan seluruh kueri tetap menyaring kolom `tanggal` (kegiatan) atau

@@ -6,7 +6,7 @@
  * memengaruhi tampilan.
  */
 import { DAFTAR_STATUS_KEGIATAN, MAKS_HARI_RENTANG } from "../../config/constants.js";
-import { escapeHtml, svgIkon } from "../../util-html.js";
+import { escapeHtml, svgIkon, NAMA_HARI, NAMA_BULAN } from "../../util-html.js";
 import { TANPA_KATEGORI_INFO } from "../kategori/index.js";
 import { initFilterPanel } from "../../filter-panel.js";
 import { parseTanggal, jumlahHariRentang, akhiriRentang, geserTanggal } from "../../util-tanggal.js";
@@ -368,6 +368,76 @@ function renderKartuKegiatan(item, sedangOnline) {
   </article>`;
 }
 
+/**
+ * Mengelompokkan kartu menurut tanggalnya, menyerupai "Daftar Agenda" pada halaman
+ * Jadwal. Kegiatan satu hari memakai `tanggal`; kartu hasil pemecahan memakai
+ * `tanggalHari`. Urutan grup mengikuti pilihan Urutan Tanggal pengguna, sedangkan
+ * urutan di dalam grup mengikuti urutan kegiatan yang sudah tersaring.
+ * @param {Array} daftarKartu
+ * @returns {Array<[string, Array]>}
+ */
+function kelompokkanKartuPerTanggal(daftarKartu) {
+  const peta = new Map();
+  daftarKartu.forEach((item) => {
+    const kunci = String(item.tanggalHari || item.tanggal || "");
+    if (!peta.has(kunci)) peta.set(kunci, []);
+    peta.get(kunci).push(item);
+  });
+  const kunciUrut = Array.from(peta.keys()).sort((a, b) => {
+    // Kartu tanpa tanggal sah diletakkan paling akhir, bukan di puncak daftar.
+    if (!a) return 1;
+    if (!b) return -1;
+    return a.localeCompare(b);
+  });
+  if (urutanTanggal === "desc") {
+    const tanpaTanggal = kunciUrut.filter((k) => !k);
+    const bertanggal = kunciUrut.filter((k) => k).reverse();
+    return [...bertanggal, ...tanpaTanggal].map((k) => [k, peta.get(k)]);
+  }
+  return kunciUrut.map((k) => [k, peta.get(k)]);
+}
+
+/** Judul kelompok tanggal: "Senin, 25 November 2026". */
+function judulTanggalGrup(tanggalStr) {
+  const obj = parseTanggal(tanggalStr);
+  if (!obj) return "Tanpa tanggal";
+  return `${NAMA_HARI[obj.getDay()]}, ${obj.getDate()} ${NAMA_BULAN[obj.getMonth()]} ${obj.getFullYear()}`;
+}
+
+/** Satu kelompok tanggal berisi kartu-kartu kegiatannya. */
+function renderGrupTanggal(tanggalStr, daftarItem, sedangOnline) {
+  const infoGrup = tanggalStr ? infoHari(tanggalStr) : null;
+
+  let labelLibur = "";
+  if (infoGrup) {
+    if (infoGrup.libur.length > 0) {
+      labelLibur = infoGrup.libur
+        .map((l) => (l.jenis === "cuti" ? `Cuti bersama: ${l.nama}` : l.nama))
+        .join(", ");
+    } else if (infoGrup.minggu) {
+      labelLibur = "Hari Minggu";
+    }
+  }
+  const labelHariBesar =
+    infoGrup && infoGrup.hariBesar.length > 0
+      ? infoGrup.hariBesar.map((h) => h.nama).join(", ")
+      : "";
+
+  return `<section class="agenda-day-group" aria-label="${escapeHtml(judulTanggalGrup(tanggalStr))}">
+    <div class="agenda-day-header">
+      <div class="agenda-day-title-wrap">
+        <h3 class="agenda-day-title${infoGrup && infoGrup.merah ? " text-libur" : ""}">
+          ${escapeHtml(judulTanggalGrup(tanggalStr))}
+          ${labelLibur ? ` • <span class="agenda-holiday-tag">${escapeHtml(labelLibur)}</span>` : ""}
+          ${labelHariBesar ? ` • <span class="agenda-haribesar-tag">${escapeHtml(labelHariBesar)}</span>` : ""}
+        </h3>
+        <span class="agenda-day-count">${daftarItem.length} kegiatan</span>
+      </div>
+    </div>
+    <div class="kegiatan-list-grid">${daftarItem.map((item) => renderKartuKegiatan(item, sedangOnline)).join("")}</div>
+  </section>`;
+}
+
 export function renderDaftarKegiatan() {
   const region = document.getElementById("kegiatan-list-region");
   const barFilterAktif = document.getElementById("kegiatan-active-filter-bar");
@@ -416,8 +486,11 @@ export function renderDaftarKegiatan() {
   }
 
   const sedangOnline = navigator.onLine;
-  const htmlKartu = kartuHasil
-    .map((item) => renderKartuKegiatan(item, sedangOnline))
+  // Kartu dikelompokkan per tanggal seperti "Daftar Agenda" pada halaman Jadwal,
+  // sehingga kegiatan berturutan terbaca sebagai rangkaian hari, bukan tumpukan
+  // kartu seragam.
+  const htmlGrup = kelompokkanKartuPerTanggal(kartuHasil)
+    .map(([tgl, daftarItem]) => renderGrupTanggal(tgl, daftarItem, sedangOnline))
     .join("");
 
   const tombolMuatLebih = getAdaLebihBanyakKegiatan()
@@ -428,7 +501,7 @@ export function renderDaftarKegiatan() {
       </div>`
     : "";
 
-  region.innerHTML = `<div class="kegiatan-list-grid">${htmlKartu}</div>${tombolMuatLebih}`;
+  region.innerHTML = `<div class="agenda-groups-stack">${htmlGrup}</div>${tombolMuatLebih}`;
 }
 
 // --- Formulir & petunjuk -----------------------------------------------------
