@@ -39,9 +39,23 @@ export const INTERVAL_CEK_TOKEN_DRIVE_MS = 30 * 1000;
 export const STORAGE_TOKEN_KEY_LAMA = "agenda_arsip_drive_token";
 export const STORAGE_TOKEN_TS_KEY_LAMA = "agenda_arsip_drive_token_ts";
 
-// Kunci localStorage / sessionStorage (boot-tema.js adalah skrip klasik: duplikat kunci tema & sidebar di sana WAJIB sama)
-export const STORAGE_KEY_TEMA = "agenda_arsip_tema";
-export const STORAGE_SIDEBAR_KEY = "agenda_arsip_sidebar";
+// Kunci localStorage / sessionStorage.
+// Sumber tunggalnya adalah atribut pada <html> di index.html (data-kunci-*), karena
+// js/boot-tema.js berjalan sebagai skrip klasik sebelum modul apa pun dimuat dan tidak
+// bisa mengimpor berkas ini. Literal di bawah hanya jaring pengaman bila atribut tidak ada
+// (mis. dokumen lama yang masih tersimpan di cache) — jangan mengubahnya tanpa mengubah
+// index.html juga.
+function kunciDariHtml(namaAtribut, cadangan) {
+  try {
+    const nilai = document.documentElement.getAttribute(namaAtribut);
+    return nilai || cadangan;
+  } catch (_e) {
+    return cadangan;
+  }
+}
+
+export const STORAGE_KEY_TEMA = kunciDariHtml("data-kunci-tema", "agenda_arsip_tema");
+export const STORAGE_SIDEBAR_KEY = kunciDariHtml("data-kunci-sidebar", "agenda_arsip_sidebar");
 export const KUNCI_STORAGE_TAMPILAN_HARI_INI = "agenda_arsip_dashboard_hari_ini";
 export const KUNCI_TUNDA_UPDATE_SW = "agenda_arsip_update_ditunda";
 export const KUNCI_STORAGE_CADANGAN_TERAKHIR = "agenda_arsip_cadangan_terakhir";
@@ -104,7 +118,7 @@ export const KOLEKSI_HAPUS_LUNAK = Object.freeze([
 ]);
 
 // Versi cadangan bila sw.js tidak terbaca. WAJIB sama dengan VERSION di sw.js (skrip klasik, tidak bisa mengimpor).
-export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.60";
+export const VERSI_CADANGAN_SW = "agenda-arsip-v1.8.62";
 
 // Batas paket gratis Firestore (Spark). Nilai teks dipakai pada kartu "Kapasitas Layanan"
 // di Pengaturan; nilai angka dipakai untuk menghitung persentase pemakaian.

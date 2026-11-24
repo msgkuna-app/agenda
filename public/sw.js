@@ -1,5 +1,5 @@
 // Versi ini harus sama dengan VERSI_CADANGAN_SW di js/config/constants.js
-const VERSION = "agenda-arsip-v1.8.60";
+const VERSION = "agenda-arsip-v1.8.62";
 
 const APP_SHELL = [
   "/",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "/manifest.webmanifest",
   "/css/style.css",
   "/js/boot-tema.js",
+  "/js/jaring-sesi.js",
   "/js/util-html.js",
   "/js/main.js",
   "/js/services/firestoreService.js",
@@ -19,6 +20,13 @@ const APP_SHELL = [
   "/js/util-tanggal.js",
   "/js/hari-libur.js",
   "/js/tema.js",
+  "/js/sidebar/menu-bagian.js",
+  "/js/sidebar/gulir.js",
+  "/js/sidebar/status-koneksi.js",
+  "/js/sidebar/akun.js",
+  "/js/sidebar/drawer.js",
+  "/js/sidebar/tooltip.js",
+  "/js/sidebar/navigasi.js",
   "/js/sidebar.js",
   "/js/shared/toast.js",
   "/js/filter-panel.js",

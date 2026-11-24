@@ -4,7 +4,7 @@
 > Firestore / Google Cloud Console, serta langkah-langkah bila kepemilikan aplikasi
 > dialihkan ke pemilik (akun Google) lain.
 >
-> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.60**
+> Diperbarui: 2026-11-25 — versi aplikasi **v1.8.62**
 
 ---
 
@@ -48,8 +48,11 @@ C:\agenda-arsip\
     css\style.css          seluruh gaya (termasuk tema terang/gelap)
     icons\                 7 berkas ikon (SVG + PNG 32/192/512/maskable/apple-touch)
     js\
-      boot-tema.js         skrip klasik sinkron di <head> (anti kilasan tema)
+      boot-tema.js         skrip klasik sinkron di <head> (anti kilasan tema & ukuran sidebar)
+      jaring-sesi.js       skrip klasik sinkron di <head> (jaring pengaman layar "Memeriksa sesi masuk...")
       main.js              ENTRY POINT tunggal: orkestrasi, login, navigasi, langganan data
+      sidebar.js           initSidebar + pintu re-export; logikanya di sidebar\
+      sidebar\             menu-bagian, gulir, status-koneksi, akun, drawer, tooltip, navigasi
       config\
         constants.js       semua konstanta (email pemilik, scope, endpoint, kunci storage, kuota)
         firebase.js        firebaseConfig + OAuth Client ID  ← titik utama "ganti proyek"
@@ -116,7 +119,8 @@ Aturan yang wajib dipatuhi saat mengubah kode:
 | `sampah` | Tempat Sampah | kegiatan/catatan/dokumen/foto/laporan terhapus, pulihkan sebelum 30 hari |
 | `pengaturan` | Pengaturan | tema, status akun & Drive, sinkron folder, cadangan JSON, info aplikasi |
 
-Menu didefinisikan di `public/js/sidebar.js` (`MENU_SECTIONS`). Urutan array menentukan
+Menu didefinisikan di `public/js/sidebar/menu-bagian.js` (`MENU_SECTIONS`), diimpor ulang
+oleh `public/js/sidebar.js` sehingga konsumen lama tidak perlu diubah. Urutan array menentukan
 urutan menu dan section yang dibuat otomatis bila belum ada di `index.html`.
 
 ### 2.4 Pola modul fitur
@@ -125,7 +129,7 @@ Setiap modul mengikuti pola yang sama:
 
 | Berkas | Peran |
 |---|---|
-| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). Modul yang sudah besar boleh dipecah lebih lanjut — sejak v1.8.52 `kegiatan/state.js`, sejak v1.8.54 `laporan/state.js`, sejak v1.8.55 `dokumen/state.js`, sejak v1.8.57 `catatan/state.js`, sejak v1.8.58 `pengaturan/state.js`, sejak v1.8.59 `sampah/state.js`, dan sejak v1.8.60 `kategori/state.js` (pabrik — dipecah menjadi `inti`/`langganan`/`mutasi` dengan objek konteks) hanya pintu re-export; isinya dipecah ke berkas per tanggung jawab (`inti`, `kueri`/`sumber`, `mutasi`, `hapus`, `libur`, `cadangan`, `langganan`/`penyusun`, `riwayat`), dengan impor satu arah tanpa lingkaran. |
+| `state.js` | cache data, langganan realtime Firestore, operasi tulis. Tanpa DOM. Sejak v1.8.51 memanggil `services/firestoreRepository.js` (tidak lagi menyusun kueri SDK sendiri). Modul yang sudah besar boleh dipecah lebih lanjut — sejak v1.8.52 `kegiatan/state.js`, sejak v1.8.54 `laporan/state.js`, sejak v1.8.55 `dokumen/state.js`, sejak v1.8.57 `catatan/state.js`, sejak v1.8.58 `pengaturan/state.js`, sejak v1.8.59 `sampah/state.js`, dan sejak v1.8.60 `kategori/state.js` (pabrik — dipecah menjadi `inti`/`langganan`/`mutasi` dengan objek konteks) hanya pintu re-export; isinya dipecah ke berkas per tanggung jawab (`inti`, `kueri`/`sumber`, `mutasi`, `hapus`, `libur`, `cadangan`, `langganan`/`penyusun`, `riwayat`), dengan impor satu arah tanpa lingkaran. Pola yang sama dipakai di luar modul: sejak v1.8.61 `js/boot-tema.js` (dan `js/jaring-sesi.js`), sejak v1.8.62 `js/sidebar.js` yang kini hanya `initSidebar` + pintu re-export dan memindahkan isinya ke `js/sidebar/*.js`. |
 | `format.js` | format tampilan (tanggal, ukuran, ikon jenis berkas) |
 | `view.js` | perakitan HTML & pembacaan DOM. Tanpa API. |
 | `controller.js` | event listener, delegasi klik, orkestrasi state ↔ view |
@@ -133,7 +137,8 @@ Setiap modul mengikuti pola yang sama:
 
 ### 2.5 Alur muat aplikasi
 
-1. `boot-tema.js` (sinkron) memasang tema & status sidebar sebelum CSS dirender.
+1. `boot-tema.js` (sinkron) memasang tema & status sidebar sebelum CSS dirender;
+   `jaring-sesi.js` (sinkron, sesudahnya) memasang jaring pengaman layar "Memeriksa sesi masuk...".
 2. `main.js` → `mulaiAplikasi()`: baca pintasan URL, `initTema()`, registrasi service worker.
 3. Bila `isFirebaseConfigured()` gagal → layar `config-error` (panduan isi `firebase.js`).
 4. `initAuth()` memantau status login Firebase; email ≠ `AUTHORIZED_EMAIL` → langsung dikeluarkan.
@@ -248,8 +253,8 @@ divalidasi oleh aturan — **jangan mengganti nama ID**.
 | `foto` | `dihapusAt` ASC, `createdAt` DESC | galeri foto kegiatan terbaru |
 | `laporan` | `dihapusAt` ASC, `createdAt` DESC | riwayat laporan terbaru |
 
-Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.60 —
-Tahap D dan Tahap 2 tidak menambah kueri gabungan baru, sehingga deploy cukup `--only hosting`.
+Tujuh indeks di atas sudah cukup untuk seluruh kueri gabungan aplikasi pada v1.8.62 —
+Tahap 6, Tahap 7a, dan Tahap 7b tidak menambah kueri gabungan baru, sehingga deploy cukup `--only hosting`.
 
 Bila menambah kueri gabungan baru, Firestore akan menolak dengan tautan pembuatan indeks —
 salin indeks itu ke berkas ini agar ikut ter-deploy.
@@ -492,10 +497,10 @@ Token akses Google **tidak pernah** disimpan ke Firestore maupun localStorage pe
 | `firestore.rules` | email pada `isOwner()`, nilai `pemilikUid()` |
 | `.firebaserc` | `projects.default`, `projects`/`targets` (project ID & site hosting) |
 | `firebase.json` | `hosting.target` (bila nama target berubah), CSP bila domain baru |
-| `public/index.html` | `og:url`, `og:image`, `twitter:image`, teks `#authorized-owner-email`, judul/deskripsi |
+| `public/index.html` | `og:url`, `og:image`, `twitter:image`, teks `#authorized-owner-email`, judul/deskripsi; **atribut `data-kunci-tema`/`data-kunci-sidebar` pada `<html>`** (sumber tunggal kunci localStorage — lihat catatan di bawah) |
 | `public/js/modules/pengaturan/view.js` | teks `msgkuna.web.app` pada kartu "Teknologi yang Digunakan" |
 | `public/manifest.webmanifest` | nama, deskripsi, ikon (bila rebranding) |
-| `public/js/boot-tema.js` | kunci `agenda_arsip_tema` (duplikat sengaja; harus sama dengan constants) |
+| `public/js/boot-tema.js` | warna `theme-color` (`#0f172a` gelap / `#0B5FA5` terang) dan kunci localStorage cadangan — **kunci sebenarnya ada di atribut `<html>` pada index.html**; ubah keduanya bersamaan dengan `public/js/tema.js`, `public/manifest.webmanifest`, dan meta `theme-color` di index.html |
 
 Cara cepat menemukan semuanya:
 

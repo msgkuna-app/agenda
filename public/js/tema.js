@@ -6,6 +6,14 @@
 import { STORAGE_KEY_TEMA } from "./config/constants.js";
 
 /**
+ * Warna bilah peramban (meta theme-color).
+ * Nilai ini WAJIB sama dengan pasangan warna di js/boot-tema.js (skrip klasik yang tidak
+ * bisa mengimpor) dan dengan "theme_color" di manifest.webmanifest + meta di index.html.
+ */
+export const WARNA_TEMA_TERANG = "#0B5FA5";
+export const WARNA_TEMA_GELAP = "#0f172a";
+
+/**
  * Membaca preferensi tema tersimpan.
  * @returns {"light" | "dark" | "system"}
  */
@@ -41,7 +49,10 @@ export function terapkanTema(pilihan) {
 
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute("content", efektif === "dark" ? "#162836" : "#0069a8");    
+    meta.setAttribute(
+      "content",
+      efektif === "dark" ? WARNA_TEMA_GELAP : WARNA_TEMA_TERANG,
+    );
   }
 
   const semuaTombol = document.querySelectorAll(".theme-choice-btn[data-theme-choice]");
